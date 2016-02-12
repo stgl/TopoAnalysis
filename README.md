@@ -1,2 +1,2 @@
 # steepness
-Global channel steepness analysis
+Code impleneting flow routing and relief calculations for global channel steepness analysis
