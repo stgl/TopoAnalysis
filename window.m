@@ -6,11 +6,10 @@ function outgrid = window(ingrid, radius, functionname)
     %% INPUT:   ingrid - input grid struct
     %%          radius - search radius in grid resolution units
     %%          functionname - function handle for desired calculation
-    %%          takes two arguments: x, the central value
-    %%                               v, column vector of neighboring values
+    %%          takes one arguments: v, vector of values in window with central value first
     %%
     %% EXAMPLE: local relief over 100 m radius search kernel 
-    %% lrelief = @(x, v) nanmax([x v']) - nanmin([x v']);
+    %% lrelief = @(v) max(v) - min(v);
     %% outgrid = window(dem, 100, lrelief);
     %% 
 
@@ -20,8 +19,8 @@ function outgrid = window(ingrid, radius, functionname)
 
     for(i=1:m)
         for(j=1:n)
-            neighb = clipkernel(i, j, [m,n], radius, ingrid.de);
-            outgrid.grid(i,j) = feval(functionname, ingrid.grid(i,j), [ingrid.grid(neighb)]);
+            win = clipkernel(i, j, [m,n], radius, ingrid.de);
+            outgrid.grid(i,j) = feval(functionname, win);
         end
     end
 
