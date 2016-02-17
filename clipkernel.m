@@ -1,7 +1,7 @@
 function kern = clipkernel(i, j, dims, radius, de)
     
     %% Return grid values at indices within a square search kernel of specified
-    %% radius
+    %% radius. First index is location of central element in kernel.
 
     idx = sub2ind(dims, i, j);
     
