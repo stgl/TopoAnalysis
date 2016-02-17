@@ -19,8 +19,8 @@ function outgrid = window(ingrid, radius, functionname)
 
     for(i=1:m)
         for(j=1:n)
-            neighb = clipkernel(i, j, [m,n], radius, ingrid.de);
-            win = [ingrid.grid(i,j) ingrid.grid(neighb)];
+            kern = clipkernel(i, j, [m,n], radius, ingrid.de);
+            win = ingrid.grid(kern);
             outgrid.grid(i,j) = feval(functionname, win);
         end
     end
