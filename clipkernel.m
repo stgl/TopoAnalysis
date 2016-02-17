@@ -1,4 +1,4 @@
-function neighb = clipkernel(i, j, dims, radius, de)
+function kern = clipkernel(i, j, dims, radius, de)
     
     %% Return grid values at indices within a square search kernel of specified
     %% radius
@@ -14,5 +14,6 @@ function neighb = clipkernel(i, j, dims, radius, de)
 
     neighb = sub2ind(dims, I(mask), J(mask));
     neighb = neighb(neighb ~= idx);
+    kern = [idx neighb'];
 
 end
