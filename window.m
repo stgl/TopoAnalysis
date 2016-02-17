@@ -8,9 +8,9 @@ function outgrid = window(ingrid, radius, functionname)
     %%          functionname - function handle for desired calculation
     %%          takes one arguments: v, vector of values in window with central value first
     %%
-    %% EXAMPLE: local relief over 100 m radius search kernel 
+    %% EXAMPLE: local relief over 5 km radius search kernel 
     %% lrelief = @(v) max(v) - min(v);
-    %% outgrid = window(dem, 100, lrelief);
+    %% outgrid = window(dem, 5000, lrelief);
     %% 
 
     [m,n] = size(ingrid.grid);
