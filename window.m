@@ -30,7 +30,7 @@ function outgrid = window(ingrid, radius, functionname)
             jj = [j jj];
 
             win = ingrid.grid(ii, jj);
-            outgrid.grid(i,j) = feval(functionname, win);
+            outgrid.grid(i,j) = feval(functionname, win(:));
         end
     end
 
