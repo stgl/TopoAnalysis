@@ -16,11 +16,20 @@ function outgrid = window(ingrid, radius, functionname)
     [m,n] = size(ingrid.grid);
     outgrid = ingrid;
     outgrid.grid = nan*ones(m,n);
+    ncells = floor(radius/ingrid.de);
+    nr = -ncells:1:ncells;
+    nc = nr;
 
     for(i=1:m)
         for(j=1:n)
-            kern = clipkernel(i, j, [m,n], radius, ingrid.de);
-            win = ingrid.grid(kern);
+            ii = i + nr;
+            jj = j + nc;
+            ii = ii(ii > 0 & ii <= m & ii ~= i);
+            jj = jj(jj > 0 & jj <= n & jj ~= j);
+            ii = [i ii];
+            jj = [j jj];
+
+            win = ingrid.grid(ii, jj);
             outgrid.grid(i,j) = feval(functionname, win);
         end
     end
