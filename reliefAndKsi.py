@@ -4,20 +4,23 @@ from matplotlib import pyplot as plt
 
 #What is the base path for the file we need to run? This assumes that the extensions are specified as written
 # in the hydroshesProccessing.py function 'loadGrids'
+basePath = '/Users/johnstone/Box Sync/GlobalSteepness/Datasets/ClippedAlps/Individuals/Alps'
+outPath = '/Users/johnstone/Box Sync/GlobalSteepness/Datasets/ClippedAlps/Individuals/Derivatives'
+
 # basePath = '/Users/johnstone/Box Sync/GlobalSteepness/Datasets/TestCases/mad_'
 # outPath = '/Users/johnstone/Box Sync/GlobalSteepness/Datasets/TestCases/Derivatives/mad_'
 
-basePath = 'D:\Box Sync\GlobalSteepness\Datasets\TestCases\cors_'
-outPath = 'D:\Box Sync\GlobalSteepness\Datasets\TestCases\Derivatives\cors_'
+# basePath = 'D:\Box Sync\GlobalSteepness\Datasets\TestCases\mad_'
+# outPath = 'D:\Box Sync\GlobalSteepness\Datasets\TestCases\Derivatives\mad_'
 
 #Load in the different grids
 dem, flowAcc, flowDir, lats, longs,geoTransform = hp.loadGrids(basePath)
 
 #What is the no data value? Should improve this to automatically find things
-ndv = -9999.0
+ndv = -32768.0
 
 #What parameters do we want to use?
-theta = 0.5 #Scaling power of drainage area
+theta = 0.7 #Scaling power of drainage area
 Ao = 500**2 #Approximate drainage area of a pixel
 
 #Calculate the areas of each pixels
@@ -34,7 +37,6 @@ maxTransportLength, meanDirs, maxZalongMaxL, areas, intA = hp.calculateAll(flowD
 # np.save(outPath+'intA.npy',intA)
 
 
-
 #Makes some plots!
 maxKsn = 300
 maxChiSlope = maxKsn/(Ao**theta)
@@ -42,8 +44,10 @@ maxChiSlope = maxKsn/(Ao**theta)
 plt.rc('text',usetex=True)
 plt.plot(intA,(maxZalongMaxL - dem), '.k')
 chiRange = np.linspace(0,np.nanmax(intA))
+plt.plot(chiRange,chiRange*maxChiSlope/2.0,'-g',label='Ksn = %s' % (maxKsn/2.0))
 plt.plot(chiRange,chiRange*maxChiSlope,'-r',label='Ksn = %s' % maxKsn)
-plt.xlabel(r'Downstream integrated $A^{m/n}, \xi, [m]$')
+plt.plot(chiRange,chiRange*maxChiSlope*2.0,'-b',label='Ksn = %s' % (maxKsn*2.0))
+plt.xlabel(r'Downstream integrated $A^{m/n}, \xi, [m], \theta = %.1f $'%theta)
 plt.ylabel('Relief [m]')
 plt.legend(loc='upper left')
 plt.ylim((0,np.nanmax((maxZalongMaxL - dem))))
