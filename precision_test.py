@@ -4,8 +4,10 @@ import gdal
 import numpy as np
 
 # Read in files
-fnASCII = 'malta_acc_15s.asc'
-fnTIFF = 'malta_acc_15s.tif'
+fnASCII = 'malta_area_15s.asc'
+fnTIFF = 'malta_area_15s.tif'
+
+#gdal.SetConfigOption('AAIGRID_DATATYPE', 'Float32')
 
 src = gdal.Open(fnASCII)
 accASCII = src.ReadAsArray().astype(np.float64)
@@ -28,12 +30,18 @@ while True:
     if(accTIFF[r][c] != 0 and ~np.isnan(accTIFF[r][c])):
         break
 
+# or perform quic kcheck with first element (Malta)
+r = 0
+c = 0
+ref = 0.173059156637050
+
 # Check precision
 print('Element: %d, %d' % (r, c))
 print('TIFF datatype: ' + typeTIFF)
-print('ASCII datatype: ' + typeASCII)
+print('ASCII datatype: ' + typeASCII) + '\n'
 
-print('TIFF value: %.20f ' % accTIFF[r][c])
-print('ASCII value: %.20f '% accASCII[r][c])
+print('Actual value:\t%.20f ' % ref)
+print('TIFF value:\t%.20f ' % accTIFF[r][c])
+print('ASCII value:\t%.20f \n'% accASCII[r][c])
 
-print('Error: %.20f ' % (accTIFF[r][c] - accASCII[r][c]))
+print('Error:\t\t%.20f ' % abs(ref - accASCII[r][c]))
