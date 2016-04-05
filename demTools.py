@@ -14,29 +14,379 @@ import numpy as np # Used for tons o stuff, keeping most data stored as numpy ar
 import subprocess # Used to run gdal_merge.py from the command line
 import re #regex for checking strings
 from matplotlib import pyplot as plt # Used to get user input on plots
-from gdalconst import *
+import Error
+from numpy import uint8
 
 
-class gdalGeoRefInfo:
-    def __init__(self, ncols, nrows, projection, geoTransform):
-        #A class for storing the gdal information needed for creating georeferenced raster data
-        #the geotransform is (xUL, dx, 0, yUL, 0, -dx)
-        self.ncols = ncols
-        self.nrows = nrows
-        self.projection = projection
-        self.geoTransform = geoTransform
-        self.dx = geoTransform[1]
-        self.xllcenter = geoTransform[0]+self.dx/2.0
-        self.yllcenter = geoTransform[3]-(self.dx*(nrows-0.5))
+class GDALMixin(object):
+    
+    def _get_gdal_type_for_numpy_type(self, numpy_type):
+    
+        from numpy import float64, uint8, uint16, int16, uint32, int32, float32, complex64
+        from gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64, GDT_Unknown
+        
+        type_map = { uint8: GDT_Byte,
+                uint16: GDT_UInt16,
+                int16: GDT_Int16,
+                uint32: GDT_UInt32,
+                int32: GDT_Int32,
+                float32: GDT_Float32,
+                float64: GDT_Float64,
+                complex64: GDT_CFloat64 }
+        
+        gdal_type = type_map.get(numpy_type)
+        
+        if gdal_type is None:
+            return GDT_Unknown
+        else:
+            return gdal_type
+    
+    def _get_numpy_type_for_gdal_type(self, gdal_type):
+        
+        from numpy import float64, uint8, uint16, int16, uint32, int32, float32, complex64
+        from gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64
+                    
+        type_map = { GDT_Byte: uint8,
+                GDT_UInt16: uint16,
+                GDT_Int16: int16,
+                GDT_UInt32: uint32,
+                GDT_Int32: int32,
+                GDT_Float32: float32,
+                GDT_Float64: float64,
+                GDT_CFloat64: complex64}
+        
+        numpy_type = type_map.get(gdal_type)
+        
+        if numpy_type is None:
+            return float64
+        else:
+            return numpy_type
+    
+    def readGDALFile(self, filename, dtype):
+        file = gdal.Open(filename)
+        data = file.ReadAsArray().astype(dtype)
+        geoTransform = file.GetGeoTransform()
+        file = None
+        return data, geoTransform
+                
+    def getGeoRefInfo(self, gdalDataset):
+        #Get info needed to initialize new dataset
+        nx = gdalDataset.RasterXSize
+        ny = gdalDataset.RasterYSize
+    
+        #Write geographic information
+        geoTransform = gdalDataset.GetGeoTransform()  # Steal the coordinate system from the old dataset
+        projection = gdalDataset.GetProjection()  # Steal the Projections from the old dataset
+    
+        return nx, ny, projection, geoTransform
+    
+    def createDataSetFromArray(self, georef_info, outfile_path, GDALDRIVERNAME, array_data, dtype):
+        #A function to write the data in the numpy array arrayData into a georeferenced dataset of type
+        #  specified by GDALDRIVERNAME, a string, options here: http://www.gdal.org/formats_list.html
+        #  This is accomplished by copying the georeferencing information from an existing GDAL dataset,
+        #  provided by createDataSetFromArray
+    
+        #Initialize new data
+        drvr = gdal.GetDriverByName(GDALDRIVERNAME)  #  Get the desired driver
+        outRaster = drvr.Create(outfile_path, georef_info.nx, georef_info.ny, 1 , self._get_gdal_type_for_numpy_type(dtype))  # Open the file
+    
+        #Write geographic information
+        outRaster.SetGeoTransform(georef_info.geoTransform)  # Steal the coordinate system from the old dataset
+        outRaster.SetProjection(georef_info.projection)   # Steal the Projections from the old dataset
+    
+        #Write the array
+        outRaster.GetRasterBand(1).WriteArray(array_data)   # Writes my array to the raster
+        outRaster = None
+    
+    def getUTMZone(self, dataset):
+        #Function to get the approximate UTM zone %NOTE: I need to check how east and west are handled...
+    
+        #Utm zone boundary (zones are numbered in order, 1:60) #NEED TO DOUBLE CHECK THIS
+        westBound = np.array([-180 + x*6 for x in range(60)]) #west boundary of 6 degree UTM zone bounds
+        eastBound = np.array([-174 + x*6 for x in range(60)]) #east boundary of 6 degree UTM zone bounds
+    
+        #Midpoint of dataset
+        tVect = dataset.GetGeoTransform()  # Get the coordinate transform vector, (ulx, dx, xRot, uly, yRot, -dx)
+        nx, ny = dataset.RasterXSize, dataset.RasterYSize #Get the number of colums and rows
+        midLat = tVect[3]-tVect[1]*ny/2.0 #half way down the dataset
+        midLong = tVect[0]+tVect[1]*nx/2.0 #half way across the dataset
+    
+        #Convert UTM zone to negative to distinguish it as south (if appropriate)
+        southMultiplier = 1
+        if midLat < 0:
+            southMultiplier = -1
+    
+        #The utm zone, the index of the boundaries that surround the point incremented to account for pythons 0 indexing
+        zone = np.nonzero(np.logical_and(midLong > westBound, midLong < eastBound))[0] + 1
+    
+        return zone*southMultiplier
+    
+class AIMixin(object):   
+    
+    def _getRasterGeoTransformFromAsciiRaster(self, fileName):
+        #Read in the components of the geotransform from the raster, BEWARE! This
+        #is specific to how some matlab/ C scripts I have write these rasters. I believe
+        #this is that standard arc ascii raster export format, but could be wrong
+        georef_data = dict()
+        
+        with open(fileName, "r") as file:
+            for _ in xrange(5):
+                line = file.readline()
+                (key, value) = (line.split()[1], int(line.split()[-1]))
+                georef_data[key.lower()] = value
 
+        required_values = ('ncols', 'nrows', 'cellsize','nodata_value')
+        
+        if len(set(required_values).subtract(set(georef_data.keys()))) != 0:
+            raise Error.InputError('A/I ASCII grid error','The following properties are missing: ' + set(required_values).subtract(set(georef_data.keys())))
+        
+        if georef_data.get('xllcorner') is None and georef_data.get('xllcenter') is None:
+            raise Error.InputError('A/I ASCII grid error','Neither XLLCorner nor XLLCenter is present.')
+        
+        if georef_data.get('yllcorner') is None and georef_data.get('yllcenter') is None:
+            raise Error.InputError('A/I ASCII grid error','Neither YLLCorner nor YLLCenter is present.')
+        
+        dx = georef_data.get('cellsize')
+        nx = georef_data.get('ncols')
+        ny = georef_data.get('nrows')
+        
+        if georef_data.get('xllcenter') is not None:
+            xUL = georef_data.get('xllcenter') - (dx/2.0)
+        else:
+            xUL = georef_data.get('xllcorner');
+        
+        if georef_data.get('yllcenter') is not None:
+            yUL = (georef_data.get('yllcenter') - (dx/2.0)) + dx*ny
+        else:
+            yUL = georef_data.get('yllcorner') + dx*ny
+    
+        return (xUL, dx, 0, yUL, 0, -dx), nx, ny
+    
+    def writeArcAsciiRaster(self, georef_info, outfile_path, np_array_data, nodata_value, format_string):
+        #A function to write the data stored in the numpy array npArrayData to a ArcInfo Text grid. Gdal doesn't
+        #allow creation of these types of data for whatever reason
+    
+        header = "ncols     %s\n" % georef_info.ncols
+        header += "nrows    %s\n" % georef_info.nrows
+        header += "xllcenter %s\n" % georef_info.xllcenter
+        header += "yllcenter %s\n" % georef_info.yllcenter
+        header += "cellsize %s\n" % georef_info.dx
+        header += "NODATA_value %s" % nodata_value
+    
+        np.savetxt(outfile_path, np_array_data, header=header, fmt=format_string, comments='')
+    
+    def AsciiRasterToMemory(self, fileName, EPSGprojectionCode):
+
+        # the geotransfrom structured as (xUL, dx, skewX, yUL, scewY, -dy)
+        gt, nx, ny = self._getRasterGeoTransformFromAsciiRaster(fileName)
+    
+        #Open gdal dataset
+        ds = gdal.Open(fileName)
+    
+        #Prep output
+        memDrv = gdal.GetDriverByName('MEM')  # Create a gdal driver in memory
+        dataOut = memDrv.CreateCopy('name', ds, 0) #Copy data to gdal driver
+    
+        #Set the location
+        dataOut.SetGeoTransform(gt)  # Set the new geotransform
+    
+        # Get raster projection
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(EPSGprojectionCode)
+        wkt = srs.ExportToWkt()
+    
+        # Set projection
+        dataOut.SetProjection(wkt)
+    
+        return dataOut
+
+class GeographicGridMixin(object):
+    
+    def getLatsLongsFromGeoTransform(self, geoTransform, nx, ny):
+        dLong = geoTransform[1]
+        dLat = geoTransform[5]
+    
+        #Determine the location of the center of the first pixel of the data
+        xllcenter = geoTransform[0]+dLong/2.0
+        yllcenter = geoTransform[3]+dLat/2.0
+    
+        #Assign the latitudinal (i.e. y direction) coordinates
+        lats = np.zeros(ny)
+        for i in range(len(lats)):
+            lats[i] = yllcenter + i*dLat
+    
+        #Assign the longitudinal (i.e. x direction) coordinates
+        longs = np.zeros(nx)
+        for i in range(len(longs)):
+            longs[i] = xllcenter + i*dLong
+    
+        return lats,longs
+    
+    def approximateDxFromGeographicData(self, geoTransform):
+        #Function to return the approximate grid spacing in Meters. Will return the closest integer value
+        dTheta = geoTransform[1] #Angular grid spacing
+        metersPerDegree = 110000 #110 km per degree (approximation)
+        return int(dTheta*metersPerDegree) #convert degrees to meters
+    
+    
+class BaseSpatialGrid(object):
+    
+    from numpy import float64
+    
+    required_inputs = (('nx', 'ny', 'projection', 'geo_transform',),('ai_ascii_filename',),('gdal_filename',),)
+    dtype = float64
+    
+    def __init__(self, *args, **kwargs):
+        
+        from numpy import zeros
+        super(BaseSpatialGrid,self).__init(*args, **kwargs)
+
+        if len(set(kwargs.keys()).subtract(set(self.required_inputs))) != 0:
+            raise Error.InputError('Input Error', 'Input requires: ' + self.required_inputs)
+        
+        self._geoTransform = kwargs.get('geo_transform')
+        self._georef_info.projection = kwargs.get('projection')
+        self._georef_info.dx = self._geoTransform[1]
+        self._georef_info.xllcenter = self._geoTransform[0]+self._dx/2.0
+        self._georef_info.yllcenter = self._geoTransform[3]-(self._dx*(self._ny-0.5))
+        self._georef_info.nx = kwargs.get('nx')
+        self._georef_info.ny = kwargs.get('ny')
+        
+        
+        self._griddata = zeros(shape = (self._geref_info.ny,self._georef_info.nx), dtype = self.dtype)
+
+    def dx(self):
+        return self._georef_info.dx
+    
+    def _xy_to_rowscols(self, v):
+        l = list()
+        for (x,y) in v:
+            col = round((x-self._georef_info.xllcenter)/self._georef_info.dx)
+            row = round((y-self._georef_info.yllcenter)/self._georef_info.dx)
+            if col > self._georef_info.nx or row > self._georef_info.ny:
+                l.append((None, None))
+            else:
+                l.append(row,col)
+        return tuple(l)
+    
+    def _rowscols_to_xy(self, l):
+        from numpy import float64
+        v = list()
+        for(row,col) in l:
+            x = float64(col)*self._georef_info.dx + self._georef_info_xllcenter
+            y = float64(row)*self._georef_info.dx + self._georef_info_yllcenter
+            v.append((x,y))
+        return tuple(v)
+    
+    def apply_moving_window(self, moving_window, dtype):
+        out_grid = None
+        out_grid._georef_info = self._georef_info
+        out_grid._griddata = moving_window.apply_moving_window(self)
+        return out_grid
+
+class FlowDirection(BaseSpatialGrid):
+    
+    from numpy import uint8
+    dtype = uint8
+    
+    def __getNeighborIndices(self, row, col):
+        #Search kernel for D8 flow routing, the relative indices of each of the 8 points surrounding a pixel
+        # |i-1,j-1  i-1,j  i-1,j+1|
+        # |i,j-1     i,j     i,j+1|
+        # |i+1,j-1  i+1,j  i+1,j+1|
+        rowKernel = np.array([1, 1, 1, 0, 0, -1, -1, -1])
+        colKernel = np.array([-1, 0, 1, -1, 1, -1, 0, 1])
+    
+        rt2 = np.sqrt(2)
+        dxMults = np.array([rt2, 1.0, rt2, 1.0, 1.0, rt2, 1.0, rt2])  # Unit Distance from pixel to surrounding coordinates
+    
+        #Find all the surrounding indices
+        outRows = rowKernel + row
+        outCols = colKernel + col
+    
+        #Determine which indices are out of bounds
+        inBounds = (outRows >= 0)*(outRows < self._georef_info.ny)*(outCols >= 0)*(outCols < self._georef_info.nx)
+        return (outRows[inBounds], outCols[inBounds], dxMults[inBounds])
+
+    def getFlowToCell(self,i,j):
+        #Function to get the indices of the cell that is drained to based on the flow direction specified in fd
+            
+        iOut = None
+        jOut = None
+        isGood = False
+    
+        if self._griddata(i,j) == 1 and j+1 < self._georef_info.nx:
+            iOut = i
+            jOut = j+1
+        elif self._griddata(i,j) == 2 and i+1 < self._georef_info.ny and j+1 < self._georef_info.nx:
+            iOut = i+1
+            jOut = j+1
+        elif self._griddata(i,j) == 4 and i+1 < self._georef_info.ny:
+            iOut = i+1
+            jOut = j
+        elif self._griddata(i,j) == 8 and i+1 < self._georef_info.ny and j-1 >= 0:
+            iOut = i+1
+            jOut = j-1
+        elif self._griddata(i,j) == 16 and j-1 >= 0:
+            iOut = i
+            jOut = j-1
+        elif self._griddata(i,j) == 32 and i-1 >= 0 and j-1 >= 0:
+            iOut = i-1
+            jOut = j-1
+        elif self._griddata(i,j) == 64 and i-1 >= 0:
+            iOut = i-1
+            jOut = j
+        elif self._griddata(i,j) == 128 and i-1 >= 0 and j+1 < self._georef_info.nx:
+            iOut = i-1
+            jOut = j+1
+    
+        if not(iOut is None):
+            isGood = True
+    
+        return iOut, jOut, isGood
+
+    def searchDownFlowDirection(self, start):
+    
+        l = list()
+        (row, col) = self._xy_to_rowscols(start)
+        l.append((row,col))
+        #So long as we are not at the edge of the DEM
+        while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1):
+            # Get the neighbors in the flow direction corresponding order - note, I might be in danger the way I handle this...
+            # Flow directions are indices of arrays which may be different sizes, this is not truly giving me flow directions
+            # Because in the getNeighbor function I don't return values at edges.... might want to think about improving this,
+            # although it should work in this application, and damn if it isn't clean
+            row,col,inBounds = self.__getFlowToCell(row, col) # Find the indices of the cell we drain too, only need first two inputs
+            if not inBounds:
+                break    
+            l.append((row, col))
+            
+        return tuple()
+
+    def convert_rivertools_directions_to_arc(self):
+        # Function to convert river tools flow directions to arcGisFlowDirections
+          # ArcGIS convention
+        # |i-1,j-1  i-1,j  i-1,j+1|  |32 64 128|
+        # |i,j-1     i,j     i,j+1|  |16  X  1 |
+        # |i+1,j-1  i+1,j  i+1,j+1|  |8   4  2 |
+        # In river tools convention the 1 is in the top right
+                
+        convertedFlowDir = int(np.log2(self._griddata))
+        convertedFlowDir -= 1
+        convertedFlowDir[convertedFlowDir == -1] = 7
+        convertedFlowDir = 2**convertedFlowDir
+        convertedFlowDir[self._griddata == self.noData] = noData
+        self._griddata = convertedFlowDir
+        
+   
 class priorityQueue:
     #Implements a priority queue using heapq. Python has a priority queue module built in, but it
-    # is not stabley sorted (meaning that two items who are tied in priority are treated arbitrarily, as opposed to being
+    # is not stably sorted (meaning that two items who are tied in priority are treated arbitrarily, as opposed to being
     # returned on a first in first out basis). This circumvents that by keeping a count on the items inserted and using that
     # count as a secondary priority
 
     def __init__(self):
-        # A counter and the number of items are stored seperately to ensure that items remain stabley sorted and to
+        # A counter and the number of items are stored separately to ensure that items remain stably sorted and to
         # keep track of the size of the queue (so that we can check if its empty, which will be useful will iterating
         # through the queue)
         self.__pq = []
@@ -59,52 +409,10 @@ class priorityQueue:
     def isEmpty(self):
         return self.__nItems == 0
 
-def writeArcAsciiRaster(geoRefInfo, outfilePath, npArrayData, noDataValue, formatString):
-    #A function to write the data stored in the numpy array npArrayData to a ArcInfo Text grid. Gdal doesn't
-    #allow creation of these types of data for whatever reason
 
-    header = "ncols     %s\n" % geoRefInfo.ncols
-    header += "nrows    %s\n" % geoRefInfo.nrows
-    header += "xllcenter %s\n" % geoRefInfo.xllcenter
-    header += "yllcenter %s\n" % geoRefInfo.yllcenter
-    header += "cellsize %s\n" % geoRefInfo.dx
-    header += "NODATA_value %s" % noDataValue
 
-    np.savetxt(outfilePath, npArrayData, header=header, fmt=formatString, comments='')
 
-def createDataSetFromArray(geoRefInfo, outfilePath, GDALDRIVERNAME, arrayData):
-    #A function to write the data in the numpy array arrayData into a georeferenced dataset of type
-    #  specified by GDALDRIVERNAME, a string, options here: http://www.gdal.org/formats_list.html
-    #  This is accomplished by copying the georeferencing information from an existing GDAL dataset,
-    #  provided by createDataSetFromArray
 
-    #Get info needed to initialize new dataset
-    ncols = geoRefInfo.ncols
-    nrows = geoRefInfo.nrows
-
-    #Initialize new data
-    drvr = gdal.GetDriverByName(GDALDRIVERNAME)  #  Get the desired driver
-    outRaster = drvr.Create(outfilePath, ncols, nrows, 1 , gdal.GDT_Float32)  # Open the file
-
-    #Write geographic information
-    outRaster.SetGeoTransform(geoRefInfo.geoTransform)  # Steal the coordinate system from the old dataset
-    outRaster.SetProjection(geoRefInfo.projection)   # Steal the Projections from the old dataset
-
-    #Write the array
-    outRaster.GetRasterBand(1).WriteArray(arrayData)   # Writes my array to the raster
-
-    outRaster = None
-
-def getGeoRefInfo(gdalDataset):
-    #Get info needed to initialize new dataset
-    ncols = gdalDataset.RasterXSize
-    nrows = gdalDataset.RasterYSize
-
-    #Write geographic information
-    geoTransform = gdalDataset.GetGeoTransform()  # Steal the coordinate system from the old dataset
-    projection = gdalDataset.GetProjection()  # Steal the Projections from the old dataset
-
-    return gdalGeoRefInfo(ncols, nrows, projection, geoTransform)
 
 def mosaicFolder(folderPath, fileSuffix, outfile):
     #This runs the gdal utility gdal_merge on the command line, is mainly here so that I don't have to continue looking
@@ -120,172 +428,14 @@ def mosaicFolder(folderPath, fileSuffix, outfile):
     # sys.argv = argv
     subprocess.call(argument)
 
-def getRasterGeoTransformFromAsciiRaster(fileName):
-
-    #Read in the components of the geotransform from the raster, BEWARE! This
-    #is specific to how some matlab/ C scripts I have write these rasters. I believe
-    #this is that standard arc ascii raster export format, but could be wrong
-    with open(fileName, "r") as file:
-        line = file.readline()
-        nx = int(line.split()[-1])
-        line = file.readline()
-        ny = int(line.split()[-1])
-        line = file.readline()
-        xllcenter = float(line.split()[-1])
-        line = file.readline()
-        yllcenter = float(line.split()[-1])
-        line = file.readline()
-        dx = float(line.split()[-1])
-
-    xUL = xllcenter - (dx/2.0)
-    yUL = (yllcenter - (dx/2.0)) + dx*ny
-
-    return (xUL, dx, 0, yUL, 0, -dx), nx, ny
-
-def AsciiRasterToMemory(fileName, EPSGprojectionCode):
-
-    # the geotransfrom structured as (xUL, dx, skewX, yUL, scewY, -dy)
-    gt, nx, ny = getRasterGeoTransformFromAsciiRaster(fileName)
-
-    #Open gdal dataset
-    ds = gdal.Open(fileName)
-
-    #Prep output
-    memDrv = gdal.GetDriverByName('MEM')  # Create a gdal driver in memory
-    dataOut = memDrv.CreateCopy('name', ds, 0) #Copy data to gdal driver
-
-    #Set the location
-    dataOut.SetGeoTransform(gt)  # Set the new geotransform
-
-    # Get raster projection
-    srs = osr.SpatialReference()
-    srs.ImportFromEPSG(EPSGprojectionCode)
-    wkt = srs.ExportToWkt()
-
-    # Set projection
-    dataOut.SetProjection(wkt)
-
-    return dataOut
-
-def searchDownFlowDirection(flowDir, area, dem, dx, start = None, doTrim = True):
-    #NOTE: I am copying the output areas each iteration... should really pre-allocate
-    #  i,j,a,z = searchDownFlowDirection(np.array() area,np.array() dem, tuple (rowStart,ColumnStart) start, boolean doTrim)
-    #  Searches down the grid of flow Directions, flowDir, to construct a numpy array of the row/column indices, drainage areas,
-    #  and elevations of the values along a steepest descent path starting from start. If start is not specified the user is prompted
-    #  to select a point. If doTrim is set to true, the final path is displayed and the user is prompted to select a point to trim
-    #  the profile at.
-
-    hs = None
-
-    nrows, ncols = dem.shape
-
-    if start == None:
-        #If no starting point is specified prompt the user for one
-        hs = calcHillshade(dem, dx, 315, 45) #Create hillshade
-        plt.title('Pick a point to route down from')
-        plt.imshow(dem, interpolation = 'bilinear', cmap='coolwarm')
-        plt.imshow(hs, interpolation = 'bilinear', cmap='gray', alpha = 0.5)
-        plt.gca().invert_yaxis()
-        start = plt.ginput(1)[0] #ginput returns a list of tuples... index out the first item
-
-    print(start)
-    rows, cols = np.array([int(round(start[1]))]), np.array([int(round(start[0]))]) # insure starting indices are ints
-    a = np.array([area[rows[-1],cols[-1]]]) # add the first items to the list of long profile info
-    z = np.array([dem[rows[-1],cols[-1]]])
-
-    #So long as we are not at the edge of the DEM
-    while not (rows[-1] == 0 or rows[-1] == nrows-1 or cols[-1] == 0 or cols[-1] == ncols - 1):
-        # Get the neighbors in the flow direction corresponding order - note, I might be in danger the way I handle this...
-        # Flow directions are indices of arrays which may be different sizes, this is not truly giving me flow directions
-        # Because in the getNeighbor function I don't return values at edges.... might want to think about improving this,
-        # although it should work in this application, and damn if it isn't clean
-        rowNeighbs, colNeighbs = getNeighborIndices(rows[-1], cols[-1], nrows, ncols)[0:2] #find the neighbors, only need the first two returns
 
 
-        thisRow,thisCol,inBounds = getFlowToCell(rows[-1],cols[-1],flowDir[rows[-1],cols[-1]],nrows,ncols) # Find the indices of the cell we drain too, only need first two inputs
-
-        if not inBounds:
-            break
-
-        rows = np.append(rows, thisRow)
-        cols = np.append(cols, thisCol)
-
-        # add the latest items to the list of long profile info
-        a = np.append(a, dem[rows[-1], cols[-1]])
-        z = np.append(z, dem[rows[-1], cols[-1]])
-
-    #Trim off the end of the data if requested
-    if doTrim:
-
-        if hs == None:
-            hs = calcHillshade(dem, dx, 315, 45) #Create hillshade
-
-        plt.title('Pick a point to trim at')
-        plt.imshow(dem, interpolation = 'bilinear', cmap='coolwarm')
-        plt.imshow(hs, interpolation = 'bilinear', cmap='gray', alpha = 0.5)
-        plt.plot(cols,rows,lw = 2, color = 'black')
-        plt.gca().invert_yaxis()
-        end = plt.ginput(1)[0]
-        dists = np.sqrt((rows - end[1])**2 + (cols - end[0])**2)
-        end = np.argmin(dists)
-
-        rows, cols, a, z = rows[:end], cols[:end], a[:end], z[:end]
 
 
-    return rows, cols, a, z
-
-def buildSearchKernel(dx, windowRadius, isCircular):
-    # Function to build a search kernel that is either square or circular
-
-    pxlRadius = int(round(windowRadius/dx)) #Is this right...
-
-    relCoords = np.arange(1 + 2*pxlRadius)-pxlRadius #Relative coordinates of neighbors within this row, col distance
-
-    searchKernelRow, serchKernelCol = np.meshgrid(relCoords,relCoords)
-
-    if isCircular:
-        dists = np.sqrt(searchKernelRow**2 + searchKernelRow**2)
-        searchKernelRow = searchKernelRow[dists<pxlRadius]
-        serchKernelCol = serchKernelCol[dists<pxlRadius]
-
-    return searchKernelRow.flatten(), serchKernelCol.flatten()
-
-def adjustKernel(row,col,grid,searchKernelRows,searchKernelCols):
-    # Function to turn the rows and columns of the search kernel specified by searchKernelRows & ...Cols as just indices of the
-    # data that is actually within the grid
-
-    #Get the current absolute positions within the grid
-    theseRows = searchKernelRows+row
-    theseCols = searchKernelCols+col
-
-    #Do any points in searchKernel extend to before the start of the grid? or off the end?
-    gdIndices = (theseCols < grid.shape[1]) & (theseRows < grid.shape[0]) & (theseRows >= 0) & (theseCols >= 0)
-
-    #Which rows are within the grid
-    goodRows = theseRows[gdIndices]
-    goodCols = theseCols[gdIndices]
-
-    #Now that we are all within the grid, of those points within the grid, do any include
-    #Do any points in searchKernel include nans ?
-    gdIndices = np.logical_not(np.isnan(grid[goodRows, goodCols]))
-
-    return goodRows[gdIndices], goodCols[gdIndices]
-
-def movingWindow(grid, searchKernelRows, searchKernelCols,function):
-    # Function to scan the moving window specified by Kernel across the dem, a numpy grid, and apply the specified function
-    # to each location. function is a method that returns a single value given any number of inputs, e.g.
-    # movingWindow(i) = function(dem[Kernel@i])
-
-    outgrid = np.zeros_like(grid)
-
-    for i in range(grid.shape[0]):
-        for j in range(grid.shape[1]):
-            theseRows,theseCols = adjustKernel(i,j,grid,searchKernelRows,searchKernelCols) #trim the searchKernel and return it as a list of indices
-            outgrid[i,j] = function(grid[theseRows, theseCols]) #apply the specified function to the dem values for this search location
-
-    return outgrid
 
 
+
+    
 def findDEMedge(dem):
     # Function to find the cells at the edge of a dem. Dem is a ny x nx array, but may be largely padded
     # by nans. Determines where the edge of the real data is. Does this by finding the maximum value within a 3x3 kernel,
@@ -339,24 +489,7 @@ def findRidgeTops(dem, area, minConnectedPixels):
     #some number of other pixels that meet this criteria
     return None
 
-def getNeighborIndices(row, col, ny, nx):
-    #Search kernel for D8 flow routing, the relative indices of each of the 8 points surrounding a pixel
-    # |i-1,j-1  i-1,j  i-1,j+1|
-    # |i,j-1     i,j     i,j+1|
-    # |i+1,j-1  i+1,j  i+1,j+1|
-    rowKernel = np.array([1, 1, 1, 0, 0, -1, -1, -1])
-    colKernel = np.array([-1, 0, 1, -1, 1, -1, 0, 1])
 
-    rt2 = np.sqrt(2)
-    dxMults = np.array([rt2, 1.0, rt2, 1.0, 1.0, rt2, 1.0, rt2])  # Unit Distance from pixel to surrounding coordinates
-
-    #Find all the surrounding indices
-    outRows = rowKernel + row
-    outCols = colKernel + col
-
-    #Determine which indices are out of bounds
-    inBounds = (outRows >= 0)*(outRows < ny)*(outCols >= 0)*(outCols < nx)
-    return outRows[inBounds], outCols[inBounds], dxMults[inBounds]
 
 def priorityFlood(dem, dx, aggSlope = 0.0):
     # dem is a numpy array of elevations to be flooded, aggInc is the minimum amount to increment elevations by moving upstream
@@ -402,36 +535,10 @@ def priorityFlood(dem, dx, aggSlope = 0.0):
 
     return dem
 
-def getUTMZone(dataset):
-    #Function to get the approximate UTM zone %NOTE: I need to check how east and west are handled...
-
-    #Utm zone boundary (zones are numbered in order, 1:60) #NEED TO DOUBLE CHECK THIS
-    westBound = np.array([-180 + x*6 for x in range(60)]) #west boundary of 6 degree UTM zone bounds
-    eastBound = np.array([-174 + x*6 for x in range(60)]) #east boundary of 6 degree UTM zone bounds
-
-    #Midpoint of dataset
-    tVect = dataset.GetGeoTransform()  # Get the coordinate transform vector, (ulx, dx, xRot, uly, yRot, -dx)
-    nx, ny = dataset.RasterXSize, dataset.RasterYSize #Get the number of colums and rows
-    midLat = tVect[3]-tVect[1]*ny/2.0 #half way down the dataset
-    midLong = tVect[0]+tVect[1]*nx/2.0 #half way across the dataset
-
-    #Convert UTM zone to negative to distinguish it as south (if appropriate)
-    southMultiplier = 1
-    if midLat < 0:
-        southMultiplier = -1
-
-    #The utm zone, the index of the boundaries that surround the point incremented to account for pythons 0 indexing
-    zone = np.nonzero(np.logical_and(midLong > westBound, midLong < eastBound))[0] + 1
-
-    return zone*southMultiplier
 
 
-def approximateDxFromGeographicData(dataset):
-    #Function to return the approximate grid spacing in Meters. Will return the closest integer value
-    tVect = dataset.GetGeoTransform()  # Get the coordinate transform vector, (ulx, dx, xRot, uly, yRot, -dx)
-    dTheta = tVect[1] #Angular grid spacing
-    metersPerDegree = 110000 #110 km per degree (approximation)
-    return int(dTheta*metersPerDegree) #convert degrees to meters
+
+
 
 
 def convertToUTM(dataset, dx, utmZone):
@@ -823,57 +930,8 @@ def getD8slope(dem,fd,dx,i,j,nRows,nCols):
     else:
         return np.nan
 
-def getFlowToCell(i,j,fd,nRows,nCols):
-    #Function to get the indices of the cell that is drained to based on the flow direction specified in fd
 
-    iOut = None
-    jOut = None
-    isGood = False
 
-    if fd == 1 and j+1 < nCols:
-        iOut = i
-        jOut = j+1
-    elif fd == 2 and i+1 < nRows and j+1 < nCols:
-        iOut = i+1
-        jOut = j+1
-    elif fd == 4 and i+1 < nRows:
-        iOut = i+1
-        jOut = j
-    elif fd == 8 and i+1 < nRows and j-1 >= 0:
-        iOut = i+1
-        jOut = j-1
-    elif fd == 16 and j-1 >= 0:
-        iOut = i
-        jOut = j-1
-    elif fd == 32 and i-1 >= 0 and j-1 >= 0:
-        iOut = i-1
-        jOut = j-1
-    elif fd == 64 and i-1 >= 0:
-        iOut = i-1
-        jOut = j
-    elif fd == 128 and i-1 >= 0 and j+1 < nCols:
-        iOut = i-1
-        jOut = j+1
 
-    if not(iOut is None):
-        isGood = True
-
-    return iOut, jOut, isGood
-
-def convertRiverToolsFlwDirToArc(flowDir,noData):
-    # Function to convert river tools flow directions to arcGisFlowDirections
-      # ArcGIS convection
-    # |i-1,j-1  i-1,j  i-1,j+1|  |32 64 128|
-    # |i,j-1     i,j     i,j+1|  |16  X  1 |
-    # |i+1,j-1  i+1,j  i+1,j+1|  |8   4  2 |
-    # In river tools convention the 1 is in the top right
-
-    convertedFlowDir = int(np.log2(flowDir))
-    convertedFlowDir -= 1
-    convertedFlowDir[convertedFlowDir == -1] = 7
-    convertedFlowDir = 2**convertedFlowDir
-    convertedFlowDir[flowDir == noData] = noData
-
-    return convertedFlowDir
 
 
