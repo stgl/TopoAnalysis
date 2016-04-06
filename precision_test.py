@@ -33,7 +33,7 @@ src = None
 while True:
     r = np.random.randint(1, m) 
     c = np.random.randint(1, n) 
-    if(accTIFF[r][c] != 0 and ~np.isnan(accTIFF[r][c])):
+    if(accREF[r][c] != 0 and ~np.isnan(accREF[r][c])):
         break
 
 ref = accREF[r][c]
