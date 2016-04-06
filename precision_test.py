@@ -17,8 +17,6 @@ gdal.SetConfigOption('AAIGRID_DATATYPE', 'Float64')
 
 src = gdal.Open(fnASCII)
 accREF = src.ReadAsArray().astype(np.float64)
-band = src.GetRasterBand(1)
-typeASCII = gdal.GetDataTypeName(band.DataType)
 src = None
 
 src = gdal.Open(fnTIFF)
