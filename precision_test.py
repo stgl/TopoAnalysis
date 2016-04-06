@@ -7,10 +7,16 @@ import numpy as np
 fnASCII = 'malta_area_15s.asc'
 fnTIFF = 'malta_area_15s.tif'
 
-#gdal.SetConfigOption('AAIGRID_DATATYPE', 'Float32')
-
 src = gdal.Open(fnASCII)
 accASCII = src.ReadAsArray().astype(np.float64)
+band = src.GetRasterBand(1)
+typeASCII = gdal.GetDataTypeName(band.DataType)
+src = None
+
+gdal.SetConfigOption('AAIGRID_DATATYPE', 'Float64')
+
+src = gdal.Open(fnASCII)
+accREF = src.ReadAsArray().astype(np.float64)
 band = src.GetRasterBand(1)
 typeASCII = gdal.GetDataTypeName(band.DataType)
 src = None
@@ -29,6 +35,8 @@ while True:
     c = np.random.randint(1, n) 
     if(accTIFF[r][c] != 0 and ~np.isnan(accTIFF[r][c])):
         break
+
+ref = accREF[r][c]
 
 # or perform quic kcheck with first element (Malta)
 r = 0
