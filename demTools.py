@@ -12,10 +12,7 @@ import glob  # Used for finding files that I want to mosaic (by allowing wildcar
 import heapq # Used for constructing priority queue, which is used for filling dems
 import numpy as np # Used for tons o stuff, keeping most data stored as numpy arrays
 import subprocess # Used to run gdal_merge.py from the command line
-import re #regex for checking strings
-from matplotlib import pyplot as plt # Used to get user input on plots
 import Error
-from numpy import uint8
 
 
 class GDALMixin(object):
@@ -63,10 +60,10 @@ class GDALMixin(object):
             return numpy_type
     
     def readGDALFile(self, filename, dtype):
-        file = gdal.Open(filename)
-        data = file.ReadAsArray().astype(dtype)
-        geoTransform = file.GetGeoTransform()
-        file = None
+        gdal_file = gdal.Open(filename)
+        data = gdal_file.ReadAsArray().astype(dtype)
+        geoTransform = gdal_file.GetGeoTransform()
+        gdal_file = None
         return data, geoTransform
                 
     def getGeoRefInfo(self, gdalDataset):
@@ -129,9 +126,9 @@ class AIMixin(object):
         #this is that standard arc ascii raster export format, but could be wrong
         georef_data = dict()
         
-        with open(fileName, "r") as file:
+        with open(fileName, "r") as ascii_file:
             for _ in xrange(5):
-                line = file.readline()
+                line = ascii_file.readline()
                 (key, value) = (line.split()[1], int(line.split()[-1]))
                 georef_data[key.lower()] = value
 
@@ -228,7 +225,86 @@ class GeographicGridMixin(object):
         metersPerDegree = 110000 #110 km per degree (approximation)
         return int(dTheta*metersPerDegree) #convert degrees to meters
     
+class CalculationMixin(object):
     
+    def _calcFiniteSlopes(self, grid, dx):
+        # sx,sy = calcFiniteDiffs(elevGrid,dx)
+        # calculates finite differences in X and Y direction using the
+        # 2nd order/centered difference method.
+        # Applies a boundary condition such that the size and location
+        # of the grids in is the same as that out.
+    
+        # Assign boundary conditions
+        
+        Zbc = self.assignBCs(grid)
+    
+        #Compute finite differences
+        Sx = (Zbc[1:-1, 2:] - Zbc[1:-1, :-2])/(2*dx)
+        Sy = (Zbc[2:,1:-1] - Zbc[:-2, 1:-1])/(2*dx)
+    
+        return Sx, Sy
+    
+    def assignBCs(self, grid, nx, ny):
+        # Pads the boundaries of a grid
+        # Boundary condition pads the boundaries with equivalent values
+        # to the data margins, e.g. x[-1,1] = x[1,1]
+        # This creates a grid 2 rows and 2 columns larger than the input
+    
+        Zbc = np.zeros((ny + 2, nx + 2))  # Create boundary condition array
+        Zbc[1:-1,1:-1] = grid  # Insert old grid in center
+    
+        #Assign boundary conditions - sides
+        Zbc[0, 1:-1] = grid[0, :]
+        Zbc[-1, 1:-1] = grid[-1, :]
+        Zbc[1:-1, 0] = grid[:, 0]
+        Zbc[1:-1, -1] = grid[:,-1]
+    
+        #Assign boundary conditions - corners
+        Zbc[0, 0] = grid[0, 0]
+        Zbc[0, -1] = grid[0, -1]
+        Zbc[-1, 0] = grid[-1, 0]
+        Zbc[-1, -1] = grid[-1, 0]
+    
+        return Zbc
+
+    def calcFiniteCurv(self, grid, dx):
+        #C = calcFiniteCurv(elevGrid, dx)
+        #calculates finite differnces in X and Y direction using the centered difference method.
+        #Applies a boundary condition such that the size and location of the grids in is the same as that out.
+    
+        #Assign boundary conditions
+        Zbc = self.assignBCs(grid)
+    
+        #Compute finite differences
+        Cx = (Zbc[1:-1, 2:] - 2*Zbc[1:-1, 1:-1] + Zbc[1:-1, :-2])/dx**2
+        Cy = (Zbc[2:, 1:-1] - 2*Zbc[1:-1, 1:-1] + Zbc[:-2, 1:-1])/dx**2
+    
+        return Cx+Cy
+    
+    def calcContourCurvature(self, grid,dx):
+        # kt = (fxx*fy^2 - 2*fxyfxfy + fyy*fx^2)/((fx^2 + fy^2)*sqrt((fx^2 + fy^2)+1)
+    
+        #Preallocate
+        Kt = np.zeros_like(grid)*np.nan
+    
+        #First derivatives, 2nd order centered difference
+        fx = (grid[1:-1,2:] - grid[1:-1,:-2])/(dx*2)
+        fy = (grid[2:,1:-1] - grid[:-2,1:-1])/(dx*2)
+    
+        #Second derivatives, 2nd order centered differece
+        fxx = (grid[1:-1,2:] - 2*grid[1:-1,1:-1] + grid[1:-1,:-2])/(dx**2)
+        fyy = (grid[2:,1:-1] - 2*grid[1:-1,1:-1] + grid[:-2,1:-1])/(dx**2);
+    
+        #Partial derivative
+        fxy = (grid[2:,2:] - grid[2:,1:-1] - grid[1:-1,2:] + 2*grid[1:-1,1:-1] - grid[:-2,1:-1] - grid[1:-1,:-2] + grid[:-2,:-2])
+        fxy = fxy/(4*dx**2)
+    
+        #Contour curvature
+        Kt[1:-1, 1:-1] = (fxx*fy**2 - 2*fxy*fx*fy + fyy*fx**2)/((fx**2 + fy**2)*np.sqrt((fx**2 + fy**2)+1))
+    
+        return Kt
+
+
 class BaseSpatialGrid(object):
     
     from numpy import float64
@@ -255,6 +331,25 @@ class BaseSpatialGrid(object):
         
         self._griddata = zeros(shape = (self._geref_info.ny,self._georef_info.nx), dtype = self.dtype)
 
+    def _getNeighborIndices(self, row, col):
+        #Search kernel for D8 flow routing, the relative indices of each of the 8 points surrounding a pixel
+        # |i-1,j-1  i-1,j  i-1,j+1|
+        # |i,j-1     i,j     i,j+1|
+        # |i+1,j-1  i+1,j  i+1,j+1|
+        rowKernel = np.array([1, 1, 1, 0, 0, -1, -1, -1])
+        colKernel = np.array([-1, 0, 1, -1, 1, -1, 0, 1])
+    
+        rt2 = np.sqrt(2)
+        dxMults = np.array([rt2, 1.0, rt2, 1.0, 1.0, rt2, 1.0, rt2])  # Unit Distance from pixel to surrounding coordinates
+    
+        #Find all the surrounding indices
+        outRows = rowKernel + row
+        outCols = colKernel + col
+    
+        #Determine which indices are out of bounds
+        inBounds = (outRows >= 0)*(outRows < self._georef_info.ny)*(outCols >= 0)*(outCols < self._georef_info.nx)
+        return (outRows[inBounds], outCols[inBounds], dxMults[inBounds])
+    
     def dx(self):
         return self._georef_info.dx
     
@@ -283,30 +378,13 @@ class BaseSpatialGrid(object):
         out_grid._georef_info = self._georef_info
         out_grid._griddata = moving_window.apply_moving_window(self)
         return out_grid
+    
+
 
 class FlowDirection(BaseSpatialGrid):
     
     from numpy import uint8
     dtype = uint8
-    
-    def __getNeighborIndices(self, row, col):
-        #Search kernel for D8 flow routing, the relative indices of each of the 8 points surrounding a pixel
-        # |i-1,j-1  i-1,j  i-1,j+1|
-        # |i,j-1     i,j     i,j+1|
-        # |i+1,j-1  i+1,j  i+1,j+1|
-        rowKernel = np.array([1, 1, 1, 0, 0, -1, -1, -1])
-        colKernel = np.array([-1, 0, 1, -1, 1, -1, 0, 1])
-    
-        rt2 = np.sqrt(2)
-        dxMults = np.array([rt2, 1.0, rt2, 1.0, 1.0, rt2, 1.0, rt2])  # Unit Distance from pixel to surrounding coordinates
-    
-        #Find all the surrounding indices
-        outRows = rowKernel + row
-        outCols = colKernel + col
-    
-        #Determine which indices are out of bounds
-        inBounds = (outRows >= 0)*(outRows < self._georef_info.ny)*(outCols >= 0)*(outCols < self._georef_info.nx)
-        return (outRows[inBounds], outCols[inBounds], dxMults[inBounds])
 
     def getFlowToCell(self,i,j):
         #Function to get the indices of the cell that is drained to based on the flow direction specified in fd
@@ -375,41 +453,121 @@ class FlowDirection(BaseSpatialGrid):
         convertedFlowDir -= 1
         convertedFlowDir[convertedFlowDir == -1] = 7
         convertedFlowDir = 2**convertedFlowDir
-        convertedFlowDir[self._griddata == self.noData] = noData
+        convertedFlowDir[self._griddata == self.noData] = self.noData
         self._griddata = convertedFlowDir
         
-   
-class priorityQueue:
-    #Implements a priority queue using heapq. Python has a priority queue module built in, but it
-    # is not stably sorted (meaning that two items who are tied in priority are treated arbitrarily, as opposed to being
-    # returned on a first in first out basis). This circumvents that by keeping a count on the items inserted and using that
-    # count as a secondary priority
+class Elevation(CalculationMixin, BaseSpatialGrid):
+    
+    def findDEMedge(self):
+        # Function to find the cells at the edge of a dem. Dem is a ny x nx array, but may be largely padded
+        # by nans. Determines where the edge of the real data is. Does this by finding the maximum value within a 3x3 kernel,
+        # if that is not zero, but the original data at the corresponding location is, then that is an edge cell
+            
+        #Pad the data so that we can take a windowed max
+        padded = np.zeros((self._georef_info.ny+2, self._georef_info.nx+2))
+        padded[1:-1, 1:-1] = self._griddata
+        padded[padded == 0] = np.nan
+    
+        # windowMax = np.zeros_like(padded)
+        borderCells = np.zeros_like(padded)
+    
+        #Iterate through all the data, find the max in a 3 x 3 kernel
+        for i in range(self._georef_info.ny):
+            for j in range(self._georef_info.nx):
+                # windowMax[i+1, j+1] = np.nanmax(padded[i:i+3, j:j+3])
+                borderCells[i+1, j+1] = np.any(np.isnan(padded[i:i+3, j:j+3]))*(~np.isnan(padded[i+1,j+1]))
+    
+    
+        return np.where(borderCells[1:-1, 1:-1]) # Return edge rows and columns as a tuple
 
-    def __init__(self):
-        # A counter and the number of items are stored separately to ensure that items remain stably sorted and to
-        # keep track of the size of the queue (so that we can check if its empty, which will be useful will iterating
-        # through the queue)
-        self.__pq = []
-        self.__counter = 0
-        self.__nItems = 0
+    def calcHillshade(self,az,elev):
+        #Hillshade = calcHillshade(elevGrid,az,elev)
+        #Esri calculation for generating a hillshade, elevGrid is expected to be a numpy array
+    
+        # Convert angular measurements to radians
+                
+        azRad, elevRad = (360 - az + 90)*np.pi/180, (90-elev)*np.pi/180
+        Sx, Sy = self._calcFiniteSlopes(self._griddata, self._georef_info.dx)  # Calculate slope in X and Y directions
+    
+        AspectRad = np.arctan2(Sy, Sx) # Angle of aspect
+        SmagRad = np.arctan(np.sqrt(Sx**2 + Sy**2))  # magnitude of slope in radians
+    
+        return 255.0 * ((np.cos(elevRad) * np.cos(SmagRad)) + (np.sin(elevRad)* np.sin(SmagRad) * np.cos(azRad - AspectRad)))
 
-    def get(self):
-        #Remove an item and its priority from the queue
-        priority, count, item = heapq.heappop(self.__pq)
-        self.__nItems -= 1
-        return priority, item
+class FilledElevation(CalculationMixin, BaseSpatialGrid):
+        
+    class priorityQueue:
+        #Implements a priority queue using heapq. Python has a priority queue module built in, but it
+        # is not stably sorted (meaning that two items who are tied in priority are treated arbitrarily, as opposed to being
+        # returned on a first in first out basis). This circumvents that by keeping a count on the items inserted and using that
+        # count as a secondary priority
+    
+        def __init__(self):
+            # A counter and the number of items are stored separately to ensure that items remain stably sorted and to
+            # keep track of the size of the queue (so that we can check if its empty, which will be useful will iterating
+            # through the queue)
+            self.__pq = []
+            self.__counter = 0
+            self.__nItems = 0
+    
+        def get(self):
+            #Remove an item and its priority from the queue
+            priority, count, item = heapq.heappop(self.__pq)
+            self.__nItems -= 1
+            return priority, item
+    
+        def put(self, priority, item):
+            #Add an item to the priority queue
+            self.__counter += 1
+            self.__nItems += 1
+            entry = [priority, self.__counter, item]
+            heapq.heappush(self.__pq, entry)
+    
+        def isEmpty(self):
+            return self.__nItems == 0
 
-    def put(self, priority, item):
-        #Add an item to the priority queue
-        self.__counter += 1
-        self.__nItems += 1
-        entry = [priority, self.__counter, item]
-        heapq.heappush(self.__pq, entry)
 
-    def isEmpty(self):
-        return self.__nItems == 0
-
-
+    def flood(self, aggSlope = 0.0):
+        # dem is a numpy array of elevations to be flooded, aggInc is the minimum amount to increment elevations by moving upstream
+        # use priority flood algorithm described in  Barnes et al., 2013
+        # Priority-Flood: An Optimal Depression-Filling and Watershed-Labeling Algorithm for Digital Elevation Models
+        # NOTE: They have another algorithm to make this more efficient, but to use that and a slope makes things more
+        # complicated
+                            
+        priority_queue = FilledElevation.priorityQueue() # priority queue to sort filling operation
+    
+        #Create a grid to keep track of which cells have been filled
+        self._filled_griddata = self._griddata
+        
+        closed = np.zeros_like(self._filled_griddata)
+    
+        #Add all the edge cells to the priority queue, mark those cells as draining (not closed)
+        edgeRows, edgeCols = self.findDEMedge()
+    
+        for i in range(len(edgeCols)):
+            row, col = edgeRows[i], edgeCols[i]
+    
+            closed[row, col] = True
+            open.put(self._filled_griddata[row, col], [row, col]) # store the indices as a vector of row column, in the priority queue prioritized by the dem value
+    
+        #While there is anything left in the priority queue, continue to fill holes
+        while not open.isEmpty():
+            elevation, rowCol = priority_queue.get()
+            row, col = rowCol
+            neighborRows, neighborCols, dxMults = self._getNeighborIndices(row, col)
+            dxs = self._georef_info.dx * dxMults
+    
+            #Look through the upstream neighbors
+            for i in range(len(neighborCols)):
+                if not closed[neighborRows[i], neighborCols[i]]:
+                    #Do I need to increment(ramp) things or can I leave things flat? I think I can increment b/c my priority queue is stabley sorted
+    
+                    #If this was a hole (lower than the cell downstream), fill it
+                    if self._filled_griddata[neighborRows[i], neighborCols[i]] <= elevation:
+                        self._filled_griddata[neighborRows[i], neighborCols[i]] = elevation + aggSlope*dxs[i]
+    
+                    closed[neighborRows[i], neighborCols[i]] = True
+                    priority_queue.put(self._filled_griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
 
 
 
@@ -433,107 +591,6 @@ def mosaicFolder(folderPath, fileSuffix, outfile):
 
 
 
-
-
-    
-def findDEMedge(dem):
-    # Function to find the cells at the edge of a dem. Dem is a ny x nx array, but may be largely padded
-    # by nans. Determines where the edge of the real data is. Does this by finding the maximum value within a 3x3 kernel,
-    # if that is not zero, but the original data at the corresponding location is, then that is an edge cell
-    ny, nx = dem.shape
-
-    #Pad the data so that we can take a windowed max
-    padded = np.zeros((ny+2, nx+2))
-    padded[1:-1, 1:-1] = dem
-    padded[padded == 0] = np.nan
-
-    # windowMax = np.zeros_like(padded)
-    borderCells = np.zeros_like(padded)
-
-    #Iterate through all the data, find the max in a 3 x 3 kernel
-    for i in range(ny):
-        for j in range(nx):
-            # windowMax[i+1, j+1] = np.nanmax(padded[i:i+3, j:j+3])
-            borderCells[i+1, j+1] = np.any(np.isnan(padded[i:i+3, j:j+3]))*(~np.isnan(padded[i+1,j+1]))
-
-    #Border cells are those which were not values in the original DEM, but did have values within the 3x3 search kernel
-    # borderCells = (~np.isnan(windowMax)) * (np.isnan(padded))
-
-    #This is slower...
-    #     # Function to find the cells at the edge of a dem. Dem is a ny x nx array, but may be largely padded
-    # # by nans. Determines where the edge of the real data is. Does this by finding the maximum value within a 3x3 kernel,
-    # # if that is not zero, but the original data at the corresponding location is, then that is an edge cell
-    # ny, nx = dem.shape
-    # borderCells = []
-    # append = borderCells.append
-    #
-    # #Iterate through all the data, find the max in a 3 x 3 kernel
-    # for i in range(ny):
-    #     for j in range(nx):
-    #         neighRet = getNeighborIndices(i,j,ny,nx)
-    #         rows, cols = neighRet[0], neighRet[1]
-    #
-    #         if ~i==0 and ~i==ny-1 and ~j==0 and ~j==ny-1:
-    #             if np.any(np.isnan(dem[rows,cols]))*(~np.isnan(dem[i,j])):
-    #                 append((i, j))
-    #         else:
-    #             if ~np.isnan(dem[i,j]):
-    #                 append((i, j))
-
-
-    return np.where(borderCells[1:-1, 1:-1]) # Return edge rows and columns as a tuple
-
-def findRidgeTops(dem, area, minConnectedPixels):
-    #function to find all the connected hilltops in a dem... not sure how well this will work
-    #the idea is to find all the points that are both convex and have zero drainage area and are connected with
-    #some number of other pixels that meet this criteria
-    return None
-
-
-
-def priorityFlood(dem, dx, aggSlope = 0.0):
-    # dem is a numpy array of elevations to be flooded, aggInc is the minimum amount to increment elevations by moving upstream
-    # use priority flood algorithm described in  Barnes et al., 2013
-    # Priority-Flood: An Optimal Depression-Filling and Watershed-Labeling Algorithm for Digital Elevation Models
-    # NOTE: They have another algorithm to make this more efficient, but to use that and a slope makes things more
-    # complicated
-
-    ny, nx = dem.shape  # Size of dem grid
-
-    open = priorityQueue() # priority queue to sort filling operation
-
-    #Create a grid to keep track of which cells have been filled
-    closed = np.zeros_like(dem)
-
-    #Add all the edge cells to the priority queue, mark those cells as draining (not closed)
-    edgeRows, edgeCols = findDEMedge(dem)
-
-    for i in range(len(edgeCols)):
-        row, col = edgeRows[i], edgeCols[i]
-
-        closed[row, col] = True
-        open.put(dem[row, col], [row, col]) # store the indices as a vector of row column, in the priority queue prioritized by the dem value
-
-    #While there is anything left in the priority queue, continue to fill holes
-    while not open.isEmpty():
-        elevation, rowCol = open.get()
-        row, col = rowCol
-        neighborRows, neighborCols, dxMults = getNeighborIndices(row, col, ny, nx)
-        dxs = dx * dxMults
-
-        #Look through the upstream neighbors
-        for i in range(len(neighborCols)):
-            if not closed[neighborRows[i], neighborCols[i]]:
-                #Do I need to increment(ramp) things or can I leave things flat? I think I can increment b/c my priority queue is stabley sorted
-
-                #If this was a hole (lower than the cell downstream), fill it
-                if dem[neighborRows[i], neighborCols[i]] <= elevation:
-                    dem[neighborRows[i], neighborCols[i]] = elevation + aggSlope*dxs[i]
-
-                closed[neighborRows[i], neighborCols[i]] = True
-                open.put(dem[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
-
-    return dem
 
 
 
@@ -647,45 +704,9 @@ def getDEMcoords(GdalData, dx):
 
     return xcoordinates, ycoordinates
 
-def assignBCs(elevGrid):
-    # Pads the boundaries of a grid
-    # Boundary condition pads the boundaries with equivalent values
-    # to the data margins, e.g. x[-1,1] = x[1,1]
-    # This creates a grid 2 rows and 2 columns larger than the input
 
-    ny, nx = elevGrid.shape  # Size of array
-    Zbc = np.zeros((ny + 2, nx + 2))  # Create boundary condition array
-    Zbc[1:-1,1:-1] = elevGrid  # Insert old grid in center
 
-    #Assign boundary conditions - sides
-    Zbc[0, 1:-1] = elevGrid[0, :]
-    Zbc[-1, 1:-1] = elevGrid[-1, :]
-    Zbc[1:-1, 0] = elevGrid[:, 0]
-    Zbc[1:-1, -1] = elevGrid[:,-1]
 
-    #Assign boundary conditions - corners
-    Zbc[0, 0] = elevGrid[0, 0]
-    Zbc[0, -1] = elevGrid[0, -1]
-    Zbc[-1, 0] = elevGrid[-1, 0]
-    Zbc[-1, -1] = elevGrid[-1, 0]
-
-    return Zbc
-
-def calcFiniteSlopes(elevGrid, dx):
-    # sx,sy = calcFiniteDiffs(elevGrid,dx)
-    # calculates finite differences in X and Y direction using the
-    # 2nd order/centered difference method.
-    # Applies a boundary condition such that the size and location
-    # of the grids in is the same as that out.
-
-    # Assign boundary conditions
-    Zbc = assignBCs(elevGrid)
-
-    #Compute finite differences
-    Sx = (Zbc[1:-1, 2:] - Zbc[1:-1, :-2])/(2*dx)
-    Sy = (Zbc[2:,1:-1] - Zbc[:-2, 1:-1])/(2*dx)
-
-    return Sx, Sy
 
 def calcAverageSlopeOfGridSubset(gridSubset,dx):
     ## Sx,Sy = calcAverageSlopeOfGridSubset(numpy matrix, dx)
@@ -727,19 +748,7 @@ def calcFiniteSlopesOverWindow(elevGrid, dx,N):
 
     return SxPadded, SyPadded
 
-def calcFiniteCurv(elevGrid, dx):
-    #C = calcFiniteCurv(elevGrid, dx)
-    #calculates finite differnces in X and Y direction using the centered difference method.
-    #Applies a boundary condition such that the size and location of the grids in is the same as that out.
 
-    #Assign boundary conditions
-    Zbc = assignBCs(elevGrid)
-
-    #Compute finite differences
-    Cx = (Zbc[1:-1, 2:] - 2*Zbc[1:-1, 1:-1] + Zbc[1:-1, :-2])/dx**2
-    Cy = (Zbc[2:, 1:-1] - 2*Zbc[1:-1, 1:-1] + Zbc[:-2, 1:-1])/dx**2
-
-    return Cx+Cy
 
 
 def calcFiniteCurvOverWindow(grid,dx, winRad):
@@ -757,41 +766,9 @@ def calcFiniteCurvOverWindow(grid,dx, winRad):
     Curv[winRad:-winRad,winRad:-winRad] = Cx+Cy
     return Curv
 
-def calcContourCurvature(elevGrid,dx):
-    # kt = (fxx*fy^2 - 2*fxyfxfy + fyy*fx^2)/((fx^2 + fy^2)*sqrt((fx^2 + fy^2)+1)
 
-    #Preallocate
-    Kt = np.zeros_like(elevGrid)*np.nan
 
-    #First derivatives, 2nd order centered difference
-    fx = (elevGrid[1:-1,2:] - elevGrid[1:-1,:-2])/(dx*2)
-    fy = (elevGrid[2:,1:-1] - elevGrid[:-2,1:-1])/(dx*2)
 
-    #Second derivatives, 2nd order centered differece
-    fxx = (elevGrid[1:-1,2:] - 2*elevGrid[1:-1,1:-1] + elevGrid[1:-1,:-2])/(dx**2)
-    fyy = (elevGrid[2:,1:-1] - 2*elevGrid[1:-1,1:-1] + elevGrid[:-2,1:-1])/(dx**2);
-
-    #Partial derivative
-    fxy = (elevGrid[2:,2:] - elevGrid[2:,1:-1] - elevGrid[1:-1,2:] + 2*elevGrid[1:-1,1:-1] - elevGrid[:-2,1:-1] - elevGrid[1:-1,:-2] + elevGrid[:-2,:-2])
-    fxy = fxy/(4*dx**2)
-
-    #Contour curvature
-    Kt[1:-1, 1:-1] = (fxx*fy**2 - 2*fxy*fx*fy + fyy*fx**2)/((fx**2 + fy**2)*np.sqrt((fx**2 + fy**2)+1))
-
-    return Kt
-
-def calcHillshade(elevGrid,dx,az,elev):
-    #Hillshade = calcHillshade(elevGrid,az,elev)
-    #Esri calculation for generating a hillshade, elevGrid is expected to be a numpy array
-
-    # Convert angular measurements to radians
-    azRad, elevRad = (360 - az + 90)*np.pi/180, (90-elev)*np.pi/180
-    Sx, Sy = calcFiniteSlopes(elevGrid, dx)  # Calculate slope in X and Y directions
-
-    AspectRad = np.arctan2(Sy, Sx) # Angle of aspect
-    SmagRad = np.arctan(np.sqrt(Sx**2 + Sy**2))  # magnitude of slope in radians
-
-    return 255.0 * ((np.cos(elevRad) * np.cos(SmagRad)) + (np.sin(elevRad)* np.sin(SmagRad) * np.cos(azRad - AspectRad)))
 
 def calcD8Area(elevGrid,dx):
 
