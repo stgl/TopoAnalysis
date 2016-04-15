@@ -37,14 +37,14 @@ class MovingWindow(object):
     
         return goodRows[gdIndices], goodCols[gdIndices]
 
-    def apply_moving_window(self, grid):
+    def apply_moving_window(self, grid, dx, dtype):
         # Function to scan the moving window specified by Kernel across the dem, a numpy grid, and apply the specified function
         # to each location. function is a method that returns a single value given any number of inputs, e.g.
         # movingWindow(i) = function(dem[Kernel@i])
     
-        outgrid = np.zeros_like(grid)
+        outgrid = np.zeros_like(grid, dtype = dtype)
     
-        search_kernel_rows, search_kernel_cols = self._build_search_kernel(grid.dx())
+        search_kernel_rows, search_kernel_cols = self._build_search_kernel(grid)
         
         for i in range(grid.shape[0]):
             for j in range(grid.shape[1]):
