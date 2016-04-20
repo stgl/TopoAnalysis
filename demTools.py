@@ -13,8 +13,9 @@ import heapq # Used for constructing priority queue, which is used for filling d
 import numpy as np # Used for tons o stuff, keeping most data stored as numpy arrays
 import subprocess # Used to run gdal_merge.py from the command line
 import Error
-from aifc import data
-
+from numpy import uint8
+from matplotlib.mlab import dist
+from matplotlib import pyplot as plt
 
 class GDALMixin(object):
     
@@ -153,13 +154,14 @@ class GDALMixin(object):
         
         # TODO: This needs implementation to write out the raster and shape files, execute the warp, read in the resulting file, and delete the filenames.  What a hack.
         
+        pass
         # drvr = gdal.GetDriverByName(GdalDriver)
         # drvr.Create(outputFilename,1,1,1)
     #    warp= 'gdalwarp -cutline \'%s\' -crop_to_cutline -dstalpha \'%s\' \'%s\'' % (shpFilename, srcFilename, outputFilename)
         
-        warp= 'gdalwarp -cutline \'%s\' -crop_to_cutline \'%s\' \'%s\'' % (shpFilename, srcFilename, outputFilename)
+        #warp= 'gdalwarp -cutline \'%s\' -crop_to_cutline \'%s\' \'%s\'' % (shpFilename, srcFilename, outputFilename)
     
-        os.system(warp)
+        #os.system(warp)
     
     def _convertToUTM(self, dataset, dx, utmZone):
 
@@ -427,45 +429,73 @@ class BaseSpatialShape(object):
         return BaseSpatialGrid(nx = geoRefInfo.nx, ny = geoRefInfo.ny, projection = projection, geo_transform = geoRefInfo.geoTransform, grid= grid)
 
     
-class BaseSpatialGrid(object, GDALMixin):
+class BaseSpatialGrid(GDALMixin):
     
     from numpy import float64
     
-    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'__create'),
-                                   (('ai_ascii_filename','EPSGprojectionCode'),'__read_ai'),
-                                   (('gdal_filename',), '__read_gdal'), )
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), )
     dtype = float64
     
+    class Georef_info(object):
+        def __init__(self):
+            self.geoTransform = 0
+            self.projection = 0
+            self.dx = 0
+            self.xllcenter = 0
+            self.yllcenter = 0
+            self.nx = 0
+            self.ny = 0
+            
+    _georef_info = Georef_info()
+            
     def __init__(self, *args, **kwargs):
         
         from numpy import zeros
-        super(BaseSpatialGrid,self).__init(*args, **kwargs)
+        super(BaseSpatialGrid,self).__init__()
 
+        self.__sorted = False
+        
         evaluative_action = self.__get_evaluative_action(*args, **kwargs)
         
         if evaluative_action == None:
             raise Error.InputError('Input Error', 'Inputs not satisfied')
         
         eval('self.' + evaluative_action + '(*args, **kwargs)')
+    
+    def __setitem__(self, key, value):
+        i, j = key
+        if i < 0 or j < 0 or i > self._georef_info.nx or j > self._georef_info.ny:
+            return
+        self._griddata[i, j] = value
+    
+    def __getitem__(self, key):
+        i, j = key
+        
+        if i < 0 or j < 0 or i > self._georef_info.nx or j > self._georef_info.ny:
+            return None
+        
+        return self._griddata[i, j]
         
     def __get_evaluative_action(self, *args, **kwargs):
                 
         for required_input_set, evaluative_action in self.required_inputs_and_actions:
             these_kw = set(kwargs.keys())
             required_kw = set(required_input_set)
-            if len(these_kw.subtract(required_kw)) == 0:
+            if required_kw.issubset(these_kw):
                 return evaluative_action 
         
         return None
     
     def __populate_georef_info_using_geoTransform(self, nx, ny):
         self._georef_info.dx = self._georef_info.geoTransform[1]
-        self._georef_info.xllcenter = self._georef_info.geoTransform[0]+self._dx/2.0
-        self._georef_info.yllcenter = self._georef_info.geoTransform[3]-(self._dx*(self._ny-0.5))
+        self._georef_info.xllcenter = self._georef_info.geoTransform[0]+self._georef_info.dx/2.0
+        self._georef_info.yllcenter = self._georef_info.geoTransform[3]-(self._georef_info.dx*(self._georef_info.ny-0.5))
         self._georef_info.nx = nx
         self._georef_info.ny = ny
         
-    def __create(self, *args, **kwargs):
+    def _create(self, *args, **kwargs):
             
         self._georef_info.geoTransform = kwargs.get('geo_transform')
         self._georef_info.projection = kwargs.get('projection')
@@ -475,17 +505,25 @@ class BaseSpatialGrid(object, GDALMixin):
         else:
             self._griddata = kwargs.get('grid')
 
-    def __read_ai(self, *args, **kwargs):
+    def _read_ai(self, *args, **kwargs):
         
+        self._georef_info = []
         self._georef_info.projection = self._get_projection_from_EPSG_projection_code(kwargs['EPSGprojectionCode'])
         self._georef_info.geoTransform, self._georef_info.nx, self._georef_info.ny, self._griddata = self._asciiRasterToMemory(kwargs['ai_ascii_filename'])
         self.__populate_georef_info_using_geoTransform(self._georef_info.nx, self._georef_info.ny)
     
-    def __read_gdal(self, *args, **kwargs):
+    def _read_gdal(self, *args, **kwargs):
         
         self._georef_info.geoTransform, self._georef_info.nx, self._georef_info.ny, self._griddata = self._readGDALFile(kwargs['gdal_filename'], self.dtype)
         self.__populate_georef_info_using_geoTransform(self._georef_info.nx, self._georef_info.ny)
     
+    def _copy_info_from_grid(self, grid, set_zeros = False):
+        self._georef_info = grid._georef_info
+        if set_zeros:
+            self._griddata = grid._griddata
+        else:
+            self._griddata = np.zeros_like(grid._griddata, self.dtype)
+                
     def _getNeighborIndices(self, row, col):
         #Search kernel for D8 flow routing, the relative indices of each of the 8 points surrounding a pixel
         # |i-1,j-1  i-1,j  i-1,j+1|
@@ -524,6 +562,15 @@ class BaseSpatialGrid(object, GDALMixin):
             y = float64(row)*self._georef_info.dx + self._georef_info_yllcenter
             v.append((x,y))
         return tuple(v)
+    
+    def sort(self, reverse=True):
+        if not self.__sorted:
+            self.__sort_indexes = self._griddata.argsort(axis = None)
+            self.__sorted = True
+        if reverse:
+            return self.__sort_indexes[::-1]
+        else:
+            return self.__sort_indexes
     
     def apply_moving_window(self, moving_window):
         out_grid = None
@@ -590,22 +637,76 @@ class BaseSpatialGrid(object, GDALMixin):
         Curv[winRad:-winRad,winRad:-winRad] = Cx+Cy
         return Curv
 
+    def plot(self, **kwargs):
+        
+        extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-1)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-1)*self._georef_info.dx]
+        plt.imshow(self._griddata, extent = extent, **kwargs)
+        plt.show()
+        
 class FlowDirection(BaseSpatialGrid):
     pass
 
 class FlowDirectionD8(FlowDirection):
     
-    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'__create'),
-                                   (('ai_ascii_filename','EPSGprojectionCode'),'__read_ai'),
-                                   (('gdal_filename',), '__read_gdal'), 
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
                                    (('flooded_dem',), '__create_from_flooded_dem'))
     
     from numpy import uint8
     dtype = uint8
 
     def __create_from_flooded_dem(self, *args, **kwargs):
+        flooded_dem = kwargs['flooded_dem']
+        self._copy_info_from_grid(flooded_dem)
+        for i in range(self._georef_info.ny):
+            for j in range(self._georef_info.nx):
+                flow_code = self.__flow_code_for_position(flooded_dem, i, j)
+                self._griddata[i,j] = flow_code
+    
+        self.__sort_indexes = flooded_dem.sort()
+        self.__sorted = True
         
-    def getFlowToCell(self,i,j):
+    def __flow_code_for_position(self, flooded_dem, i, j):
+        
+        flow_code = 0
+        min_diff = 0
+        
+        if flooded_dem[i,j+1] is not None and (flooded_dem[i, j] - flooded_dem[i,j+1]) / 1.41 < min_diff:
+            flow_code = 1
+            min_diff = (flooded_dem[i, j] - flooded_dem[i,j+1]) / 1.41
+        
+        if flooded_dem[i+1,j+1] is not None and (flooded_dem[i, j] - flooded_dem[i+1,j+1]) < min_diff:
+            flow_code = 2
+            min_diff = flooded_dem[i, j] - flooded_dem[i+1,j+1]
+        
+        if flooded_dem[i+1,j] is not None and (flooded_dem[i, j] - flooded_dem[i+1,j]) / 1.41 < min_diff:
+            flow_code = 4
+            min_diff = (flooded_dem[i, j] - flooded_dem[i+1,j]) / 1.41
+        
+        if flooded_dem[i+1,j-1] is not None and (flooded_dem[i, j] - flooded_dem[i+1,j-1]) < min_diff:
+            flow_code = 8
+            min_diff = flooded_dem[i, j] - flooded_dem[i+1,j-1]
+        
+        if flooded_dem[i,j-1] is not None and (flooded_dem[i, j] - flooded_dem[i,j-1]) / 1.41 < min_diff:
+            flow_code = 16
+            min_diff = (flooded_dem[i, j] - flooded_dem[i,j-1]) / 1.41
+            
+        if flooded_dem[i-1,j-1] is not None and (flooded_dem[i, j] - flooded_dem[i-1,j-1]) < min_diff:
+            flow_code = 32
+            min_diff = flooded_dem[i, j] - flooded_dem[i-1,j-1]
+            
+        if flooded_dem[i-1,j] is not None and (flooded_dem[i, j] - flooded_dem[i-1,j]) / 1.41 < min_diff:
+            flow_code = 64
+            min_diff = (flooded_dem[i, j] - flooded_dem[i-1,j]) / 1.41
+            
+        if flooded_dem[i-1,j+1] is not None and (flooded_dem[i, j] - flooded_dem[i-1,j+1]) < min_diff:
+            flow_code = 128
+            min_diff = flooded_dem[i, j] - flooded_dem[i-1,j+1]
+            
+        return flow_code
+    
+    def get_flow_to_cell(self,i,j):
         #Function to get the indices of the cell that is drained to based on the flow direction specified in fd
             
         iOut = None
@@ -699,22 +800,53 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
     
         return np.where(borderCells[1:-1, 1:-1]) # Return edge rows and columns as a tuple
 
-    def calcHillshade(self,az,elev):
+class Hillshade(BaseSpatialGrid):
+    
+    dtype = uint8
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('elevation','azimuth', 'inclination'), '__create_from_elevation'))
+    
+    def __create_from_elevation(self, *args, **kwargs):
+
+        elevation = kwargs['elevation']
+        az = kwargs['azimuth']
+        elev = kwargs['inclination']
+        
+        self._copy_info_from_grid(elevation)
+        self.calcHillshade(az, elev, elevation)
+    
+    def calcHillshade(self,az,elev, grid):
         #Hillshade = calcHillshade(elevGrid,az,elev)
         #Esri calculation for generating a hillshade, elevGrid is expected to be a numpy array
     
         # Convert angular measurements to radians
                 
         azRad, elevRad = (360 - az + 90)*np.pi/180, (90-elev)*np.pi/180
-        Sx, Sy = self._calcFiniteSlopes(self._griddata, self._georef_info.dx)  # Calculate slope in X and Y directions
+        Sx, Sy = self._calcFiniteSlopes(grid, self._georef_info.dx)  # Calculate slope in X and Y directions
     
         AspectRad = np.arctan2(Sy, Sx) # Angle of aspect
         SmagRad = np.arctan(np.sqrt(Sx**2 + Sy**2))  # magnitude of slope in radians
     
-        return 255.0 * ((np.cos(elevRad) * np.cos(SmagRad)) + (np.sin(elevRad)* np.sin(SmagRad) * np.cos(azRad - AspectRad)))
-    
+        self._griddata = 255.0 * ((np.cos(elevRad) * np.cos(SmagRad)) + (np.sin(elevRad)* np.sin(SmagRad) * np.cos(azRad - AspectRad)))
+            
 class FilledElevation(CalculationMixin, BaseSpatialGrid):
-        
+    
+    aggradation_slope = 0.000000001
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                               (('gdal_filename',), '_read_gdal'), 
+                               (('elevation',), '__create_from_elevation'))
+    
+    def __create_from_elevation(self, *args, **kwargs):
+
+        elevation = kwargs['elevation']
+        self._copy_info_from_grid(elevation)
+        self.__flood(self.aggradation_slope) 
+            
     class priorityQueue:
         #Implements a priority queue using heapq. Python has a priority queue module built in, but it
         # is not stably sorted (meaning that two items who are tied in priority are treated arbitrarily, as opposed to being
@@ -746,7 +878,7 @@ class FilledElevation(CalculationMixin, BaseSpatialGrid):
             return self.__nItems == 0
 
 
-    def flood(self, aggSlope = 0.0):
+    def __flood(self, aggSlope = 0.0):
         # dem is a numpy array of elevations to be flooded, aggInc is the minimum amount to increment elevations by moving upstream
         # use priority flood algorithm described in  Barnes et al., 2013
         # Priority-Flood: An Optimal Depression-Filling and Watershed-Labeling Algorithm for Digital Elevation Models
@@ -789,17 +921,75 @@ class FilledElevation(CalculationMixin, BaseSpatialGrid):
                     priority_queue.put(self._filled_griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
 
 
+class Area(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('flow_direction',), '__create_from_flow_direction'))    
+
+    def __create_from_flow_direction(self, *args, **kwargs):
+        
+        flow_dir = kwargs['flow_direction']
+        self._copy_info_from_grid(flow_dir, True)
+        if flow_dir.__class__ == FlowDirectionD8:
+            self.__calcD8Area(flow_dir, self._georef_info.dx)
+
+    def __calcD8Area(self, flow_dir,dx):
+
+        # I am returning area and flowDirections but NOTE!I might be in danger the way I handle this...
+        # Flow directions are indices of arrays which may be different sizes, this is not truly giving me flow directions
+        # Because in the getNeighbor function I don't return values at edges.... might want to think about improving this,
+        # although it should work in this application
+        # Calculate the D8 drainage area for the numpy array representing a DEM in elevGrid, assumes that elevGrid has already been filled
+        # Assigns BCs to deal with edges - these should be changed to handle flow differently, currently it will not force flow through the edges
+    
+        pxlArea = dx**2  # area of a pixel
+    
+        idcs = flow_dir.sort() # Get the sorted indices of the array in reverse order (e.g. largest first)
+        area = pxlArea*np.ones_like(flow_dir._griddata)  # All pixels have at least their own area
+    
+        for idx in idcs:  # Loop through all the data in sorted order
+            [i, j] = np.unravel_index(idx, flow_dir._griddata.shape)  # Get the row/column indices
+    
+            i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
+            if is_good:
+                area[i_next, j_next] += area[i,j]
+    
+    
+        return area # Return non bc version of area
 
 
+class ChannelSlope(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                               (('gdal_filename',), '_read_gdal'), 
+                               (('flow_direction','elevation'), '__create_from_flow_direction_and_elevation'))
+    
+    def __create_from_flow_direction_and_elevation(self, *args, **kwargs):
+        
+        flow_dir = kwargs['flow_direction']
+        elevation = kwargs['elevation']
+        self._copy_info_from_grid(flow_dir, True)
+        if flow_dir.__class__ == FlowDirectionD8:
+            self.__calc_D8_slope(flow_dir, elevation)            
 
+    def calc_D8_slope(self, dem,fd):
 
+        dx = self._georef_info.dx
+        
+        idcs = fd.sort() # Get the sorted indices of the array in reverse order (e.g. largest first)
+    
+        for idx in idcs:  # Loop through all the data in sorted order
+            [i, j] = np.unravel_index(idx, fd._griddata.shape)  # Get the row/column indices
+    
+            i_next, j_next, is_good = fd.get_flow_to_cell(i,j)
+            if is_good:
+                dist = np.sqrt((i-i_next)**2 + (j-j_next)**2)*dx
+                self._griddata[i,j] = (dem[i,j] - dem[i_next, j_next]) / dist
 
-
-
-
-
-
-
+    
 def mosaicFolder(folderPath, fileSuffix, outfile):
     #This runs the gdal utility gdal_merge on the command line, is mainly here so that I don't have to continue looking
     #up how to actually accomplish this
@@ -814,181 +1004,6 @@ def mosaicFolder(folderPath, fileSuffix, outfile):
     # sys.argv = argv
     subprocess.call(argument)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def calcD8Area(elevGrid,dx):
-
-    # I am returning area and flowDirections but NOTE!I might be in danger the way I handle this...
-    # Flow directions are indices of arrays which may be different sizes, this is not truly giving me flow directions
-    # Because in the getNeighbor function I don't return values at edges.... might want to think about improving this,
-    # although it should work in this application
-    # Calculate the D8 drainage area for the numpy array representing a DEM in elevGrid, assumes that elevGrid has already been filled
-    # Assigns BCs to deal with edges - these should be changed to handle flow differently, currently it will not force flow through the edges
-
-    pxlArea = dx**2  # area of a pixel
-
-    idcs = elevGrid.argsort(axis= None)[::-1] # Get the sorted indices of the array in reverse order (e.g. largest first)
-    area = pxlArea*np.ones_like(elevGrid)  # All pixels have at least their own area
-
-    [nrows, ncols] = elevGrid.shape  # How big is the BC array? We don't need to do calulate area on the boundarys...
-    flowDir = np.zeros_like(elevGrid, dtype=int)
-
-    for idx in idcs:  # Loop through all the data in sorted order
-        [i, j] = np.unravel_index(idx, elevGrid.shape)  # Get the row/column indices
-
-        if not np.isnan(elevGrid[i, j]):
-            iNeighbs, jNeighbs, dxMults = getNeighborIndices(i, j, nrows, ncols) # Find the actual indices of the neighbors
-
-            #Find the distance to each of the neighbors
-            dxs = dx*dxMults
-
-            #Assign the flow direction of the current point
-            thisFD,iRel,jRel = assignD8FlowDir(iNeighbs-i, jNeighbs-j, (elevGrid[i, j] - elevGrid[iNeighbs, jNeighbs])/dxs)
-
-            if not np.isnan(thisFD):
-                # accumulate current area, downstream area
-                flowDir[i,j] = thisFD
-                area[i+iRel, j+jRel] += area[i, j]
-
-
-    return area, flowDir # Return non bc version of area
-
-def calcD8AreaSlope(filledDem,elevGrid,dx):
-
-    # I am returning area and flowDirections but NOTE!I might be in danger the way I handle this...
-    # Flow directions are indices of arrays which may be different sizes, this is not truly giving me flow directions
-    # Because in the getNeighbor function I don't return values at edges.... might want to think about improving this,
-    # although it should work in this application
-    # Calculate the D8 drainage area for the numpy array representing a DEM in elevGrid, assumes that elevGrid has already been filled
-    # Assigns BCs to deal with edges - these should be changed to handle flow differently, currently it will not force flow through the edges
-
-    pxlArea = dx**2  # area of a pixel
-
-    idcs = filledDem.argsort(axis= None)[::-1] # Get the sorted indices of the array in reverse order (e.g. largest first)
-    area = pxlArea*np.ones_like(elevGrid)  # All pixels have at least their own area
-    slope = np.ones_like(elevGrid)*np.nan
-
-    [nrows, ncols] = elevGrid.shape  # How big is the BC array? We don't need to do calulate area on the boundarys...
-    flowDir = np.zeros_like(elevGrid, dtype=int)
-
-    for idx in idcs:  # Loop through all the data in sorted order
-        [i, j] = np.unravel_index(idx, elevGrid.shape)  # Get the row/column indices
-
-        if not np.isnan(elevGrid[i, j]):
-            iNeighbs, jNeighbs, dxMults = getNeighborIndices(i, j, nrows, ncols) # Find the actual indices of the neighbors
-
-            #Find the distance to each of the neighbors
-            dxs = dx*dxMults
-
-            #Assign the flow direction of the current point
-            thisFD,iRel,jRel = assignD8FlowDir(iNeighbs-i, jNeighbs-j, (filledDem[i, j] - filledDem[iNeighbs, jNeighbs])/dxs)
-
-            if not np.isnan(thisFD):
-                # accumulate current area, downstream area
-                flowDir[i,j] = thisFD
-                area[i+iRel, j+jRel] += area[i, j]
-
-                #Calculate slope to downstream cell
-                thisDx = np.sqrt((i-iRel)**2 + (j-jRel)**2)*dx
-                slope[i,j] = (elevGrid[i,j] - elevGrid[i+iRel, j+jRel])/thisDx
-
-
-    return area, flowDir, slope # Return non bc version of area
-
-
-def assignD8FlowDir(iRel,jRel,slopes):
-    ## iRel and jRel are the relative indices from the current point to the surrounding points, the slopes of which are
-    ## stored in 'slopes'
-
-    #Search kernel for D8 flow routing, the relative indices of each of the 8 points surrounding a pixel, this is
-    # ArcGIS convection
-    # |i-1,j-1  i-1,j  i-1,j+1|  |32 64 128|
-    # |i,j-1     i,j     i,j+1|  |16  X  1 |
-    # |i+1,j-1  i+1,j  i+1,j+1|  |8   4  2 |
-
-    idx = np.argmax(slopes)  # Find steepest surrounding slope
-    iOut = iRel[idx]
-    jOut = jRel[idx] # Find the index of the steepest surrounding slope
-
-    fd = np.nan
-
-    if iOut == 0 and jOut == 1:
-        fd = 1
-    elif iOut == 1 and jOut == 1:
-        fd = 2
-    elif iOut == 1 and jOut == 0:
-        fd = 4
-    elif iOut == 1 and jOut == -1:
-        fd = 8
-    elif iOut == 0 and jOut == -1:
-        fd = 16
-    elif iOut == -1 and jOut == -1:
-        fd = 32
-    elif iOut == -1 and jOut == 0:
-        fd = 64
-    elif iOut == -1 and jOut == 1:
-        fd = 128
-
-    return fd, iOut, jOut
-
-def calcD8SlopeGrid(dem,fdGrid,dx):
-
-    gridShape = dem.shape
-    slopes = np.zeros_like(dem)*np.nan #Preallocate with nans
-
-    for i in range(gridShape[0]):
-        for j in range(gridShape[1]):
-            slopes[i, j] = getD8slope(dem,fdGrid[i,j],dx,i,j,gridShape[0],gridShape[1])
-
-    return slopes
-
-def getD8slope(dem,fd,dx,i,j,nRows,nCols):
-
-    #Function to get the slope cell in the down flow direction
-    iOut,jOut,isGood = getFlowToCell(i,j,fd,nRows,nCols)
-
-    if isGood:
-        dist = np.sqrt((i-iOut)**2 + (j-jOut)**2)*dx
-        return (dem[i, j]-dem[iOut, jOut])/dist
-    else:
-        return np.nan
 
 
 
