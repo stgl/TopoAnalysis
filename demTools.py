@@ -335,42 +335,34 @@ class GeographicGridMixin(object):
         metersPerDegree = 110000 #110 km per degree (approximation)
         return int(dTheta*metersPerDegree) #convert degrees to meters
     
-    def _calcPixelAreas(self, geoTransform, nx, ny, mask = None):
+    
+    def _area_per_pixel(self, *args, **kwargs):
 
-        lats, longs = self._getLatsLongsFromGeoTransform(geoTransform, nx, ny)
         #Returns a grid of the area of each pixel within the domain specified by the gdalDataset
     
         re = 6371.0 * 1000.0 #radius of the earth in meters
     
-        if mask is None:
-            rows = range(len(lats))
-            cols = range(len(longs))
-        else:
-            idcs = np.where(mask.flatten())
-            rows,cols = np.unravel_index(idcs,mask.shape)
-    
-    
+        dLong = self._georef_info.geoTransform[1]
+        dLat = self._georef_info.geoTransform[5]
+        
+        lats = self._georef_info.yllcenter + np.float64(range(self._georef_info.ny))*dLat
+        longs = self._georef_info.xllcenter + np.float64(range(self._georef_info.nx))*dLong
+            
         #Get the size of pixels in the lat and long direction
-        dLong = geoTransform[1]
-        dLat = geoTransform[5]
-    
-        #Preallocate space for the areas
-        initialAreas = np.zeros((len(lats),len(longs)))
-    
-        #Iterate through the grid, calculating the pixel dimensions in length based on the center coordinate of that pixel
-        for i in rows:
-            for j in cols:
-    
-                #Get the bounding coordinates of these pixels
-                lat1 = np.radians(lats[i]-dLat/2.0)
-                lat2 = np.radians(lats[i]+dLat/2.0)
-                long1 = np.radians(longs[j]-dLong/2.0)
-                long2 = np.radians(longs[j]+dLong/2.0)
-    
-                #Calculate the area of that pixel, assuming a spherical earth
-                initialAreas[i,j] = np.abs((re**2)*(long2 - long1)*(np.sin(lat2) - np.sin(lat1)))
-    
+
+        [LONG, LAT] = np.meshgrid(longs, lats)
+        LAT1 = np.radians(LAT - dLat / 2.0)
+        LAT2 = np.radians(LAT + dLat / 2.0)
+        LONG1 = np.radians(LONG - dLong / 2.0)
+        LONG2 = np.radians(LONG + dLong / 2.0)
+        
+        initialAreas = np.abs((re**2)*(LONG1 - LONG2)*(np.sin(LAT2) - np.sin(LAT1)))
+        
         return initialAreas
+    
+    def _mean_pixel_dimension(self, *args, **kwargs):
+        
+        return np.sqrt(self._area_per_pixel())
 
 
 class CalculationMixin(object):
@@ -627,7 +619,7 @@ class BaseSpatialGrid(GDALMixin):
             if col > self._georef_info.nx or row > self._georef_info.ny:
                 l.append((None, None))
             else:
-                l.append(row,col)
+                l.append((row,col))
         return tuple(l)
     
     def _rowscols_to_xy(self, l):
@@ -720,7 +712,21 @@ class BaseSpatialGrid(GDALMixin):
         plt.ion()
         plt.show()
     
+    def find_nearest_cell_with_value(self, index, value, pixel_radius):
 
+        (i, j) = index
+        nearest = tuple()
+        minimum_difference = np.nan
+        for y in range(int(i-pixel_radius),int(i+pixel_radius)):
+            for x in range(int(j-pixel_radius),int(j+pixel_radius)):
+                if np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius:
+                    value_difference = np.abs(value - self._griddata[y,x])
+                    if np.isnan(minimum_difference) or minimum_difference > value_difference:
+                        minimum_difference = value_difference
+                        nearest = (y,x)
+        
+        (y,x) = nearest
+        return y, x
         
 class FlowDirection(BaseSpatialGrid):
     pass
@@ -1101,31 +1107,8 @@ class Area(BaseSpatialGrid):
     def _area_per_pixel(self, *args, **kwargs):
         return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
 
-class GeographicArea(Area):
-    
-    def _area_per_pixel(self, *args, **kwargs):
-
-        #Returns a grid of the area of each pixel within the domain specified by the gdalDataset
-    
-        re = 6371.0 * 1000.0 #radius of the earth in meters
-    
-        dLong = self._georef_info.geoTransform[1]
-        dLat = self._georef_info.geoTransform[5]
-        
-        lats = self._georef_info.yllcenter + np.float64(range(self._georef_info.ny))*dLat
-        longs = self._georef_info.xllcenter + np.float64(range(self._georef_info.nx))*dLong
-            
-        #Get the size of pixels in the lat and long direction
-
-        [LONG, LAT] = np.meshgrid(longs, lats)
-        LAT1 = np.radians(LAT - dLat / 2.0)
-        LAT2 = np.radians(LAT + dLat / 2.0)
-        LONG1 = np.radians(LONG - dLong / 2.0)
-        LONG2 = np.radians(LONG + dLong / 2.0)
-        
-        initialAreas = np.abs((re**2)*(LONG1 - LONG2)*(np.sin(LAT2) - np.sin(LAT1)))
-        
-        return initialAreas
+class GeographicArea(GeographicGridMixin, Area):
+    pass
 
 class Ksi(Area):
     
@@ -1145,75 +1128,115 @@ class FlowLength(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                (('gdal_filename',), '_read_gdal'), 
-                               (('flow_direction', 'flooded_dem'), '_create_from_flow_direction_and_flooded_dem'),
-                               (('flow_direction', 'sorted_indexes'), '_create_from_flow_direction_and_sorted_indexes'))
-    
-    def _create_from_flow_direction_and_flooded_dem(self, *args, **kwargs):
-        kwargs['sorted_indexes'] = kwargs['flooded_dem'].sort()
-        self._copy_info_from_grid(self, kwargs['flow_direction'], set_zeros = True)
-        self.__calculate_flow_length(self, *args, **kwargs)
-    
+                               (('flow_direction',), '_create_from_flow_direction_and_sorted_indexes'))
+        
     def _create_from_flow_direction_and_sorted_indexes(self, *args, **kwargs):
-        self._copy_info_from_grid(self, kwargs['flow_direction'], set_zeros = True)
-        self.__calculate_flow_length(self, *args, **kwargs)
+        self._copy_info_from_grid(kwargs['flow_direction'], True)
+        self.__calculate_flow_length(*args, **kwargs)
         
     def __calculate_flow_length(self, *args, **kwargs):
         
         flow_dir = kwargs['flow_direction']
-        idcs = kwargs.get('sorted_indexes')
-        [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
+        if kwargs.get('sorted_indexes') is not None:
+            idcs = kwargs.get('sorted_indexes')
+        else:
+            idcs = flow_dir.sort()
+            
+        self.__flow_directions = np.zeros_like(flow_dir._griddata, np.uint8)
+
+        [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)            
+        mean_pixel_dimension = self._mean_pixel_dimension()
 
         import itertools
         for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
             if i_next == i or j_next == j:
-                dx = self._georef_info.dx
+                dx = mean_pixel_dimension[i,j]
             else:
-                dx = self._georef_info.dx * 1.41
+                dx = mean_pixel_dimension[i,j] * 1.41
                 
             if is_good:
                 next_l = self._griddata[i,j] + dx
                 if next_l > self._griddata[i_next, j_next]:
                     self._griddata[i_next, j_next] = next_l
+                    self.__flow_directions[i_next, j_next] = self.__flow_direction_for_length((i,j), (i_next,j_next))
 
+    def __flow_direction_for_length(self, from_index, to_index):
+        (i_from, j_from) = from_index
+        (i_to, j_to) = to_index
+        
+        d_i = i_to - i_from
+        d_j = j_to - j_from
+                
+        if d_i == 0:
+            if d_j == 1:
+                return 16
+            if d_j == 0:
+                return 0
+            if d_j == -1:
+                return 1
+        elif d_i == 1:
+            if d_j == 1:
+                return 8
+            if d_j == 0:
+                return 4
+            if d_j == -1:
+                return 2
+        elif d_i == -1:
+            if d_j == 1:
+                return 32
+            if d_j == 0:
+                return 64
+            if d_j == -1:
+                return 128
+        
+        return None
+    
+    def is_along_flow_length(self, from_index, to_index):
+        
+        (i_to, j_to) = to_index
+        flow_code = self.__flow_directions[i_to, j_to]
+        
+        return flow_code == self.__flow_direction_for_length(from_index, to_index)
+        
+    def _mean_pixel_dimension(self, *args, **kwargs):
+        return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
+
+class GeographicFlowLength(GeographicGridMixin, FlowLength):
+    pass
+    
+    
 class Relief(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                            (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                            (('gdal_filename',), '_read_gdal'), 
-                           (('flow_direction', 'flooded_dem', 'elevation', 'flow_length'), '_create_from_flow_direction_flooded_dem_and_elevation'),
-                           (('flow_direction', 'sorted_indexes', 'elevation', 'flow_length'), '_create_from_flow_direction_sorted_indexes_and_elevation'))   
-    
-    def _create_from_flow_direction_flooded_dem_and_elevation(self, *args, **kwargs):
-        kwargs['sorted_indexes'] = kwargs['flooded_dem'].sort()
-        self._copy_info_from_grid(self, kwargs['flow_direction'], set_zeros = True)
-        self.__calculate_relief(self, *args, **kwargs)
+                           (('flow_direction', 'elevation', 'flow_length'), '_create_from_flow_direction_sorted_indexes_and_elevation'))   
     
     def _create_from_flow_direction_sorted_indexes_and_elevation(self, *args, **kwargs):
-        self._copy_info_from_grid(self, kwargs['flow_direction'], set_zeros = True)
-        self.__calculate_relief(self, *args, **kwargs)
+        self._copy_info_from_grid(kwargs['flow_direction'], True)
+        self.__calculate_relief(*args, **kwargs)
         
     def __calculate_relief(self, *args, **kwargs):
         
         flow_dir = kwargs['flow_direction']
         elevation = kwargs['elevation']
         flow_length = kwargs['flow_length']
-        idcs = kwargs.get('sorted_indexes')
-        [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
+        if kwargs.get('sorted_indexes') is not None:
+            idcs = kwargs.get('sorted_indexes')
+        else:
+            idcs = flow_dir.sort()
 
+        [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
+        pixel_dimension = flow_length._mean_pixel_dimension()
+        
         import itertools
         for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
-            if i_next == i or j_next == j:
-                dx = self._georef_info.dx
-            else:
-                dx = self._georef_info.dx * 1.41
                 
-            if is_good:
-                dfl = flow_length[i_next, j_next] - flow_length[i,j]
-                drf = elevation[i,j] = elevation[i_next,j_next]
-                if dfl == dx:
-                    self._griddata[i_next, j_next] = self._griddata[i,j] + drf
+            if is_good and flow_length.is_along_flow_length((i,j), (i_next, j_next)):
+                drf = elevation[i,j] - elevation[i_next,j_next]
+                self._griddata[i_next, j_next] = self._griddata[i,j] + drf
 
 class ScaledRelief(Relief):
     
@@ -1221,7 +1244,7 @@ class ScaledRelief(Relief):
                            (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                            (('gdal_filename',), '_read_gdal'), 
                            (('flow_direction', 'flooded_dem', 'elevation', 'flow_length', 'Ao', 'theta'), '_create_scaled_from_flow_direction_flooded_dem_and_elevation'),
-                           (('flow_direction', 'sorted_indexes', 'elevation', 'flow_length', 'Ao', 'theta'), '_create_scaled_from_flow_direction_sorted_indexes_and_elevation'))
+                           (('flow_direction', 'elevation', 'flow_length', 'Ao', 'theta'), '_create_scaled_from_flow_direction_sorted_indexes_and_elevation'))
     
     def _create_scaled_from_flow_direction_flooded_dem_and_elevation(self, *args, **kwargs):
         self._create_from_flow_direction_flooded_dem_and_elevation(*args, **kwargs)
@@ -1275,9 +1298,33 @@ def mosaicFolder(folderPath, fileSuffix, outfile):
     # sys.argv = argv
     subprocess.call(argument)
 
-
-
-
-
+def plot(*args, **kwargs):
+    
+    grid1 = args[0]._griddata
+    grid2 = args[1]._griddata
+    
+    if kwargs.get('xlabel') is None:
+        xlabel = 'Grid 1'
+    
+    if kwargs.get('ylabel') is None:
+        ylabel = 'Grid 2'
+    
+    if kwargs.get('symbol') is None:
+        symbol = 'k.'
+    
+    if kwargs.get('indexes') is None:    
+        valid_indexes = np.where( ~np.isnan(grid1+grid2) )
+    else:
+        valid_indexes = kwargs.get('indexes')
+        
+    if kwargs.get('decimation_factor') is not None:
+        valid_indexes = valid_indexes[::kwargs.get('decimation_factor')]
+        
+    plt.plot(grid1[valid_indexes], grid2[valid_indexes], symbol)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
+    
+    return grid1[valid_indexes], grid2[valid_indexes]
 
 
