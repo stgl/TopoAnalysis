@@ -829,56 +829,57 @@ class FlowDirectionD8(FlowDirection):
     
         return iOut, jOut, isGood
 
-    def _get_flow_from_cell(self, i, j):
+    def __get_flow_from_cell(self, i, j):
         
         i_source = [i]
         j_source = [j]
         
         if self[i, j+1] == 16:
-            [i_append, j_append] = self._get_flow_from_cells(i,j+1)
+            [i_append, j_append] = self.__get_flow_from_cell(i,j+1)
             i_source = i_source + i_append
             j_source = j_source + j_append
         
-        if self[i-1, j+1] == 32:
-            [i_append, j_append] = self._get_flow_from_cells(i-1,j+1)
+        if self[i+1, j+1] == 32:
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j+1)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
-        if self[i-1, j] == 64:
-            [i_append, j_append] = self._get_flow_from_cells(i-1,j)
+        if self[i+1, j] == 64:
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j)
             i_source = i_source + i_append
             j_source = j_source + j_append
         
-        if self[i-1, j-1] == 128:
-            [i_append, j_append] = self._get_flow_from_cells(i-1,j-1)
+        if self[i+1, j-1] == 128:
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j-1)
             i_source = i_source + i_append
             j_source = j_source + j_append
                 
         if self[i, j-1] == 1:
-            [i_append, j_append] = self._get_flow_from_cells(i,j-1)
+            [i_append, j_append] = self.__get_flow_from_cell(i,j-1)
             i_source = i_source + i_append
             j_source = j_source + j_append
          
-        if self[i+1, j-1] == 2:
-            [i_append, j_append] = self._get_flow_from_cells(i+1,j-1)
+        if self[i-1, j-1] == 2:
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j-1)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
-        if self[i+1, j] == 4:
-            [i_append, j_append] = self._get_flow_from_cells(i+1,j)
+        if self[i-1, j] == 4:
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
-        if self[i+1, j+1] == 8:
-            [i_append, j_append] = self._get_flow_from_cells(i+1,j+1)
+        if self[i-1, j+1] == 8:
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j+1)
             i_source = i_source + i_append
             j_source = j_source + j_append
                
         return i_source, j_source
     
+    
     def get_indexes_of_upstream_cells(self, i, j):
         
-        return self._get_flow_from_cell(i,j)
+        return self.__get_flow_from_cell(i,j)
     
     def get_indexes_of_upstream_cells_for_location(self, x, y):
         
