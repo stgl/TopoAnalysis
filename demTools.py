@@ -586,7 +586,8 @@ class BaseSpatialGrid(GDALMixin):
         self.__populate_georef_info_using_geoTransform(self._georef_info.nx, self._georef_info.ny)
     
     def _copy_info_from_grid(self, grid, set_zeros = False):
-        self._georef_info = grid._georef_info
+        import copy
+        self._georef_info = copy.deepcopy(grid._georef_info)
         if not set_zeros:
             self._griddata = grid._griddata.copy()
         else:
@@ -879,7 +880,8 @@ class FlowDirectionD8(FlowDirection):
     
     def get_indexes_of_upstream_cells(self, i, j):
         
-        return self.__get_flow_from_cell(i,j)
+        i,j = self.__get_flow_from_cell(i,j)
+        return zip(i,j)
     
     def get_indexes_of_upstream_cells_for_location(self, x, y):
         
@@ -1319,13 +1321,15 @@ def plot(*args, **kwargs):
         valid_indexes = kwargs.get('indexes')
         
     if kwargs.get('decimation_factor') is not None:
-        valid_indexes = valid_indexes[::kwargs.get('decimation_factor')]
-        
+        valid_indexes = (valid_indexes[0][::kwargs.get('decimation_factor')],valid_indexes[1][::kwargs.get('decimation_factor')])
+    
     plt.plot(grid1[valid_indexes], grid2[valid_indexes], symbol)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    plt.ion()
     plt.show()
+    ax = plt.gca()
     
-    return grid1[valid_indexes], grid2[valid_indexes]
+    return ax
 
 
