@@ -1,4 +1,4 @@
-#Functions for DEM calculations typical of geomorphology
+#Functions for demMethods calculations typical of geomorphology
 #Developed by Sam Johnstone, January 2015, samuelj@stanford.edu , johnsamstone@gmail.com
 #Not all functions are benchmarked
 #If you somehow have this, and have never spoken to me, please reach out
@@ -16,23 +16,8 @@ import Error
 from numpy import uint8
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
-from pickle import Unpickler
 
-def read(filename):
-    import bz2
-    import cPickle as pickle
-    with bz2.BZ2File(filename + '.bz2', 'r') as f:
-        obj = pickle.load(f)
-        f.close()
-        return obj
 
-def write(obj, filename):
-    
-    import bz2
-    import cPickle as pickle
-    with bz2.BZ2File(filename + '.bz2', 'w') as f:
-        pickle.dump(obj, f)
-        f.close()
         
 class GDALMixin(object):
     
@@ -893,7 +878,7 @@ class FlowDirectionD8(FlowDirection):
         l = list()
         (row, col) = self._xy_to_rowscols(start)
         l.append((row,col))
-        #So long as we are not at the edge of the DEM
+        #So long as we are not at the edge of the demMethods
         while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1):
             # Get the neighbors in the flow direction corresponding order - note, I might be in danger the way I handle this...
             # Flow directions are indices of arrays which may be different sizes, this is not truly giving me flow directions
@@ -1085,7 +1070,7 @@ class Area(BaseSpatialGrid):
         # Flow directions are indices of arrays which may be different sizes, this is not truly giving me flow directions
         # Because in the getNeighbor function I don't return values at edges.... might want to think about improving this,
         # although it should work in this application
-        # Calculate the D8 drainage area for the numpy array representing a DEM in elevGrid, assumes that elevGrid has already been filled
+        # Calculate the D8 drainage area for the numpy array representing a demMethods in elevGrid, assumes that elevGrid has already been filled
         # Assigns BCs to deal with edges - these should be changed to handle flow differently, currently it will not force flow through the edges
     
         flow_dir = kwargs['flow_direction']
