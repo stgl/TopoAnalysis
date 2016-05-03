@@ -1,18 +1,25 @@
-def read(filename):
-    import bz2
-    import cPickle as pickle
-    f = bz2.BZ2File(filename + '.bz2', 'rb') 
-    obj = pickle.load(f)
-    f.close()
-    return obj
-
-def write(obj, filename):
+def processAll(prefix_name, Ao, theta):
     
-    import bz2
-    import cPickle as pickle
-    f = bz2.BZ2File(filename + '.bz2', 'wb')
-    s = pickle.dumps(obj)
-    for i in range(0, len(s), 2**32):
-        f.write(bytes(s[i:i+2**32]))
-    f.close()
+    from dem import Elevation, FlowDirectionD8, GeographicArea, Area, GeographicFlowLength, Ksi, ScaledRelief
+    
+    elevation_name = prefix_name + "_dem_15s"
+    area_name = prefix_name + "_acc_15s"
+    d8_name = prefix_name + "_dir_15s"
+    
+    elevation = Elevation(gdal_filename = elevation_name)
+    area = Area(gdal_filename = area_name)
+    d8 = FlowDirectionD8(gdal_filename = d8_name)
+    
+    area = GeographicArea(flow_direction = d8, sorted_indexes = area.sort())
+    ksi = Ksi(area = area, flow_direction = d8, theta = theta, Ao = Ao)
+    flow_length = GeographicFlowLength(flow_direction = d8, sorted_indexes = area.sort())
+    relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta)
+    
+    elevation.save(prefix_name + "_elevation")
+    d8.save(prefix_name + "_flow_direction")
+    area.save(prefix_name + "_area")
+    ksi.save(prefix_name + "_ksi_" + str(Ao) + "_" + str(theta))
+    flow_length.save(prefix_name + "_flow_length")
+    relief.save(prefix_name + "_relief_" + str(Ao) + "_" + str(theta))
+    
     
