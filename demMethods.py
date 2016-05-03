@@ -1,16 +1,16 @@
 def read(filename):
-    import bz2
+    import gzip
     import cPickle as pickle
-    f = bz2.BZ2File(filename + '.bz2', 'r') 
+    f = gzip.GzipFile(filename + '.gz', 'rb') 
     obj = pickle.load(f)
     f.close()
     return obj
 
 def write(obj, filename):
     
-    import bz2
+    import gzip
     import cPickle as pickle
-    f = bz2.BZ2File(filename + '.bz2', 'w')
+    f = gzip.GzipFile(filename + '.gz', 'wb')
     pickle.dump(obj, f)
     f.close()
     
