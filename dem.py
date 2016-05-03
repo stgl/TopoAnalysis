@@ -128,7 +128,8 @@ class GDALMixin(object):
     
         #Write geographic information
         outRaster.SetGeoTransform(georef_info.geoTransform)  # Steal the coordinate system from the old dataset
-        outRaster.SetProjection(georef_info.projection)   # Steal the Projections from the old dataset
+        if georef_info.projection != 0:
+            outRaster.SetProjection(georef_info.projection)   # Steal the Projections from the old dataset
     
         #Write the array
         outRaster.GetRasterBand(1).WriteArray(array_data)   # Writes my array to the raster
