@@ -713,7 +713,42 @@ class BaseSpatialGrid(GDALMixin):
         
         (y,x) = nearest
         return y, x
+    
+    def save(self, filename):
         
+        self._create_gdal_representation_from_array(self._georef_info, 'ENVI', self._griddata, self.dtype, filename)
+    
+    @classmethod
+    def load(cls, filename):
+        
+        return_object = cls()
+        
+        gdal_dataset = gdal.Open(filename)
+        band = gdal_dataset.GetRasterBand(1)
+        nodata = band.GetNoDataValue()
+        return_object._griddata = band.ReadAsArray().astype(cls.dtype)
+        nodata_elements = np.where(return_object._griddata == nodata)
+        from numpy import uint8
+        if cls.dtype is not uint8:
+            return_object._griddata[nodata_elements] = np.NAN
+        
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(return_object._georef_info.ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+            
+        gdal_file = None
+        return return_object
+    
+        return cls._    
 class FlowDirection(BaseSpatialGrid):
     pass
 
