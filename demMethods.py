@@ -12,15 +12,15 @@ def processAll(prefix_name, Ao, theta):
     
     idx = area.sort(reverse = False)
     area = GeographicArea(flow_direction = d8, sorted_indexes = idx)
-    ksi = Ksi(area = area, flow_direction = d8, theta = theta, Ao = Ao)
+    ksi = Ksi(area = area, flow_direction = d8, theta = theta, Ao = Ao, sorted_indexes = idx)
     flow_length = GeographicFlowLength(flow_direction = d8, sorted_indexes = idx)
-    relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta)
+    relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta, sorted_indexes = idx)
     
     elevation.save(prefix_name + "_elevation")
     d8.save(prefix_name + "_flow_direction")
     area.save(prefix_name + "_area")
-    ksi.save(prefix_name + "_ksi_" + str(Ao) + "_" + str(theta))
+    ksi.save(prefix_name + "_ksi_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
     flow_length.save(prefix_name + "_flow_length")
-    relief.save(prefix_name + "_relief_" + str(Ao) + "_" + str(theta))
+    relief.save(prefix_name + "_relief_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
     
     
