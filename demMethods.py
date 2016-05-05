@@ -10,9 +10,10 @@ def processAll(prefix_name, Ao, theta):
     area = Area(gdal_filename = area_name)
     d8 = FlowDirectionD8(gdal_filename = d8_name)
     
-    area = GeographicArea(flow_direction = d8, sorted_indexes = area.sort())
+    idx = area.sort(reverse = False)
+    area = GeographicArea(flow_direction = d8, sorted_indexes = idx)
     ksi = Ksi(area = area, flow_direction = d8, theta = theta, Ao = Ao)
-    flow_length = GeographicFlowLength(flow_direction = d8, sorted_indexes = area.sort())
+    flow_length = GeographicFlowLength(flow_direction = d8, sorted_indexes = idx)
     relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta)
     
     elevation.save(prefix_name + "_elevation")
