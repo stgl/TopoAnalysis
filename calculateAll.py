@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 import argparse, sys, os
 
 sys.path.append('/home/hilley/steepness')
