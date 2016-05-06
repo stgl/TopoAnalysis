@@ -16,6 +16,7 @@ import Error
 from numpy import uint8
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
+from operator import pos
 
 
         
@@ -941,7 +942,14 @@ class FlowDirectionD8(FlowDirection):
         convertedFlowDir = 2**convertedFlowDir
         convertedFlowDir[self._griddata == self.noData] = self.noData
         self._griddata = convertedFlowDir
+    
+    def pixel_scale(self, dtype = np.float32):
         
+        dim = np.ones_like(self._griddata, dtype = dtype)
+        dim[np.where((self._griddata == 32) | (self._griddata == 128) | (self._griddata == 2) | (self._griddata == 8))] = 1.41421356
+        return dim
+        
+            
 class Elevation(CalculationMixin, BaseSpatialGrid):
     
     def findDEMedge(self):
@@ -1131,21 +1139,11 @@ class Area(BaseSpatialGrid):
     def _area_per_pixel(self, *args, **kwargs):
         return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
 
+    def _mean_pixel_dimension(self, *args, **kwargs):
+        return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
+    
 class GeographicArea(GeographicGridMixin, Area):
     pass
-
-class Ksi(Area):
-    
-    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
-                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
-                               (('gdal_filename',), '_read_gdal'), 
-                               (('area','flow_direction','theta', 'Ao'), '_create_from_inputs'))
-    
-    def _create_from_inputs(self, *args, **kwargs):
-        self._create_from_flow_direction(*args, **kwargs)
-
-    def _area_per_pixel(self, *args, **kwargs):
-        return np.power( kwargs['Ao'] * np.power(kwargs['area']._griddata, -1), kwargs['theta'])
 
 class FlowLength(BaseSpatialGrid):
     
@@ -1169,18 +1167,15 @@ class FlowLength(BaseSpatialGrid):
         self.__flow_directions = np.zeros_like(flow_dir._griddata, np.uint8)
 
         [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)            
-        mean_pixel_dimension = self._mean_pixel_dimension()
+        dx = self._mean_pixel_dimension() * flow_dir.pixel_scale()
 
         import itertools
-        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
+        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order  
+              
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
-            if i_next == i or j_next == j:
-                dx = mean_pixel_dimension[i,j]
-            else:
-                dx = mean_pixel_dimension[i,j] * 1.41
                 
             if is_good:
-                next_l = self._griddata[i,j] + dx
+                next_l = self._griddata[i,j] + dx[i,j]
                 if next_l > self._griddata[i_next, j_next]:
                     self._griddata[i_next, j_next] = next_l
                     self.__flow_directions[i_next, j_next] = self.__flow_direction_for_length((i,j), (i_next,j_next))
@@ -1229,8 +1224,26 @@ class FlowLength(BaseSpatialGrid):
 class GeographicFlowLength(GeographicGridMixin, FlowLength):
     pass
     
+class MaxFlowLengthTrackingMixin(object):
     
-class Relief(BaseSpatialGrid):
+    def _calculate_by_tracking_down_max_flow_length(self, *args, **kwargs):
+        flow_dir = kwargs['flow_direction']
+        flow_length = kwargs['flow_length']
+        if kwargs.get('sorted_indexes') is not None:
+            idcs = kwargs.get('sorted_indexes')
+        else:
+            idcs = flow_dir.sort()
+                
+        [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
+        
+        import itertools
+        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
+            i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)  
+            if is_good and flow_length.is_along_flow_length((i,j), (i_next, j_next)):
+                self._calculate_grid_value((i,j), (i_next, j_next), *args, **kwargs)
+                
+        
+class Relief(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                            (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
@@ -1239,29 +1252,16 @@ class Relief(BaseSpatialGrid):
     
     def _create_from_flow_direction_sorted_indexes_and_elevation(self, *args, **kwargs):
         self._copy_info_from_grid(kwargs['flow_direction'], True)
-        self.__calculate_relief(*args, **kwargs)
+        self._calculate_by_tracking_down_max_flow_length(*args, **kwargs)
+    
+    def _calculate_grid_value(self, pos, next_pos, *args, **kwargs):
+        (i,j) = pos
+        (i_next, j_next) = next_pos
+        drf = kwargs['elevation'][i,j] - kwargs['elevation'][i_next, j_next]
+        if drf < 0:
+            drf = 0
+        self._griddata[i_next, j_next] = self._griddata[i,j] + drf
         
-    def __calculate_relief(self, *args, **kwargs):
-        
-        flow_dir = kwargs['flow_direction']
-        elevation = kwargs['elevation']
-        flow_length = kwargs['flow_length']
-        if kwargs.get('sorted_indexes') is not None:
-            idcs = kwargs.get('sorted_indexes')
-        else:
-            idcs = flow_dir.sort()
-
-        [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
-        pixel_dimension = flow_length._mean_pixel_dimension()
-        
-        import itertools
-        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
-            i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
-                
-            if is_good and flow_length.is_along_flow_length((i,j), (i_next, j_next)):
-                drf = elevation[i,j] - elevation[i_next,j_next]
-                self._griddata[i_next, j_next] = self._griddata[i,j] + drf
-
 class ScaledRelief(Relief):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
@@ -1277,6 +1277,31 @@ class ScaledRelief(Relief):
     def _create_scaled_from_flow_direction_sorted_indexes_and_elevation(self, *args, **kwargs):
         self._create_from_flow_direction_sorted_indexes_and_elevation(*args, **kwargs)
         self._griddata = self._griddata * (np.power(kwargs['Ao'],kwargs['theta']))
+
+class Ksi(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                               (('gdal_filename',), '_read_gdal'), 
+                               (('area','flow_direction','theta', 'Ao', 'flow_length'), '_create_from_inputs'))
+    
+    def _create_from_inputs(self, *args, **kwargs):
+        self._copy_info_from_grid(kwargs['flow_direction'], True)
+        self._griddata = np.power( (kwargs['Ao'] / kwargs['area']._griddata) ** kwargs['theta']) * self._mean_pixel_dimension() * kwargs['flow_direction'].pixel_scale()
+        self._calculate_by_tracking_down_max_flow_length(*args, **kwargs)
+        
+    def _calculate_grid_value(self, pos, next_pos, *args, **kwargs):
+        (i,j) = pos
+        (i_next, j_next) = next_pos
+        self._griddata[i_next, j_next] += self._griddata[i,j]
+        
+
+    def _area_per_pixel(self, *args, **kwargs):
+        
+        return np.power( (kwargs['Ao'] / kwargs['area']._griddata) ** kwargs['theta']) * self._mean_pixel_dimension() * kwargs['flow_direction'].pixel_scale()
+
+class GeographicKsi(Ksi, GeographicGridMixin):
+    pass
             
 class ChannelSlope(BaseSpatialGrid):
     
