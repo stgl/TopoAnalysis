@@ -1298,7 +1298,7 @@ class Ksi(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
 
     def _area_per_pixel(self, *args, **kwargs):
         
-        return np.power( (kwargs['Ao'] / kwargs['area']._griddata) ** kwargs['theta']) * self._mean_pixel_dimension() * kwargs['flow_direction'].pixel_scale()
+        return ((kwargs['Ao'] / kwargs['area']._griddata) ** kwargs['theta']) * self._mean_pixel_dimension() * kwargs['flow_direction'].pixel_scale()
 
 class GeographicKsi(Ksi, GeographicGridMixin):
     pass
