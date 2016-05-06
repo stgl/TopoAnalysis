@@ -750,7 +750,6 @@ class BaseSpatialGrid(GDALMixin):
         gdal_file = None
         return return_object
     
-        return cls._    
 class FlowDirection(BaseSpatialGrid):
     pass
 
@@ -1220,6 +1219,26 @@ class FlowLength(BaseSpatialGrid):
         
     def _mean_pixel_dimension(self, *args, **kwargs):
         return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
+    
+    def save(self, filename):
+        
+        super(BaseSpatialGrid, self).save(filename)
+        flow_dir_name = filename + "_directions"
+        self._create_gdal_representation_from_array(self._georef_info, 'ENVI', self.__flow_directions, np.uint8, flow_dir_name)
+        
+    @classmethod
+    def load(cls, filename):
+        
+        return_object = BaseSpatialGrid.load(filename)
+
+        flow_dir_filename = filename + "_directions"        
+        gdal_dataset = gdal.Open(flow_dir_filename)
+        band = gdal_dataset.GetRasterBand(1)
+        return_object.__flow_directions = band.ReadAsArray().astype(np.uint8)
+                
+        gdal_file = None
+        return return_object
+        
 
 class GeographicFlowLength(GeographicGridMixin, FlowLength):
     pass
