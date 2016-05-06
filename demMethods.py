@@ -1,6 +1,6 @@
 def processAll(prefix_name, Ao, theta):
     
-    from dem import Elevation, FlowDirectionD8, GeographicArea, Area, GeographicFlowLength, Ksi, ScaledRelief
+    from dem import Elevation, FlowDirectionD8, GeographicArea, Area, GeographicFlowLength, GeographicKsi, ScaledRelief
     
     elevation_name = prefix_name + "_dem_15s"
     area_name = prefix_name + "_acc_15s"
@@ -12,8 +12,8 @@ def processAll(prefix_name, Ao, theta):
     
     idx = area.sort(reverse = False)
     area = GeographicArea(flow_direction = d8, sorted_indexes = idx)
-    ksi = Ksi(area = area, flow_direction = d8, theta = theta, Ao = Ao, sorted_indexes = idx)
     flow_length = GeographicFlowLength(flow_direction = d8, sorted_indexes = idx)
+    ksi = GeographicKsi(area = area, flow_direction = d8, theta = theta, Ao = Ao, flow_length = flow_length, sorted_indexes = idx)
     relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta, sorted_indexes = idx)
     
     elevation.save(prefix_name + "_elevation")
