@@ -1222,7 +1222,7 @@ class FlowLength(BaseSpatialGrid):
     
     def save(self, filename):
         
-        super(BaseSpatialGrid, self).save(filename)
+        super(FlowLength, self).save(filename)
         flow_dir_name = filename + "_directions"
         self._create_gdal_representation_from_array(self._georef_info, 'ENVI', self.__flow_directions, np.uint8, flow_dir_name)
         
@@ -1230,7 +1230,7 @@ class FlowLength(BaseSpatialGrid):
     def load(cls, filename):
         
         return_object = BaseSpatialGrid.load(filename)
-
+        return_object = cls(return_object)
         flow_dir_filename = filename + "_directions"        
         gdal_dataset = gdal.Open(flow_dir_filename)
         band = gdal_dataset.GetRasterBand(1)
