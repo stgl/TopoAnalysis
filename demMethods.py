@@ -9,7 +9,6 @@ def processAll(prefix_name, Ao, theta, base_name = '.'):
     elevation = Elevation(gdal_filename = elevation_name)
     elevation.save(prefix_name + "_elevation")
     area = Area(gdal_filename = area_name)
-    area.save(prefix_name + "_area")
     d8 = FlowDirectionD8(gdal_filename = d8_name)
     d8.save(prefix_name + "_flow_direction")
     
