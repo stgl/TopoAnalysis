@@ -1225,7 +1225,7 @@ class FlowLength(BaseSpatialGrid):
         
         super(FlowLength, self).save(filename)
         flow_dir_name = filename + "_directions"
-        self._create_gdal_representation_from_array(self._georef_info, 'ENVI', self.__flow_directions, np.uint8, flow_dir_name)
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', self.__flow_directions, np.uint8, flow_dir_name, ['COMPRESS=LZW'])
         
     @classmethod
     def load(cls, filename):
