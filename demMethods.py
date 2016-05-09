@@ -6,7 +6,6 @@ def processAll(prefix_name, Ao, theta, base_name = '.'):
     area_name = base_name + "/" + prefix_name + "_acc_15s"
     d8_name = base_name + "/" + prefix_name + "_dir_15s"
     
-    print(elevation_name)
     elevation = Elevation(gdal_filename = elevation_name)
     elevation.save(prefix_name + "_elevation")
     area = Area(gdal_filename = area_name)
