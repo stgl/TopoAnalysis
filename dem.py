@@ -729,10 +729,11 @@ class BaseSpatialGrid(GDALMixin):
         band = gdal_dataset.GetRasterBand(1)
         nodata = band.GetNoDataValue()
         return_object._griddata = band.ReadAsArray().astype(cls.dtype)
-        nodata_elements = np.where(return_object._griddata == nodata)
-        from numpy import uint8
-        if cls.dtype is not uint8:
-            return_object._griddata[nodata_elements] = np.NAN
+        if nodata is not None:
+            nodata_elements = np.where(return_object._griddata == nodata)
+            from numpy import uint8
+            if cls.dtype is not uint8:
+                return_object._griddata[nodata_elements] = np.NAN
         
         
         geoTransform = gdal_dataset.GetGeoTransform()
