@@ -13,6 +13,6 @@ args = parser.parse_args()
 
 from demMethods import processAll
 if args.base_directory:
-    processAll(args.prefix, args.Ao, args.theta, args.b)
+    processAll(args.prefix, args.Ao, args.theta, args.base_directory)
 else:
     processAll(args.prefix, args.Ao, args.theta)
