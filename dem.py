@@ -117,7 +117,7 @@ class GDALMixin(object):
     
         return xcoordinates, ycoordinates
 
-    def _create_gdal_representation_from_array(self, georef_info, GDALDRIVERNAME, array_data, dtype, outfile_path='name'):
+    def _create_gdal_representation_from_array(self, georef_info, GDALDRIVERNAME, array_data, dtype, outfile_path='name', dst_options = []):
         #A function to write the data in the numpy array arrayData into a georeferenced dataset of type
         #  specified by GDALDRIVERNAME, a string, options here: http://www.gdal.org/formats_list.html
         #  This is accomplished by copying the georeferencing information from an existing GDAL dataset,
@@ -125,7 +125,7 @@ class GDALMixin(object):
     
         #Initialize new data
         drvr = gdal.GetDriverByName(GDALDRIVERNAME)  #  Get the desired driver
-        outRaster = drvr.Create(outfile_path, georef_info.nx, georef_info.ny, 1 , self._get_gdal_type_for_numpy_type(dtype))  # Open the file
+        outRaster = drvr.Create(outfile_path, georef_info.nx, georef_info.ny, 1 , self._get_gdal_type_for_numpy_type(dtype), dst_options)  # Open the file
     
         #Write geographic information
         outRaster.SetGeoTransform(georef_info.geoTransform)  # Steal the coordinate system from the old dataset
@@ -718,7 +718,7 @@ class BaseSpatialGrid(GDALMixin):
     
     def save(self, filename):
         
-        self._create_gdal_representation_from_array(self._georef_info, 'ENVI', self._griddata, self.dtype, filename)
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', self._griddata, self.dtype, filename, ['COMPRESS=LZW'])
     
     @classmethod
     def load(cls, filename):
