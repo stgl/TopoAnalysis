@@ -1,6 +1,5 @@
 import argparse, sys, os
 
-sys.path.append('/home/hilley/steepness')
 parser = argparse.ArgumentParser(description='Calculate grids for ksi analysis for hydrosheds 500 m data')
 parser.add_argument('prefix', metavar='dir', type=str, 
                    help='prefix of hydrosheds dataset directory')
