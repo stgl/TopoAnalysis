@@ -501,13 +501,6 @@ class BaseSpatialGrid(GDALMixin):
 
         self._sorted = False
         
-        if len(kwargs.keys()) == 0:
-            if len(args) == 1:
-                if isinstance(args[0], self.__class__):
-                    self._georef_info = args[0]._georef_info
-                    self._griddata = args[0]._griddata
-            return 
-        
         
         evaluative_action = self.__get_evaluative_action(*args, **kwargs)
         
@@ -1235,8 +1228,10 @@ class FlowLength(BaseSpatialGrid):
     @classmethod
     def load(cls, filename):
         
-        return_object = BaseSpatialGrid.load(filename)
-        return_object = cls(return_object)
+        return_object_bsp = BaseSpatialGrid.load(filename)
+        return_object = cls()
+        return_object._georef_info = return_object_bsp._georef_info
+        return_object._griddata = return_object_bsp._griddata
         flow_dir_filename = filename + "_directions"        
         gdal_dataset = gdal.Open(flow_dir_filename)
         band = gdal_dataset.GetRasterBand(1)
