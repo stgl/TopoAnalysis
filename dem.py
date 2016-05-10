@@ -1242,7 +1242,10 @@ class FlowLength(BaseSpatialGrid):
         
 
 class GeographicFlowLength(GeographicGridMixin, FlowLength):
-    pass
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                               (('gdal_filename',), '_read_gdal'), 
+                               (('flow_direction',), '_create_from_flow_direction_and_sorted_indexes'))
     
 class MaxFlowLengthTrackingMixin(object):
     
