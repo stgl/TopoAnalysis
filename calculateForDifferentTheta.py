@@ -10,7 +10,6 @@ parser.add_argument('theta', metavar='theta', type=float,
                    help='concavity')
 
 args = parser.parse_args()
-os.chdir(args.prefix)
 
 from demMethods import processForTheta
 
