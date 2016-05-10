@@ -501,6 +501,8 @@ class BaseSpatialGrid(GDALMixin):
 
         self._sorted = False
         
+        if len(kwargs.keys()) == 0:
+            return
         
         evaluative_action = self.__get_evaluative_action(*args, **kwargs)
         
