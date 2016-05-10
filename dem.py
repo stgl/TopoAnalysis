@@ -502,7 +502,12 @@ class BaseSpatialGrid(GDALMixin):
         self._sorted = False
         
         if len(kwargs.keys()) == 0:
-            return
+            if len(args) == 1:
+                if isinstance(args[0], self.__class__):
+                    self._georef_info = args[0]._georef_info
+                    self._griddata = args[0]._griddata
+            return 
+        
         
         evaluative_action = self.__get_evaluative_action(*args, **kwargs)
         
