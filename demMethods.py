@@ -49,10 +49,14 @@ def plotGrids(x_grid, y_grid, plot_string, **kwargs):
     x_vec = np.ndarray.flatten(x_grid._griddata)
     y_vec = np.ndarray.flatten(y_grid._griddata)
     
+    ind = np.where(y_vec >= 0)
+    x_vec = x_vec(ind)
+    y_vec = y_vec(ind)
+    
     from matplotlib import pyplot as plt
     
     plt.plot(x_vec, y_vec, plot_string, **kwargs)
-    plt.ion()
-    plt.show()
+
+    return x_vec, y_vec
     
     
