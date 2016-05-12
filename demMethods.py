@@ -42,3 +42,17 @@ def processForTheta(prefix_name, Ao, theta, base_name = '.'):
     relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta, sorted_indexes = idx)
     relief.save(prefix_name + "_relief_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
     
+def plotGrids(x_grid, y_grid, plot_string, **kwargs):
+    
+    import numpy as np
+    
+    x_vec = np.ndarray.flatten(x_grid._griddata)
+    y_vec = np.ndarray.flatten(y_grid._griddata)
+    
+    from matplotlib import pyplot as plt
+    
+    plt.plot(x_vec, y_vec, plot_string, **kwargs)
+    plt.ion()
+    plt.show()
+    
+    
