@@ -11,7 +11,7 @@ for prefix in prefixes:
     
     fig = plt.figure()
     ksi_vec, relief_vec = plotGrids(ksi, relief, 'k.', rasterized = True)
-    plt.savefig(prefix + '0_5.png',600)
+    plt.savefig(prefix + '0_5.png',dpi=600)
     plt.close()
     
     if 'all_ksi_vec' not in locals():
@@ -25,5 +25,5 @@ for prefix in prefixes:
 fig = plt.figure()
 
 plt.plot(all_ksi_vec, all_relief_vec, 'k.', rasterize = True)
-plt.savefig('all_0_5.png',600)
+plt.savefig('all_0_5.png',dpi=600)
     
