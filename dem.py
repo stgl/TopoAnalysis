@@ -1276,10 +1276,9 @@ class Relief(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
                            (('flow_direction', 'elevation', 'flow_length'), '_create_from_flow_direction_sorted_indexes_and_elevation'))   
     
     def _create_from_flow_direction_sorted_indexes_and_elevation(self, *args, **kwargs):
-        self._copy_info_from_grid(kwargs['flow_direction'], True)
-        self._griddata = kwargs['elevation']._griddata.copy()
+        self._copy_info_from_grid(kwargs['elevation'])
         self._calculate_by_tracking_down_max_flow_length(*args, **kwargs)
-        self._griddata = kwargs['elevation']._griddata - self._griddata
+        self._griddata = self._griddata - kwargs['elevation']._griddata
     
     def _calculate_grid_value(self, pos, next_pos, *args, **kwargs):
         (i,j) = pos
