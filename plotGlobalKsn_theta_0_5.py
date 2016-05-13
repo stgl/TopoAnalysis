@@ -3,6 +3,7 @@ prefixes = ( 'au', 'ca', 'na', 'sa')
 import dem as d
 from matplotlib import pyplot as plt
 from demMethods import plotGrids
+import numpy as np
 
 for prefix in prefixes:
     
@@ -18,8 +19,8 @@ for prefix in prefixes:
         all_ksi_vec = ksi_vec
         all_relief_vec = relief_vec
     else:
-        all_ksi_vec.append(ksi_vec)
-        all_relief_vec.append(relief_vec)
+        all_ksi_vec = np.append(all_ksi_vec,ksi_vec)
+        all_relief_vec = np.append(all_relief_vec, relief_vec)
         
     
 fig = plt.figure()
