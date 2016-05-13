@@ -23,4 +23,6 @@ d.processForTheta('eu', Ao, theta)
 d.processForTheta('na', Ao, theta)
 d.processForTheta('sa', Ao, theta)
 
+theta = 0.5
 
+d.processForTheta('as', Ao, theta)
