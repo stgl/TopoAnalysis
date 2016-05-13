@@ -1,4 +1,6 @@
-prefixes = ( 'au', 'ca', 'na', 'sa')
+#! /usr/bin/env python
+
+prefixes = ('af', 'as', 'au', 'ca', 'eu', 'na', 'sa')
 
 import dem as d
 from matplotlib import pyplot as plt
