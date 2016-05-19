@@ -604,7 +604,7 @@ class BaseSpatialGrid(GDALMixin):
         for (x,y) in v:
             col = round((x-self._georef_info.xllcenter)/self._georef_info.dx)
             row = self._georef_info.ny - round((y-self._georef_info.yllcenter)/self._georef_info.dx)
-            if col > self._georef_info.nx or row > self._georef_info.ny:
+            if col > self._georef_info.nx or row > self._georef_info.ny or col < 0 or row < 0:
                 l.append((None, None))
             else:
                 l.append((row,col))
@@ -743,7 +743,7 @@ class BaseSpatialGrid(GDALMixin):
         return_object._georef_info.geoTransform = geoTransform
         return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
         return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
-        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(return_object._georef_info.ny-0.5))
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
         return_object._georef_info.nx = nx
         return_object._georef_info.ny = ny
         
