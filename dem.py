@@ -619,6 +619,9 @@ class BaseSpatialGrid(GDALMixin):
             v.append((x,y))
         return tuple(v)
     
+    def _mean_pixel_dimension(self, *args, **kwargs):
+        return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
+    
     def sort(self, reverse=True):
         if not self._sorted:
             self._sort_indexes = self._griddata.argsort(axis = None)
@@ -1218,8 +1221,7 @@ class FlowLength(BaseSpatialGrid):
         
         return flow_code == self.__flow_direction_for_length(from_index, to_index)
         
-    def _mean_pixel_dimension(self, *args, **kwargs):
-        return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
+
     
     def save(self, filename):
         
@@ -1310,7 +1312,7 @@ class Ksi(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
     
     def _create_from_inputs(self, *args, **kwargs):
         self._copy_info_from_grid(kwargs['flow_direction'], True)
-        self._griddata = ( (kwargs['Ao'] / kwargs['area']._griddata) ** kwargs['theta']) * self._mean_pixel_dimension() * kwargs['flow_direction'].pixel_scale()
+        self._griddata = ( (kwargs['Ao'] / kwargs['area']._griddata) ** kwargs['theta']) * self._mean_pixel_dimension(*args, **kwargs) * kwargs['flow_direction'].pixel_scale()
         self._calculate_by_tracking_down_max_flow_length(*args, **kwargs)
         
     def _calculate_grid_value(self, pos, next_pos, *args, **kwargs):
@@ -1319,7 +1321,7 @@ class Ksi(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
         self._griddata[i_next, j_next] += self._griddata[i,j]
         
 
-class GeographicKsi(Ksi, GeographicGridMixin):
+class GeographicKsi(GeographicGridMixin, Ksi):
     pass
             
 class ChannelSlope(BaseSpatialGrid):
