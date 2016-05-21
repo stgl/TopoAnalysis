@@ -1170,7 +1170,7 @@ class FlowLength(BaseSpatialGrid):
         self.__flow_directions = np.zeros_like(flow_dir._griddata, np.uint8)
 
         [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)            
-        dx = self._mean_pixel_dimension() * flow_dir.pixel_scale()
+        dx = self._mean_pixel_dimension(*args, **kwargs) * flow_dir.pixel_scale()
 
         import itertools
         for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order  
