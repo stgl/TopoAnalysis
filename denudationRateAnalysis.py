@@ -47,6 +47,8 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         areas.append(float(a))
     
     locations = zip(lons,lats)
+    ksn_vec = np.zeros(len(areas), dtype = np.float64)
+    a_calc_vec = np.zeros(len(areas), dtype = np.float64)
     
     for prefix in prefixes:
         print('Loading prefix: ' + prefix)
@@ -56,8 +58,6 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         d8 = d.FlowDirectionD8.load(prefix + '_flow_direction')
 
         print('Done loading prefix: ' + prefix)
-        ksn_vec = np.zeros(len(areas), dtype = np.float64)
-        a_calc_vec = np.zeros(len(areas), dtype = np.float64)
         counter = 0
         
         for (lon, lat), area_m in zip(locations, areas):
