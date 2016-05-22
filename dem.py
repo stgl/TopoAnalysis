@@ -603,7 +603,7 @@ class BaseSpatialGrid(GDALMixin):
         l = list()
         for (x,y) in v:
             col = round((x-self._georef_info.xllcenter)/self._georef_info.dx)
-            row = self._georef_info.ny - round((y-self._georef_info.yllcenter)/self._georef_info.dx)
+            row = (self._georef_info.ny - 1) - round((y-self._georef_info.yllcenter)/self._georef_info.dx)
             if col > self._georef_info.nx or row > self._georef_info.ny or col < 0 or row < 0:
                 l.append((None, None))
             else:
