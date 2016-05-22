@@ -73,3 +73,26 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         
     return ksn_vec, a_calc_vec
                 
+def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
+        
+    ks = list()
+    
+    for position in v:
+        
+        (row, col) = area._xy_to_rowscols((position, ))[0]
+        
+        indexes_of_area = d8.get_indexes_of_upstream_cells(row, col)
+        ksi_values = list()
+        relief_values = list()
+        for (row, col) in indexes_of_area:
+            if ksi[row,col] is None or relief[row,col] is None or np.isnan(ksi[row, col]) or np.isnan(relief[row,col]):
+                return None, None, None
+            if area[row, col] >= Ao:
+                ksi_values.append(ksi[row,col])
+                relief_values.append(relief[row,col])
+            
+        ks = ks.append(best_ksn(ksi_values, relief_values, Ao, theta)[0])
+
+    return ks
+    
+    
