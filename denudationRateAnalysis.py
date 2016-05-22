@@ -91,7 +91,7 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
                 ksi_values.append(ksi[row,col])
                 relief_values.append(relief[row,col])
             
-        ks = ks.append(best_ksn(ksi_values, relief_values, Ao, theta)[0])
+        ks.append(best_ksn(ksi_values, relief_values, Ao, theta)[0])
 
     return ks
     
