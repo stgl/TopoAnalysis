@@ -94,5 +94,29 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
         ks.append(best_ksn(ksi_values, relief_values, 90**2, theta)[0])
 
     return ks
+
+def plot_stock_and_montgomery():
     
+    K = {'granitoids': (4.4e-7, 4.3e-6),
+         'volcaniclastics': (4.8e-5, 3.0e-4),
+         'mudstones': (4.7e-4, 7.0e-3),
+         'basalt': (3.8e-6, 7.3e-6)}
+    
+    colors = {'granitoids': 'r-',
+         'volcaniclastics': 'b-',
+         'mudstones': 'g-',
+         'basalt': 'm-'}
+    
+    from matplotlib import pyplot as plt
+    
+    for key in K.keys():
+        
+        U = (1e-4, 1e1)
+        ks = (U[0] / 1000.0 / K[key][0], U[1] / 1000.0 / K[key][0])
+        plt.plot(U,ks,colors[key])
+        ks = (U[0] / 1000.0 / K[key][1], U[1] / 1000.0 / K[key][1])
+        plt.plot(U,ks,colors[key])
+
+        
+
     

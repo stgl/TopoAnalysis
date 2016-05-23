@@ -24,6 +24,9 @@ for suffix in suffixes:
         plt.loglog((m-s, m+s), (k,k), 'k-')
     
     
+    if suffix == '0_4':
+        dra.plot_stock_and_montgomery()
+        
     plt.axis('image')
     plt.axis([1e-4,1e1,1e-1,1e4])
 
