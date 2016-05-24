@@ -1235,7 +1235,19 @@ class FlowLength(BaseSpatialGrid):
         flow_code = self.__flow_directions[i_to, j_to]
         
         return flow_code == self.__flow_direction_for_length(from_index, to_index)
+     
+    def clip_to_extent(self, extent):
         
+        return_grid = super(FlowLength, self).clip_to_extent(extent)
+        
+        import copy
+        return_grid.__flow_directions = copy.deepcopy(self.__flow_directions)
+        lower_left = (extent[0], extent[2])
+        upper_right = (extent[1], extent[3])
+        idx = self._xy_to_rowscols((lower_left, upper_right))
+        return_grid.__flow_directions = return_grid.__flow_directions[idx[1][0]:idx[0][0],idx[0][1]:idx[1][1]]
+        
+        return return_grid
 
     
     def save(self, filename):
