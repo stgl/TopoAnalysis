@@ -647,8 +647,7 @@ class BaseSpatialGrid(GDALMixin):
         return_grid._georef_info.ny = return_grid._griddata.shape[0]
         return_grid._georef_info.xllcenter = self._rowscols_to_xy((idx[0],))[0][0]
         return_grid._georef_info.yllcenter = self._rowscols_to_xy((idx[0],))[0][1]
-        return_grid._georef_info.geoTransform[0] = return_grid._georef_info.xllcenter - return_grid._georef_info.dx / 2.0
-        return_grid._georef_info.geoTransform[3] = return_grid._georef_info.yllcenter + (self._georef_info.dx*(self._georef_info.ny-0.5))
+        return_grid._georef_info.geoTransform = (return_grid._georef_info.xllcenter - return_grid._georef_info.dx / 2.0, return_grid._georef_info.geoTransform[1], return_grid._georef_info.geoTransform[2], return_grid._georef_info.yllcenter + (self._georef_info.dx*(self._georef_info.ny-0.5)), return_grid._georef_info.geoTransform[4], return_grid._georef_info.geoTransform[5],)
         
         return return_grid
      
