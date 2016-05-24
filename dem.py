@@ -614,7 +614,7 @@ class BaseSpatialGrid(GDALMixin):
         v = list()
         for(row,col) in l:
             x = float64(col)*self._georef_info.dx + self._georef_info.xllcenter
-            y = (float64(self._georef_info.ny) - float64(row))*self._georef_info.dx + self._georef_info.yllcenter
+            y = (float64(self._georef_info.ny - 1) - float64(row))*self._georef_info.dx + self._georef_info.yllcenter
             v.append((x,y))
         return tuple(v)
     
@@ -639,6 +639,7 @@ class BaseSpatialGrid(GDALMixin):
     def clip_to_extent(self, extent):
         import copy
         return_grid = copy.deepcopy(self)
+        return_grid._georef_info = copy.deepcopy(self._georef_info)
         lower_left = (extent[0], extent[2])
         upper_right = (extent[1], extent[3])
         idx = self._xy_to_rowscols((lower_left, upper_right))
