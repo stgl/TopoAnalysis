@@ -100,7 +100,6 @@ class GDALMixin(object):
     
         return nx, ny, projection, geoTransform
  
- 
     def getDEMcoords(self, GdalData, dx):
     
         #Get grid size
@@ -637,6 +636,22 @@ class BaseSpatialGrid(GDALMixin):
         out_grid._griddata = moving_window.apply_moving_window(self._griddata, self._georef_info.dx, self.dtype)
         return out_grid
     
+    def clip_to_extent(self, extent):
+        import copy
+        return_grid = copy.deepcopy(self)
+        lower_left = (extent[0], extent[3])
+        upper_right = (extent[1], extent[4])
+        idx = self._xy_to_rowscols((lower_left, upper_right))
+        return_grid._griddata = return_grid._griddata[idx[0][0]:idx[1][0],idx[1][0]:idx[1][1]]
+        return_grid._georef_info.nx = return_grid._griddata.shape[1]
+        return_grid._georef_info.ny = return_grid._griddata.shape[0]
+        return_grid._georef_info.xllcenter = self._rowscols_to_xy((idx[0],))[0][0]
+        return_grid._georef_info.yllcenter = self._rowscols_to_xy((idx[0],))[0][1]
+        return_grid._georef_info.geoTransform[0] = return_grid._georef_info.xllcenter - return_grid._georef_info.dx / 2.0
+        return_grid._georef_info.geoTransform[3] = return_grid._georef_info.yllcenter + (self._georef_info.dx*(self._georef_info.ny-0.5))
+        
+        return return_grid
+     
     def clip_to_mask_grid(self, mask_grid):
         gdal_source = self._create_gdal_representation_from_array(self._georef_info, 'MEM', self._griddata, self.dtype)
         gdal_mask = mask_grid._create_gdal_representation_from_array(mask_grid._georef_info, 'MEM', mask_grid._griddata, mask_grid.dtype)
