@@ -11,10 +11,11 @@ ks = dict()
 Ao = 250000.0
 
 for prefix in prefixes:
+    print(prefix)
 
     d8 = d.FlowDirectionD8.load(prefix + "/" + prefix + '_flow_direction')
     area = d.GeographicArea.load(prefix + '/' + prefix + '_area')
-    locs = np.load(prefix + '_sample_locations.npy')
+    locs = np.load(prefix + '/' + prefix +  '_sample_locations.npy')
     local_dict = dict()
     
     for suffix in suffixes:    
