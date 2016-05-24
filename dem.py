@@ -639,8 +639,8 @@ class BaseSpatialGrid(GDALMixin):
     def clip_to_extent(self, extent):
         import copy
         return_grid = copy.deepcopy(self)
-        lower_left = (extent[0], extent[3])
-        upper_right = (extent[1], extent[4])
+        lower_left = (extent[0], extent[2])
+        upper_right = (extent[1], extent[3])
         idx = self._xy_to_rowscols((lower_left, upper_right))
         return_grid._griddata = return_grid._griddata[idx[0][0]:idx[1][0],idx[1][0]:idx[1][1]]
         return_grid._georef_info.nx = return_grid._griddata.shape[1]
