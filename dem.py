@@ -642,7 +642,7 @@ class BaseSpatialGrid(GDALMixin):
         lower_left = (extent[0], extent[2])
         upper_right = (extent[1], extent[3])
         idx = self._xy_to_rowscols((lower_left, upper_right))
-        return_grid._griddata = return_grid._griddata[idx[0][0]:idx[1][0],idx[1][0]:idx[1][1]]
+        return_grid._griddata = return_grid._griddata[idx[0][0]:idx[1][0],idx[1][1]:idx[1][0]]
         return_grid._georef_info.nx = return_grid._griddata.shape[1]
         return_grid._georef_info.ny = return_grid._griddata.shape[0]
         return_grid._georef_info.xllcenter = self._rowscols_to_xy((idx[0],))[0][0]
