@@ -14,14 +14,15 @@ for prefix in prefixes:
     print(prefix)
 
     d8 = d.FlowDirectionD8.load(prefix + "/" + prefix + '_flow_direction')
-    area = d.GeographicArea.load(prefix + '/' + prefix + '_area')
+    area = d.Area.load(prefix + '/' + prefix + '_area')
     locs = np.load(prefix + '/' + prefix +  '_sample_locations.npy')
     local_dict = dict()
     
     for suffix in suffixes:    
-        ksi = d.FlowDirectionD8.load(prefix + "/" + prefix + '_ksi' + suffix)
+        ksi = d.Ksi.load(prefix + "/" + prefix + '_ksi' + suffix)
         relief = d.ScaledRelief.load(prefix + '/' + prefix + '_relief' + suffix)
         theta = float(suffix.replace('_','.'))
+        print(theta)
         local_dict[suffix] = dra.calculate_ks_for_sample(locs, d8, ksi, relief, area, Ao, theta)
     
     ks[prefix] = local_dict

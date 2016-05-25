@@ -96,8 +96,9 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
         ksi_array = np.array(ksi_values)
         relief_array = np.array(relief_values)
         relief_mean = np.mean(relief_array)
-        model_residuals = best_ks * ksi_array - relief_array
-        R2 = 1 - np.sum(model_residuals**2) / np.sum((relief_array - relief_mean)**2)            
+        total_residuals = np.sum((relief_array - relief_mean)**2)
+        model_residuals = np.sum((best_ks * (ksi_array - 90.0**theta) - relief_array )**2)
+	R2 = 1 - model_residuals / total_residuals            
         ks.append((best_ks, R2))
 
     return ks
