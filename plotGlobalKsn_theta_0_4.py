@@ -16,7 +16,8 @@ for prefix in prefixes:
     relief = d.ScaledRelief.load(prefix + '_relief_250000_0_4')
     
     fig = plt.figure()
-    ksi_vec, relief_vec = plotGrids(ksi, relief, 'k.', rasterized = True)
+    ksi_vec, relief_vec = plotGrids(ksi, relief, 'k.', rasterized = True, markersize=5.0)
+    plt.axis([0, 35000, 0, 1200000]) 
     plt.savefig(prefix + '0_4.png',dpi=600)
     plt.close()
     
@@ -30,6 +31,7 @@ for prefix in prefixes:
         
 fig = plt.figure()
 
-plt.plot(all_ksi_vec, all_relief_vec, 'k.', rasterized = True)
+plt.plot(all_ksi_vec, all_relief_vec, 'k.', rasterized = True, markersize=5.0)
+plt.axis([0, 35000, 0, 1200000])
 plt.savefig('all_0_4.png',dpi=600)
     
