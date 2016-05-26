@@ -1350,7 +1350,94 @@ class Ksi(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
 
 class GeographicKsi(GeographicGridMixin, Ksi):
     pass
+
+class RestoredElevation(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                               (('gdal_filename',), '_read_gdal'), 
+                               (('flow_direction','elevation','area','theta','ks','outlets'), '_fill_dem'))
+    
+    def _fill_dem(self, *args, **kwargs):
+        self._copy_info_from_grid(kwargs['elevation'], False)
+        v = self._xy_to_rowscols(kwargs['outlets'])
+        pixel_dimension = self._mean_pixel_dimension(*args, **kwargs)
+        for ind in v:
+            self.__fill_upstream_points(ind, kwargs['ks'], kwargs['theta'], kwargs['area'], kwargs['flow_direction'], pixel_dimension)
+        
+    
+    def __fill_upstream_points(self, ind, ks, theta, area, flow_direction, pixel_dimension):
+        
+        (i, j) = ind
+        elevation_for_cell = self[i,j]
+        
+        if flow_direction[i, j+1] == 16:
+            self._griddata[i,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
+            self.__fill_upstream_points((i,j+1), ks, theta, area, flow_direction, pixel_dimension)
+        
+        if flow_direction[i+1, j+1] == 32:
+            self._griddata[i+1,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
+            self.__fill_upstream_points((i+1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+                        
+        if flow_direction[i+1, j] == 64:
+            self._griddata[i+1,j] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
+            self.__fill_upstream_points((i+1,j), ks, theta, area, flow_direction, pixel_dimension)
+        
+        if flow_direction[i+1, j-1] == 128:
+            self._griddata[i+1,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
+            self.__fill_upstream_points((i+1,j-1), ks, theta, area, flow_direction, pixel_dimension)
+                
+        if flow_direction[i, j-1] == 1:
+            self._griddata[i,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
+            self.__fill_upstream_points((i,j-1), ks, theta, area, flow_direction, pixel_dimension)
+         
+        if flow_direction[i-1, j-1] == 2:
+            self._griddata[i-1,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
+            self.__fill_upstream_points((i-1,j-1), ks, theta, area, flow_direction, pixel_dimension)
             
+        if flow_direction[i-1, j] == 4:
+            self._griddata[i-1,j] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
+            self.__fill_upstream_points((i-1,j), ks, theta, area, flow_direction, pixel_dimension)
+            
+        if flow_direction[i-1, j+1] == 8:
+            self._griddata[i-1,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
+            self.__fill_upstream_points((i-1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+                
+class GeographicRestoredElevation(GeographicGridMixin, RestoredElevation):
+    pass
+
+class Deflection(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                               (('gdal_filename',), '_read_gdal'), 
+                               (('elevation', 'D', 'rho_m', 'rho_c', 'g'), '_deflect'))
+    
+    def _deflect(self, *args, **kwargs):
+        self._copy_info_from_grid(kwargs['elevation'], False)
+        kwargs['flow_direction'] = kwargs['elevation']
+        dx = np.mean(self._mean_pixel_dimension(*args, **kwargs))
+        gr = -self._griddata * kwargs['rho_c'] * kwargs['g']
+        grf = np.fft.fft2(gr)
+        Rx = np.arange(((self._georef_info.nx-1)*dx)/2,0,-dx)
+        Ry = np.arange(((self._georef_info.ny-1)*dx)/2,0,-dx)
+        lx = len(Rx)
+        ly = len(Ry)
+        wn_x = (1 / dx) * np.arange(0,lx,1) / lx
+        wn_y = (1 / dx) * np.arange(0,ly,1) / ly
+        #wn_x = (wn_x[1:-1] + wn_x[2:]) / 2
+        #wn_y = (wn_y[1:-1] + wn_y[2:]) / 2
+        wn_x = [wn_x,wn_x[::-1]]
+        wn_y = [wn_y,wn_y[::-1]]
+        [WN_x, WN_y] = np.meshgrid(wn_x, wn_y)
+        
+        R = 1 / (kwargs['rho_m']*kwargs['g'] + kwargs['D']*(WN_x**2 + WN_y**2)**2)
+        
+        grfR = grf * R
+        
+        self._griddata = np.real(np.fft.ifft2(grfR))
+        
+                
 class ChannelSlope(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
