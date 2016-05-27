@@ -43,6 +43,7 @@ vc = np.cumsum(v) * dx * dy
 
 plt.figure()
 plt.imshow(np.log10(H_tot), extent = a)
+plt.colorbar()
 plt.ion()
 plt.axis('normal')
 
