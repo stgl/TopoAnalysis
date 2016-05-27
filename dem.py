@@ -621,7 +621,9 @@ class BaseSpatialGrid(GDALMixin):
     def _mean_pixel_dimension(self, *args, **kwargs):
         return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
     
-    def sort(self, reverse=True):
+    def sort(self, reverse=True, force = False):
+        if force:
+            self._sorted = False
         if not self._sorted:
             self._sort_indexes = self._griddata.argsort(axis = None)
             self._sorted = True
@@ -733,6 +735,30 @@ class BaseSpatialGrid(GDALMixin):
         
         (y,x) = nearest
         return y, x
+    
+    def find_nearest_cell_with_greatest_value(self, index, pixel_radius = 5):
+        
+        (i, j) = index
+        nearest = tuple()
+        maximum_value = np.nan
+        for y in range(int(i-pixel_radius),int(i+pixel_radius)):
+            for x in range(int(j-pixel_radius),int(j+pixel_radius)):
+                if np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius:
+                    if np.isnan(maximum_value) or maximum_value < self._griddata[y,x]:
+                        maximum_value = self._griddata[y,x]
+                        nearest = (y,x)
+        
+        (y,x) = nearest
+        return y, x
+    
+    def snap_locations_to_greatest_value(self, v, pixel_radius = 5):
+        
+        idxs = self._xy_to_rowscols(v)
+        snap_idxs = list()
+        for idx in idxs:
+            i, j = self.find_nearest_cell_with_greatest_value(idx, pixel_radius)
+            snap_idxs.append((i,j))
+        return self._rowscols_to_xy(snap_idxs)
     
     def save(self, filename):
         
@@ -1356,52 +1382,138 @@ class RestoredElevation(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                (('gdal_filename',), '_read_gdal'), 
-                               (('flow_direction','elevation','area','theta','ks','outlets'), '_fill_dem'))
+                               (('flow_direction','elevation','area','theta','ks','outlets', 'iterations'), '_fill_dem'))
     
     def _fill_dem(self, *args, **kwargs):
+        import copy
         self._copy_info_from_grid(kwargs['elevation'], False)
         v = self._xy_to_rowscols(kwargs['outlets'])
         pixel_dimension = self._mean_pixel_dimension(*args, **kwargs)
-        for ind in v:
-            self.__fill_upstream_points(ind, kwargs['ks'], kwargs['theta'], kwargs['area'], kwargs['flow_direction'], pixel_dimension)
+        area = copy.deepcopy(kwargs['area'])
+        cls_of_area = area.__class__
+        flow_direction = copy.deepcopy(kwargs['flow_direction'])
+        for i in range(kwargs['iterations']):
+            last_grid = self._griddata.copy()
+            print('Iteration {0}'.format(i))
+            print('Filling outlets.')
+            for ind in v:
+                self.__fill_upstream_points(ind, kwargs['ks'], kwargs['theta'], area, flow_direction, pixel_dimension)
+            print('Migrating divides')
+            flow_direction = None
+            flooded_dem = FilledElevation(elevation = self)
+            flow_direction = FlowDirectionD8(flooded_dem = flooded_dem)
+            area = None
+            idx = self.sort(True, True)
+            area = cls_of_area(flow_direction = flow_direction, sorted_indexes = idx)
+            flow_direction = self.__migrate_divides(area, flow_direction, elevation = kwargs['elevation'])
+            area = None
+            idx = self.sort(True, True)
+            print('Recalculating areas')
+            area = cls_of_area(flow_direction = flow_direction, sorted_indexes = idx)
+            change_in_elevation = np.mean((self._griddata - last_grid)**2)
+            print('Change: {0}'.format(change_in_elevation))
+    
+    def __is_unit_area(self, idx, flow_direction):
         
+        (i,j) = idx
+        
+        if flow_direction[i,j+1] == 16 or flow_direction[i+1, j+1] == 32 or \
+                flow_direction[i+1, j] == 64 or flow_direction[i+1, j-1] == 128 or \
+                flow_direction[i, j-1] == 1 or flow_direction[i-1, j-1] == 2 or \
+                flow_direction[i-1, j] == 4 or flow_direction[i-1, j+1] == 8:
+            return False
+        else:
+            return True
+        
+    def __migrate_divides(self, *args, **kwargs):
+        
+        area = args[0]
+        flow_direction = args[1]
+        
+        import itertools
+        idxs = area.sort(reverse = False)
+        [ind_i, ind_j] = np.unravel_index(idxs, flow_direction._griddata.shape)
+        for (i, j) in itertools.izip(ind_i, ind_j):
+            if self.__is_unit_area((i,j), flow_direction):    
+                if self.__is_unit_area((i,j+1), flow_direction) and self[i,j+1] > self[i,j]:
+                    flow_direction[i,j+1] = 16
+                if self.__is_unit_area((i+1, j+1), flow_direction) and self[i+1, j+1] > self[i,j]:
+                    flow_direction[i+1, j+1] = 32
+                if self.__is_unit_area((i+1, j), flow_direction) and self[i+1, j] > self[i,j]:
+                    flow_direction[i+1, j] = 64
+                if self.__is_unit_area((i+1, j-1), flow_direction) and self[i+1, j-1] > self[i,j]:
+                    flow_direction[i+1, j-1] = 128
+                if self.__is_unit_area((i, j-1), flow_direction) and self[i, j-1] > self[i,j]:
+                    flow_direction[i, j-1] = 1
+                if self.__is_unit_area((i-1, j-1), flow_direction) and self[i-1,j-1] > self[i,j]:
+                    flow_direction[i-1, j-1] = 2
+                if self.__is_unit_area((i-1, j), flow_direction) and self[i-1, j] > self[i,j]:
+                    flow_direction[i-1, j] = 4
+                if self.__is_unit_area((i-1, j+1), flow_direction) and self[i-1, j+1] > self[i,j]:
+                    flow_direction[i-1, j+1] = 8
+        return flow_direction
     
     def __fill_upstream_points(self, ind, ks, theta, area, flow_direction, pixel_dimension):
         
         (i, j) = ind
         elevation_for_cell = self[i,j]
         
-        if flow_direction[i, j+1] == 16:
-            self._griddata[i,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
-            self.__fill_upstream_points((i,j+1), ks, theta, area, flow_direction, pixel_dimension)
+        try:
+            if flow_direction[i, j+1] == 16:
+                self._griddata[i,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
+                self.__fill_upstream_points((i,j+1), ks, theta, area, flow_direction, pixel_dimension)
+        except:
+            pass
         
-        if flow_direction[i+1, j+1] == 32:
-            self._griddata[i+1,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
-            self.__fill_upstream_points((i+1,j+1), ks, theta, area, flow_direction, pixel_dimension)
-                        
-        if flow_direction[i+1, j] == 64:
-            self._griddata[i+1,j] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
-            self.__fill_upstream_points((i+1,j), ks, theta, area, flow_direction, pixel_dimension)
+        try:
+            if flow_direction[i+1, j+1] == 32:
+                self._griddata[i+1,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
+                self.__fill_upstream_points((i+1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+        except:
+            pass
         
-        if flow_direction[i+1, j-1] == 128:
-            self._griddata[i+1,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
-            self.__fill_upstream_points((i+1,j-1), ks, theta, area, flow_direction, pixel_dimension)
-                
-        if flow_direction[i, j-1] == 1:
-            self._griddata[i,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
-            self.__fill_upstream_points((i,j-1), ks, theta, area, flow_direction, pixel_dimension)
-         
-        if flow_direction[i-1, j-1] == 2:
-            self._griddata[i-1,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
-            self.__fill_upstream_points((i-1,j-1), ks, theta, area, flow_direction, pixel_dimension)
-            
-        if flow_direction[i-1, j] == 4:
-            self._griddata[i-1,j] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
-            self.__fill_upstream_points((i-1,j), ks, theta, area, flow_direction, pixel_dimension)
-            
-        if flow_direction[i-1, j+1] == 8:
-            self._griddata[i-1,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
-            self.__fill_upstream_points((i-1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+        try:                
+            if flow_direction[i+1, j] == 64:
+                self._griddata[i+1,j] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
+                self.__fill_upstream_points((i+1,j), ks, theta, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:
+            if flow_direction[i+1, j-1] == 128:
+                self._griddata[i+1,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
+                self.__fill_upstream_points((i+1,j-1), ks, theta, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:        
+            if flow_direction[i, j-1] == 1:
+                self._griddata[i,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
+                self.__fill_upstream_points((i,j-1), ks, theta, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try: 
+            if flow_direction[i-1, j-1] == 2:
+                self._griddata[i-1,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
+                self.__fill_upstream_points((i-1,j-1), ks, theta, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:    
+            if flow_direction[i-1, j] == 4:
+                self._griddata[i-1,j] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
+                self.__fill_upstream_points((i-1,j), ks, theta, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:    
+            if flow_direction[i-1, j+1] == 8:
+                self._griddata[i-1,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
+                self.__fill_upstream_points((i-1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
                 
 class GeographicRestoredElevation(GeographicGridMixin, RestoredElevation):
     pass
@@ -1414,8 +1526,15 @@ class Deflection(BaseSpatialGrid):
                                (('elevation', 'D', 'rho_m', 'rho_c', 'g'), '_deflect'))
     
     def _deflect(self, *args, **kwargs):
-        self._copy_info_from_grid(kwargs['elevation'], False)
-        kwargs['flow_direction'] = kwargs['elevation']
+        if kwargs.get('restored_elevation'):
+            self._griddata = self.__deflect_elevation(kwargs['elevation'], **kwargs) - self.__deflect_elevation(kwargs['restored_elevation'], **kwargs)
+        else:
+            self._griddata = self.__deflect_elevation(kwargs['elevation'], **kwargs)
+        
+    def __deflect_elevation(self, *args, **kwargs):
+        elevation = args[0]
+        self._copy_info_from_grid(elevation, False)
+        kwargs['flow_direction'] = elevation
         dx = np.mean(self._mean_pixel_dimension(*args, **kwargs))
         gr = -self._griddata * kwargs['rho_c'] * kwargs['g']
         grf = np.fft.fft2(gr)
@@ -1423,20 +1542,21 @@ class Deflection(BaseSpatialGrid):
         Ry = np.arange(((self._georef_info.ny-1)*dx)/2,0,-dx)
         lx = len(Rx)
         ly = len(Ry)
-        wn_x = (1 / dx) * np.arange(0,lx,1) / lx
-        wn_y = (1 / dx) * np.arange(0,ly,1) / ly
-        #wn_x = (wn_x[1:-1] + wn_x[2:]) / 2
-        #wn_y = (wn_y[1:-1] + wn_y[2:]) / 2
-        wn_x = [wn_x,wn_x[::-1]]
-        wn_y = [wn_y,wn_y[::-1]]
+        wn_x = np.array((1 / dx) * np.arange(0,lx,1) / lx)
+        wn_y = np.array((1 / dx) * np.arange(0,ly,1) / ly)
+        wn_x = np.concatenate((wn_x,np.flipud(wn_x)))
+        wn_y = np.concatenate((wn_y,np.flipud(wn_y)))
         [WN_x, WN_y] = np.meshgrid(wn_x, wn_y)
         
-        R = 1 / (kwargs['rho_m']*kwargs['g'] + kwargs['D']*(WN_x**2 + WN_y**2)**2)
+        R = 1 / ((kwargs['rho_m']-kwargs['rho_c'])*kwargs['g'] + (2*3.141)**4 * kwargs['D']*(WN_x**2 + WN_y**2)**2)
         
         grfR = grf * R
         
-        self._griddata = np.real(np.fft.ifft2(grfR))
+        return np.real(np.fft.ifft2(grfR))
         
+class GeographicDeflection(GeographicGridMixin, Deflection):
+    pass
+
                 
 class ChannelSlope(BaseSpatialGrid):
     

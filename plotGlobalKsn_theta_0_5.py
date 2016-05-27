@@ -2,20 +2,27 @@
 
 prefixes = ('af', 'as', 'au', 'ca', 'eu', 'na', 'sa')
 
+import matplotlib
+matplotlib.use('Agg')
+
 import dem as d
 from matplotlib import pyplot as plt
 from demMethods import plotGrids
 import numpy as np
 
+a = [0, 18000, 0, 4000000]
+suffix = '0_5'
+
 for prefix in prefixes:
     
-    ksi = d.Ksi.load(prefix + '_ksi_250000_0_0_5')
-    relief = d.ScaledRelief.load(prefix + '_relief_250000_0_0_5')
+    ksi = d.Ksi.load(prefix + '_ksi_250000_' + suffix)
+    relief = d.ScaledRelief.load(prefix + '_relief_250000_' + suffix)
     
     fig = plt.figure()
-    ksi_vec, relief_vec = plotGrids(ksi, relief, 'k.', rasterized = True)
-    #plt.savefig(prefix + '0_5.png',dpi=600)
-    #plt.close()
+    ksi_vec, relief_vec = plotGrids(ksi, relief, 'k.', rasterized = True, markersize=5.0)
+    plt.axis(a) 
+    plt.savefig(prefix + suffix + '.png',dpi=600)
+    plt.close()
     
     if 'all_ksi_vec' not in locals():
         all_ksi_vec = ksi_vec
@@ -27,6 +34,9 @@ for prefix in prefixes:
         
 fig = plt.figure()
 
-plt.plot(all_ksi_vec, all_relief_vec, 'k.', rasterized = True)
-plt.savefig('all_0_5.png',dpi=600)
+plt.plot(all_ksi_vec, all_relief_vec, 'k.', rasterized = True, markersize=5.0)
+plt.axis(a)
+plt.savefig('all_' + suffix + '.png',dpi=600)
+    
+
     

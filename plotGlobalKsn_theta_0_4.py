@@ -10,15 +10,18 @@ from matplotlib import pyplot as plt
 from demMethods import plotGrids
 import numpy as np
 
+a = [0, 35000, 0, 1200000]
+suffix = '0_4'
+
 for prefix in prefixes:
     
-    ksi = d.Ksi.load(prefix + '_ksi_250000_0_4')
-    relief = d.ScaledRelief.load(prefix + '_relief_250000_0_4')
+    ksi = d.Ksi.load(prefix + '_ksi_250000_' + suffix)
+    relief = d.ScaledRelief.load(prefix + '_relief_250000_' + suffix)
     
     fig = plt.figure()
     ksi_vec, relief_vec = plotGrids(ksi, relief, 'k.', rasterized = True, markersize=5.0)
-    plt.axis([0, 35000, 0, 1200000]) 
-    plt.savefig(prefix + '0_4.png',dpi=600)
+    plt.axis(a) 
+    plt.savefig(prefix + suffix + '.png',dpi=600)
     plt.close()
     
     if 'all_ksi_vec' not in locals():
@@ -32,6 +35,6 @@ for prefix in prefixes:
 fig = plt.figure()
 
 plt.plot(all_ksi_vec, all_relief_vec, 'k.', rasterized = True, markersize=5.0)
-plt.axis([0, 35000, 0, 1200000])
-plt.savefig('all_0_4.png',dpi=600)
+plt.axis(a)
+plt.savefig('all_' + suffix + '.png',dpi=600)
     
