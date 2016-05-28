@@ -20,10 +20,10 @@ dy = 10000.0
 contours = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
 
 x_bins = np.arange(a[0],a[1],dx)
-y_bins = np.arange(a[2],a[2],dy)
+y_bins = np.arange(a[2],a[3],dy)
 
 for prefix in prefixes:
-    
+    print(prefix)    
     ksi = d.Ksi.load(prefix + '_ksi_250000_' + suffix)
     relief = d.ScaledRelief.load(prefix + '_relief_250000_' + suffix)
     
@@ -51,7 +51,7 @@ for contour in contours:
     i = np.where(vc >= contour)
     i = np.min(i)
     contour_value = v[i]
-    plt.contour(H_tot > contour_value, levels = [0], extent = a)
+    plt.contour(np.flipud(H_tot) > contour_value, levels = [0], extent = a)
 
 plt.savefig('density' + suffix + '.eps')
 
