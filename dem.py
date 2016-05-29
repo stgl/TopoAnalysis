@@ -1043,12 +1043,15 @@ class Hillshade(CalculationMixin, BaseSpatialGrid):
         # Convert angular measurements to radians
                 
         azRad, elevRad = (360 - az + 90)*np.pi/180, (90-elev)*np.pi/180
-        Sx, Sy = self._calcFiniteSlopes(self._griddata, self._georef_info.dx, self._georef_info.nx, self._georef_info.ny)  # Calculate slope in X and Y directions
+        Sx, Sy = self._calcFiniteSlopes(self._griddata, self._mean_pixel_dimension(), self._georef_info.nx, self._georef_info.ny)  # Calculate slope in X and Y directions
     
         AspectRad = np.arctan2(Sy, Sx) # Angle of aspect
         SmagRad = np.arctan(np.sqrt(Sx**2 + Sy**2))  # magnitude of slope in radians
     
         self._griddata = 255.0 * ((np.cos(elevRad) * np.cos(SmagRad)) + (np.sin(elevRad)* np.sin(SmagRad) * np.cos(azRad - AspectRad)))
+
+class GeographicHillshade(GeographicGridMixin, Hillshade):
+    pass
             
 class FilledElevation(Elevation):
     
