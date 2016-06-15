@@ -492,6 +492,15 @@ class BaseSpatialGrid(GDALMixin):
     
 
     _georef_info = Georef_info()
+    
+    def __deepcopy__(self, memo):
+        import copy
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
         
     def __init__(self, *args, **kwargs):
         
