@@ -17,6 +17,7 @@ from numpy import uint8
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 from operator import pos
+from __builtin__ import False, True
 
 
         
@@ -630,11 +631,14 @@ class BaseSpatialGrid(GDALMixin):
     def _mean_pixel_dimension(self, *args, **kwargs):
         return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
     
-    def sort(self, reverse=True, force = False):
+    def sort(self, reverse=True, force = False, mask = None):
         if force:
             self._sorted = False
         if not self._sorted:
-            self._sort_indexes = self._griddata.argsort(axis = None)
+            if mask is not None:
+                self._sort_indexes = self._griddata[np.where(mask == 1)].argsort(axis = None)
+            else:
+                self._sort_indexes = self._griddata.argsort(axis = None)
             self._sorted = True
         if reverse:
             return self._sort_indexes[::-1]
@@ -825,8 +829,9 @@ class FlowDirectionD8(FlowDirection):
             for j in range(self._georef_info.nx-1):
                 flow_code = self.__flow_code_for_position(flooded_dem, i, j)
                 self._griddata[i,j] = flow_code
-    
-        self._sort_indexes = flooded_dem.sort(reverse = False)
+        
+        mask = kwargs.get('mask')
+        self._sort_indexes = flooded_dem.sort(reverse = False, force = True, mask = mask)
         self._sorted = True
         
     def __flow_code_for_position(self, flooded_dem, i, j):
@@ -1108,20 +1113,33 @@ class FilledElevation(Elevation):
             return self.__nItems == 0
 
 
-    def __flood(self, aggSlope = 0.0):
+    def __flood(self, *args, **kwargs):
         # dem is a numpy array of elevations to be flooded, aggInc is the minimum amount to increment elevations by moving upstream
         # use priority flood algorithm described in  Barnes et al., 2013
         # Priority-Flood: An Optimal Depression-Filling and Watershed-Labeling Algorithm for Digital Elevation Models
         # NOTE: They have another algorithm to make this more efficient, but to use that and a slope makes things more
         # complicated
-                            
-        priority_queue = FilledElevation.priorityQueue() # priority queue to sort filling operation
-    
+        
         #Create a grid to keep track of which cells have been filled        
         closed = np.zeros_like(self._griddata)
-    
-        #Add all the edge cells to the priority queue, mark those cells as draining (not closed)
-        edgeRows, edgeCols = self.findDEMedge()
+        using_mask = False
+        
+        if kwargs.get('mask') is not None and kwargs.get('outlet') is not None:
+            closed[~kwargs.get('mask')._griddata] = 1
+            closed = (closed == 1)
+            ((edgeRows, edgeCols)) = self._xy_to_rowscols((kwargs.get('outlet'),))
+            using_mask = True
+        else:
+            #Add all the edge cells to the priority queue, mark those cells as draining (not closed)
+            edgeRows, edgeCols = self.findDEMedge()
+        
+        should_randomize_priority_queue = False
+        
+        if kwargs.get('randomize') is not None:
+            if kwargs.get('randomize') == True:
+                should_randomize_priority_queue = True
+                
+        priority_queue = FilledElevation.priorityQueue() # priority queue to sort filling operation
             
         for i in range(len(edgeCols)):
             row, col = edgeRows[i], edgeCols[i]
@@ -1145,10 +1163,13 @@ class FilledElevation(Elevation):
     
                     #If this was a hole (lower than the cell downstream), fill it
                     if self._griddata[neighborRows[i], neighborCols[i]] <= elevation:                        
-                        self._griddata[neighborRows[i], neighborCols[i]] = elevation + aggSlope*dxs[i]
+                        self._griddata[neighborRows[i], neighborCols[i]] = elevation + self.aggradation_slope*dxs[i]
     
                     closed[neighborRows[i], neighborCols[i]] = True
-                    priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
+                    if should_randomize_priority_queue and (not using_mask or (using_mask and ~np.any(~kwargs.get('mask')[neighborRows,neighborCols]))):
+                        priority_queue.put(np.random.rand(1)[0], [neighborRows[i], neighborCols[i]])
+                    else:
+                        priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
                     
 class Area(BaseSpatialGrid):
     
@@ -1404,6 +1425,8 @@ class RestoredElevation(BaseSpatialGrid):
         area = copy.deepcopy(kwargs['area'])
         cls_of_area = area.__class__
         flow_direction = copy.deepcopy(kwargs['flow_direction'])
+        mask = kwargs.get('mask')
+        randomize = kwargs.get('randomize')
         for i in range(kwargs['iterations']):
             last_grid = self._griddata.copy()
             print('Iteration {0}'.format(i))
@@ -1412,8 +1435,8 @@ class RestoredElevation(BaseSpatialGrid):
                 self.__fill_upstream_points(ind, kwargs['ks'], kwargs['theta'], area, flow_direction, pixel_dimension)
             print('Migrating divides')
             flow_direction = None
-            flooded_dem = FilledElevation(elevation = self)
-            flow_direction = FlowDirectionD8(flooded_dem = flooded_dem)
+            flooded_dem = FilledElevation(elevation = self, mask = mask, randomize = randomize)
+            flow_direction = FlowDirectionD8(flooded_dem = flooded_dem, mask = mask)
             area = None
             idx = self.sort(True, True)
             area = cls_of_area(flow_direction = flow_direction, sorted_indexes = idx)
