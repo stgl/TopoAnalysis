@@ -17,7 +17,6 @@ from numpy import uint8
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 from operator import pos
-from __builtin__ import False, True
 
 
         
@@ -26,7 +25,8 @@ class GDALMixin(object):
     def _get_projection_from_EPSG_projection_code(self, EPSGprojectionCode):
         # Get raster projection
         srs = osr.SpatialReference()
-        return srs.ImportFromEPSG(EPSGprojectionCode).ExportToWkt()
+        srs.ImportFromEPSG(EPSGprojectionCode)
+        return srs.ExportToWkt()
 
     def _get_gdal_type_for_numpy_type(self, numpy_type):
     
@@ -209,15 +209,15 @@ class GDALMixin(object):
         georef_data = dict()
         
         with open(fileName, "r") as ascii_file:
-            for _ in xrange(5):
+            for _ in xrange(6):
                 line = ascii_file.readline()
-                (key, value) = (line.split()[1], int(line.split()[-1]))
+                (key, value) = (line.split()[0], float(line.split()[-1]))
                 georef_data[key.lower()] = value
 
         required_values = ('ncols', 'nrows', 'cellsize','nodata_value')
         
-        if len(set(required_values).subtract(set(georef_data.keys()))) != 0:
-            raise Error.InputError('A/I ASCII grid error','The following properties are missing: ' + set(required_values).subtract(set(georef_data.keys())))
+        if len(set(required_values).difference(set(georef_data.keys()))) != 0:
+            raise Error.InputError('A/I ASCII grid error','The following properties are missing: ' + str(set(required_values).difference(set(georef_data.keys()))))
         
         if georef_data.get('xllcorner') is None and georef_data.get('xllcenter') is None:
             raise Error.InputError('A/I ASCII grid error','Neither XLLCorner nor XLLCenter is present.')
@@ -226,8 +226,8 @@ class GDALMixin(object):
             raise Error.InputError('A/I ASCII grid error','Neither YLLCorner nor YLLCenter is present.')
         
         dx = georef_data.get('cellsize')
-        nx = georef_data.get('ncols')
-        ny = georef_data.get('nrows')
+        nx = int(georef_data.get('ncols'))
+        ny = int(georef_data.get('nrows'))
         
         if georef_data.get('xllcenter') is not None:
             xUL = georef_data.get('xllcenter') - (dx/2.0)
@@ -266,9 +266,10 @@ class GDALMixin(object):
         memDrv = gdal.GetDriverByName('MEM')  # Create a gdal driver in memory
         dataOut = memDrv.CreateCopy('name', ds, 0) #Copy data to gdal driver
     
-        data = dataOut.ReadAsArray(dtype = self.dtype)
+        data = dataOut.ReadAsArray()
         dataOut = None
         
+        data = self.dtype(data)
         return gt, nx, ny, data
 
 class GeographicGridMixin(object):
@@ -567,11 +568,17 @@ class BaseSpatialGrid(GDALMixin):
         self._georef_info.ny = kwargs['ny']
         self._georef_info.xllcenter = 0
         self._georef_info.yllcenter = 0
-        self._griddata = np.random.rand(self._georef_info.ny, self._georef_info.nx)
-        
+        self._randomize_grid_values(*args, **kwargs)
+    
+    def _randomize_grid_values(self, *args, **kwargs):
+        if kwargs.get('mask') is not None:
+            i = np.where(kwargs.get('mask')._griddata == 1)
+            self._griddata[i] = np.random.rand(len(i))
+        else:
+            self._griddata = np.random.rand(self._georef_info.ny, self._georef_info.nx)
+            
     def _read_ai(self, *args, **kwargs):
         
-        self._georef_info = []
         self._georef_info.projection = self._get_projection_from_EPSG_projection_code(kwargs['EPSGprojectionCode'])
         self._georef_info.geoTransform, self._georef_info.nx, self._georef_info.ny, self._griddata = self._asciiRasterToMemory(kwargs['ai_ascii_filename'])
         self.__populate_georef_info_using_geoTransform(self._georef_info.nx, self._georef_info.ny)
@@ -636,7 +643,7 @@ class BaseSpatialGrid(GDALMixin):
             self._sorted = False
         if not self._sorted:
             if mask is not None:
-                self._sort_indexes = self._griddata[np.where(mask == 1)].argsort(axis = None)
+                self._sort_indexes = self._griddata[np.where(mask._griddata == 1)].argsort(axis = None)
             else:
                 self._sort_indexes = self._griddata.argsort(axis = None)
             self._sorted = True
@@ -1032,6 +1039,24 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
     
         return np.where(borderCells[1:-1, 1:-1]) # Return edge rows and columns as a tuple
 
+class Mask(BaseSpatialGrid):
+    
+    dtype = uint8
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('flow_direction','outlets'), '_create_from_flow_direction_and_outlets'))
+    
+    def _create_from_flow_direction_and_outlets(self, *args, **kwargs):
+        flow_direction = kwargs['flow_direction']
+        outlets = kwargs['outlets']
+        self._copy_info_from_grid(flow_direction)
+        for (outlet_x, outlet_y) in outlets:
+            indexes = flow_direction.get_indexes_of_upstream_cells_for_location(outlet_x, outlet_y)
+            i = np.ravel_multi_index(indexes, flow_direction._griddata.shape)
+            self._griddata[i] = 1
+        
 class Hillshade(CalculationMixin, BaseSpatialGrid):
     
     dtype = uint8
@@ -1435,6 +1460,8 @@ class RestoredElevation(BaseSpatialGrid):
                 self.__fill_upstream_points(ind, kwargs['ks'], kwargs['theta'], area, flow_direction, pixel_dimension)
             print('Migrating divides')
             flow_direction = None
+            if i > 0:
+                randomize = False
             flooded_dem = FilledElevation(elevation = self, mask = mask, randomize = randomize)
             flow_direction = FlowDirectionD8(flooded_dem = flooded_dem, mask = mask)
             area = None
