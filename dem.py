@@ -17,7 +17,9 @@ from numpy import uint8
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 from operator import pos
+import sys
 
+sys.setrecursionlimit(1000000)
 
         
 class GDALMixin(object):
@@ -530,10 +532,16 @@ class BaseSpatialGrid(GDALMixin):
     def __getitem__(self, key):
         i, j = key
 
-        if i < 0 or j < 0 or i >= self._georef_info.ny or j >= self._georef_info.nx:
-            return None
+        i = int(i)
+        j = int(j)
         
-        return self._griddata[i, j]
+        if i >= 0 and j >= 0 and i < self._georef_info.ny and j < self._georef_info.nx:
+            try:
+                return self._griddata[i, j]
+            except:
+                print(i, j)
+        
+        return None
         
     def __get_evaluative_action(self, *args, **kwargs):
                 
@@ -972,7 +980,8 @@ class FlowDirectionD8(FlowDirection):
     
     def get_indexes_of_upstream_cells_for_location(self, x, y):
         
-        ((i, j)) = self._xy_to_rowscols((x,y),)
+        v = ((x, y), )
+        ((i, j),) = self._xy_to_rowscols(v)
         return self.get_indexes_of_upstream_cells(i, j)
         
     def searchDownFlowDirection(self, start):
@@ -1039,6 +1048,19 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
     
         return np.where(borderCells[1:-1, 1:-1]) # Return edge rows and columns as a tuple
 
+    def findDEMedge_dilate(self):
+        #Pad the data so that we can take a windowed max
+        original = np.zeros((self._georef_info.ny, self._georef_info.nx))
+        i = np.where(~np.isnan(self._griddata) & (self._griddata != 0))
+        original[i] = 1
+        from scipy.ndimage.morphology import binary_erosion as erosion
+        from scipy.ndimage.morphology import binary_dilation as dilation
+        eroded = erosion(original, border_value = 1).astype(int)
+        dilated = dilation(original, border_value = 1).astype(int)
+        
+        edges = dilated - eroded
+        return np.where(edges)
+        
 class Mask(BaseSpatialGrid):
     
     dtype = uint8
@@ -1051,11 +1073,11 @@ class Mask(BaseSpatialGrid):
     def _create_from_flow_direction_and_outlets(self, *args, **kwargs):
         flow_direction = kwargs['flow_direction']
         outlets = kwargs['outlets']
-        self._copy_info_from_grid(flow_direction)
+        self._copy_info_from_grid(flow_direction, True)
         for (outlet_x, outlet_y) in outlets:
             indexes = flow_direction.get_indexes_of_upstream_cells_for_location(outlet_x, outlet_y)
-            i = np.ravel_multi_index(indexes, flow_direction._griddata.shape)
-            self._griddata[i] = 1
+            for index in indexes:
+                self[index[0],index[1]] = 1
         
 class Hillshade(CalculationMixin, BaseSpatialGrid):
     
@@ -1452,6 +1474,8 @@ class RestoredElevation(BaseSpatialGrid):
         flow_direction = copy.deepcopy(kwargs['flow_direction'])
         mask = kwargs.get('mask')
         randomize = kwargs.get('randomize')
+        if randomize:
+            self._randomize_grid_values(*args, **kwargs)
         for i in range(kwargs['iterations']):
             last_grid = self._griddata.copy()
             print('Iteration {0}'.format(i))
@@ -1467,7 +1491,7 @@ class RestoredElevation(BaseSpatialGrid):
             area = None
             idx = self.sort(True, True)
             area = cls_of_area(flow_direction = flow_direction, sorted_indexes = idx)
-            flow_direction = self.__migrate_divides(area, flow_direction, elevation = kwargs['elevation'])
+            flow_direction = self.__migrate_divides(area, flow_direction, **kwargs)
             area = None
             idx = self.sort(True, True)
             print('Recalculating areas')
@@ -1493,7 +1517,8 @@ class RestoredElevation(BaseSpatialGrid):
         flow_direction = args[1]
         
         import itertools
-        idxs = area.sort(reverse = False)
+        idxs = area.sort(reverse = False, force=False, mask = kwargs.get('mask'))
+        print(len(idxs))
         [ind_i, ind_j] = np.unravel_index(idxs, flow_direction._griddata.shape)
         for (i, j) in itertools.izip(ind_i, ind_j):
             if self.__is_unit_area((i,j), flow_direction):    
