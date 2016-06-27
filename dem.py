@@ -1025,40 +1025,19 @@ class FlowDirectionD8(FlowDirection):
         
             
 class Elevation(CalculationMixin, BaseSpatialGrid):
-    
-    def findDEMedge(self):
-        # Function to find the cells at the edge of a dem. Dem is a ny x nx array, but may be largely padded
-        # by nans. Determines where the edge of the real data is. Does this by finding the maximum value within a 3x3 kernel,
-        # if that is not zero, but the original data at the corresponding location is, then that is an edge cell
-            
-        #Pad the data so that we can take a windowed max
-        padded = np.zeros((self._georef_info.ny+2, self._georef_info.nx+2))
-        padded[1:-1, 1:-1] = self._griddata
-        padded[padded == 0] = np.nan
-    
-        # windowMax = np.zeros_like(padded)
-        borderCells = np.zeros_like(padded)
-    
-        #Iterate through all the data, find the max in a 3 x 3 kernel
-        for i in range(self._georef_info.ny):
-            for j in range(self._georef_info.nx):
-                # windowMax[i+1, j+1] = np.nanmax(padded[i:i+3, j:j+3])
-                borderCells[i+1, j+1] = np.any(np.isnan(padded[i:i+3, j:j+3]))*(~np.isnan(padded[i+1,j+1]))
-    
-    
-        return np.where(borderCells[1:-1, 1:-1]) # Return edge rows and columns as a tuple
 
-    def findDEMedge_dilate(self):
+    def findDEMedge(self):
         #Pad the data so that we can take a windowed max
         original = np.zeros((self._georef_info.ny, self._georef_info.nx))
-        i = np.where(~np.isnan(self._griddata) & (self._griddata != 0))
+        i = np.where(np.isnan(self._griddata) | (self._griddata == 0))
         original[i] = 1
-        from scipy.ndimage.morphology import binary_erosion as erosion
-        from scipy.ndimage.morphology import binary_dilation as dilation
-        eroded = erosion(original, border_value = 1).astype(int)
-        dilated = dilation(original, border_value = 1).astype(int)
         
-        edges = dilated - eroded
+        from scipy.ndimage.morphology import binary_dilation as dilation
+        from scipy.ndimage import generate_binary_structure as generate_binary_structure
+        structure = generate_binary_structure(2, 2)
+        dilated = dilation(original, structure = structure, border_value = 1).astype(int)
+        edges = dilated - original
+        
         return np.where(edges)
         
 class Mask(BaseSpatialGrid):
