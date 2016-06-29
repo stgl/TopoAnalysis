@@ -581,7 +581,7 @@ class BaseSpatialGrid(GDALMixin):
     def _randomize_grid_values(self, *args, **kwargs):
         if kwargs.get('mask') is not None:
             i = np.where(kwargs.get('mask')._griddata == 1)
-            self._griddata[i] = np.random.rand(len(i))
+            self._griddata[i] = np.random.rand(len(i[0]))
         else:
             self._griddata = np.random.rand(self._georef_info.ny, self._georef_info.nx)
             
@@ -616,8 +616,8 @@ class BaseSpatialGrid(GDALMixin):
         dxMults = np.array([rt2, 1.0, rt2, 1.0, 1.0, rt2, 1.0, rt2])  # Unit Distance from pixel to surrounding coordinates
     
         #Find all the surrounding indices
-        outRows = rowKernel + row
-        outCols = colKernel + col
+        outRows = (rowKernel + row).astype(int)
+        outCols = (colKernel + col).astype(int)
     
         #Determine which indices are out of bounds
         inBounds = (outRows >= 0)*(outRows < self._georef_info.ny)*(outCols >= 0)*(outCols < self._georef_info.nx)
@@ -1106,7 +1106,7 @@ class FilledElevation(Elevation):
 
         elevation = kwargs['elevation']
         self._copy_info_from_grid(elevation)
-        self.__flood(self.aggradation_slope) 
+        self.__flood(*args, **kwargs) 
             
     class priorityQueue:
         #Implements a priority queue using heapq. Python has a priority queue module built in, but it
@@ -1149,12 +1149,14 @@ class FilledElevation(Elevation):
         #Create a grid to keep track of which cells have been filled        
         closed = np.zeros_like(self._griddata)
         using_mask = False
-        
+                
         if kwargs.get('mask') is not None and kwargs.get('outlet') is not None:
             closed[~kwargs.get('mask')._griddata] = 1
             closed = (closed == 1)
-            ((edgeRows, edgeCols)) = self._xy_to_rowscols((kwargs.get('outlet'),))
+            ((edgeRows, edgeCols),) = self._xy_to_rowscols((kwargs.get('outlet'),))
             using_mask = True
+            edgeRows = (edgeRows,)
+            edgeCols = (edgeCols,)
         else:
             #Add all the edge cells to the priority queue, mark those cells as draining (not closed)
             edgeRows, edgeCols = self.findDEMedge()
@@ -1182,6 +1184,7 @@ class FilledElevation(Elevation):
             
             dxs = self._georef_info.dx * dxMults
     
+            edge_of_mask_is_in_kernel = np.any(~kwargs.get('mask')._griddata[neighborRows,neighborCols])
             #Look through the upstream neighbors
             for i in range(len(neighborCols)):
                 if not closed[neighborRows[i], neighborCols[i]]:
@@ -1192,8 +1195,9 @@ class FilledElevation(Elevation):
                         self._griddata[neighborRows[i], neighborCols[i]] = elevation + self.aggradation_slope*dxs[i]
     
                     closed[neighborRows[i], neighborCols[i]] = True
-                    if should_randomize_priority_queue and (not using_mask or (using_mask and ~np.any(~kwargs.get('mask')[neighborRows,neighborCols]))):
-                        priority_queue.put(np.random.rand(1)[0], [neighborRows[i], neighborCols[i]])
+                    if should_randomize_priority_queue:
+                        if not using_mask or (using_mask and ~edge_of_mask_is_in_kernel):
+                            priority_queue.put(np.random.rand(1)[0], [neighborRows[i], neighborCols[i]])
                     else:
                         priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
                     
@@ -1455,26 +1459,27 @@ class RestoredElevation(BaseSpatialGrid):
         randomize = kwargs.get('randomize')
         if randomize:
             self._randomize_grid_values(*args, **kwargs)
+            filled = FilledElevation(elevation = self, mask = mask, randomize = randomize, outlet = kwargs['outlets'][0])
+            flow_direction = FlowDirectionD8(flooded_dem = filled, mask = mask)
+            area = Area(flow_direction = flow_direction, mask = mask)
         for i in range(kwargs['iterations']):
             last_grid = self._griddata.copy()
             print('Iteration {0}'.format(i))
             print('Filling outlets.')
-            for ind in v:
-                self.__fill_upstream_points(ind, kwargs['ks'], kwargs['theta'], area, flow_direction, pixel_dimension)
+            divides = self.__fill_outlets(area, flow_direction, pixel_dimension, v, kwargs['ks'], kwargs['theta'])
             print('Migrating divides')
-            flow_direction = None
-            if i > 0:
-                randomize = False
-            flooded_dem = FilledElevation(elevation = self, mask = mask, randomize = randomize)
-            flow_direction = FlowDirectionD8(flooded_dem = flooded_dem, mask = mask)
-            area = None
-            idx = self.sort(True, True)
-            area = cls_of_area(flow_direction = flow_direction, sorted_indexes = idx)
-            flow_direction = self.__migrate_divides(area, flow_direction, **kwargs)
-            area = None
-            idx = self.sort(True, True)
-            print('Recalculating areas')
-            area = cls_of_area(flow_direction = flow_direction, sorted_indexes = idx)
+            #flow_direction = None
+            #flooded_dem = FilledElevation(elevation = self, mask = mask, randomize = randomize)
+            #flow_direction = FlowDirectionD8(flooded_dem = flooded_dem, mask = mask)
+            #area = None
+            #idx = self.sort(True, True)
+            #area = cls_of_area(flow_direction = flow_direction, sorted_indexes = idx)
+            flow_direction = self.__migrate_divides(flow_direction, divides)
+            #area = None
+            #idx = self.sort(True, True)
+            #print('Recalculating areas')
+            #area = cls_of_area(flow_direction = flow_direction, sorted_indexes = idx)
+            area = self.__recalculate_area(area, flow_direction, pixel_dimension, kwargs['outlets'])
             change_in_elevation = np.mean((self._griddata - last_grid)**2)
             print('Change: {0}'.format(change_in_elevation))
     
@@ -1492,98 +1497,284 @@ class RestoredElevation(BaseSpatialGrid):
         
     def __migrate_divides(self, *args, **kwargs):
         
-        area = args[0]
-        flow_direction = args[1]
-        
-        import itertools
-        idxs = area.sort(reverse = False, force=False, mask = kwargs.get('mask'))
-        print(len(idxs))
-        [ind_i, ind_j] = np.unravel_index(idxs, flow_direction._griddata.shape)
-        for (i, j) in itertools.izip(ind_i, ind_j):
-            if self.__is_unit_area((i,j), flow_direction):    
-                if self.__is_unit_area((i,j+1), flow_direction) and self[i,j+1] > self[i,j]:
-                    flow_direction[i,j+1] = 16
-                if self.__is_unit_area((i+1, j+1), flow_direction) and self[i+1, j+1] > self[i,j]:
-                    flow_direction[i+1, j+1] = 32
-                if self.__is_unit_area((i+1, j), flow_direction) and self[i+1, j] > self[i,j]:
-                    flow_direction[i+1, j] = 64
-                if self.__is_unit_area((i+1, j-1), flow_direction) and self[i+1, j-1] > self[i,j]:
-                    flow_direction[i+1, j-1] = 128
-                if self.__is_unit_area((i, j-1), flow_direction) and self[i, j-1] > self[i,j]:
-                    flow_direction[i, j-1] = 1
-                if self.__is_unit_area((i-1, j-1), flow_direction) and self[i-1,j-1] > self[i,j]:
-                    flow_direction[i-1, j-1] = 2
-                if self.__is_unit_area((i-1, j), flow_direction) and self[i-1, j] > self[i,j]:
-                    flow_direction[i-1, j] = 4
-                if self.__is_unit_area((i-1, j+1), flow_direction) and self[i-1, j+1] > self[i,j]:
-                    flow_direction[i-1, j+1] = 8
+        #area = args[0]
+        flow_direction = args[0]
+        divides = args[1]
+        migrated = 0
+        #import itertools
+        #idxs = area.sort(reverse = False, force=False, mask = kwargs.get('mask'))
+        #[ind_i, ind_j] = np.unravel_index(idxs, flow_direction._griddata.shape)
+        for (i, j) in divides:
+            if self[i,j+1] > self[i,j]:
+                flow_direction[i,j+1] = 16
+                migrated += 1
+            if self[i+1, j+1] > self[i,j]:
+                flow_direction[i+1, j+1] = 32
+                migrated += 1
+            if self[i+1, j] > self[i,j]:
+                flow_direction[i+1, j] = 64
+                migrated += 1
+            if self[i+1, j-1] > self[i,j]:
+                flow_direction[i+1, j-1] = 128
+                migrated += 1
+            if self[i, j-1] > self[i,j]:
+                flow_direction[i, j-1] = 1
+                migrated += 1
+            if self[i-1,j-1] > self[i,j]:
+                flow_direction[i-1, j-1] = 2
+                migrated += 1
+            if self[i-1, j] > self[i,j]:
+                flow_direction[i-1, j] = 4
+                migrated += 1
+            if self[i-1, j+1] > self[i,j]:
+                flow_direction[i-1, j+1] = 8
+                migrated += 1
+                
+        print("Migrated " + str(migrated) + " divides.")
         return flow_direction
     
+    def __fill_outlets(self, area, flow_direction, pixel_dimension, outlet_indexes, ks, theta):
+        
+        divides = list()
+        for ind in outlet_indexes:
+            divides += self.__fill_upstream_points(ind, ks, theta, area, flow_direction, pixel_dimension)
+        return divides
+        
     def __fill_upstream_points(self, ind, ks, theta, area, flow_direction, pixel_dimension):
         
         (i, j) = ind
         elevation_for_cell = self[i,j]
+        is_divide = True
+        divides = list()
         
         try:
             if flow_direction[i, j+1] == 16:
                 self._griddata[i,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
-                self.__fill_upstream_points((i,j+1), ks, theta, area, flow_direction, pixel_dimension)
+                divides += self.__fill_upstream_points((i,j+1), ks, theta, area, flow_direction, pixel_dimension)
+                is_divide = False
         except:
             pass
         
         try:
             if flow_direction[i+1, j+1] == 32:
                 self._griddata[i+1,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
-                self.__fill_upstream_points((i+1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+                divides += self.__fill_upstream_points((i+1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+                is_divide = False
         except:
             pass
         
         try:                
             if flow_direction[i+1, j] == 64:
                 self._griddata[i+1,j] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
-                self.__fill_upstream_points((i+1,j), ks, theta, area, flow_direction, pixel_dimension)
+                divides += self.__fill_upstream_points((i+1,j), ks, theta, area, flow_direction, pixel_dimension)
+                is_divide = False
         except:
             pass
         
         try:
             if flow_direction[i+1, j-1] == 128:
                 self._griddata[i+1,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
-                self.__fill_upstream_points((i+1,j-1), ks, theta, area, flow_direction, pixel_dimension)
+                divides += self.__fill_upstream_points((i+1,j-1), ks, theta, area, flow_direction, pixel_dimension)
+                is_divide = False
         except:
             pass
         
         try:        
             if flow_direction[i, j-1] == 1:
                 self._griddata[i,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
-                self.__fill_upstream_points((i,j-1), ks, theta, area, flow_direction, pixel_dimension)
+                divides += self.__fill_upstream_points((i,j-1), ks, theta, area, flow_direction, pixel_dimension)
+                is_divide = False
         except:
             pass
         
         try: 
             if flow_direction[i-1, j-1] == 2:
                 self._griddata[i-1,j-1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
-                self.__fill_upstream_points((i-1,j-1), ks, theta, area, flow_direction, pixel_dimension)
+                divides += self.__fill_upstream_points((i-1,j-1), ks, theta, area, flow_direction, pixel_dimension)
+                is_divide = False
         except:
             pass
         
         try:    
             if flow_direction[i-1, j] == 4:
                 self._griddata[i-1,j] = elevation_for_cell + pixel_dimension[i,j]*1.00*ks*area[i,j]**(-theta)
-                self.__fill_upstream_points((i-1,j), ks, theta, area, flow_direction, pixel_dimension)
+                divides += self.__fill_upstream_points((i-1,j), ks, theta, area, flow_direction, pixel_dimension)
+                is_divide = False
         except:
             pass
         
         try:    
             if flow_direction[i-1, j+1] == 8:
                 self._griddata[i-1,j+1] = elevation_for_cell + pixel_dimension[i,j]*1.414*ks*area[i,j]**(-theta)
-                self.__fill_upstream_points((i-1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+                divides += self.__fill_upstream_points((i-1,j+1), ks, theta, area, flow_direction, pixel_dimension)
+                is_divide = False
         except:
             pass
         
-                
+        if is_divide:
+            return [(i,j)]
+        else:
+            return divides
+    
+    def __recalculate_area(self, area, flow_direction, pixel_dimension, outlets):
+        outlet_indexes = self._xy_to_rowscols(outlets)
+        for outlet in outlet_indexes:
+            self.__recurse_area(outlet, area, flow_direction, pixel_dimension)
+        return area
+        
+    def __recurse_area(self, ind, area, flow_direction, pixel_dimension):
+        
+        (i, j) = ind
+        
+        this_area = pixel_dimension[i,j]**2
+        
+        try:
+            if flow_direction[i, j+1] == 16:
+                ind = (i, j+1)
+                this_area += self.__recurse_area(ind, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:
+            if flow_direction[i+1, j+1] == 32:
+                ind = (i+1,j+1)
+                this_area += self.__recurse_area(ind, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:                
+            if flow_direction[i+1, j] == 64:
+                ind = (i+1,j)
+                this_area += self.__recurse_area(ind, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:
+            if flow_direction[i+1, j-1] == 128:
+                ind = (i+1, j-1)
+                this_area += self.__recurse_area(ind, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:        
+            if flow_direction[i, j-1] == 1:
+                ind = (i,j-1)
+                this_area += self.__recurse_area(ind, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try: 
+            if flow_direction[i-1, j-1] == 2:
+                ind = (i-1, j-1)
+                this_area += self.__recurse_area(ind, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:    
+            if flow_direction[i-1, j] == 4:
+                ind = (i-1, j)
+                this_area += self.__recurse_area(ind, area, flow_direction, pixel_dimension)
+        except:
+            pass
+        
+        try:    
+            if flow_direction[i-1, j+1] == 8:
+                ind = (i-1, j+1)
+                this_area += self.__recurse_area(ind, area, flow_direction, pixel_dimension)
+        except:
+            pass    
+
+        area[i,j] = this_area
+        return this_area
+   
 class GeographicRestoredElevation(GeographicGridMixin, RestoredElevation):
     pass
 
+class Chi(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('area','flow_direction','theta', 'Ao', 'outlets'), '_create_from_inputs'))
+    
+    
+    def _create_from_inputs(self, *args, **kwargs):
+        self._copy_info_from_grid(kwargs['flow_direction'], True)
+        self.__calculate_chi(*args, **kwargs)
+        
+        
+    def __calculate_chi(self, *args, **kwargs):
+        pixel_dimension = self._mean_pixel_dimension(*args, **kwargs)
+        area = kwargs['area']
+        flow_direction = kwargs['flow_direction']
+        Ao = kwargs['Ao']
+        theta = kwargs['theta']
+        outlet_indexes = self._xy_to_rowscols(kwargs['outlets'])
+        for outlet in outlet_indexes:
+            self.__recurse_chi(outlet, area, flow_direction, pixel_dimension, Ao, theta, 0, 1)
+        
+    def __recurse_chi(self, v, area, flow_direction, pixel_dimension, Ao, theta, chi, scale):
+        
+        (i,j) = v
+        self._griddata[i,j] = chi + (Ao / area[i,j])**theta * pixel_dimension[i,j] * scale
+        chi = self._griddata[i,j]
+        
+        try:
+            if flow_direction[i, j+1] == 16:
+                scale = 1.0
+                self.__recurse_chi((i, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale)
+        except:
+            pass
+        
+        try:
+            if flow_direction[i+1, j+1] == 32:
+                scale = 1.414
+                self.__recurse_chi((i+1, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale)
+        except:
+            pass
+        
+        try:                
+            if flow_direction[i+1, j] == 64:
+                scale = 1.0
+                self.__recurse_chi((i+1, j), area, flow_direction, pixel_dimension, Ao, theta, chi, scale)
+        except:
+            pass
+        
+        try:
+            if flow_direction[i+1, j-1] == 128:
+                scale = 1.414
+                self.__recurse_chi((i+1, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale)
+        except:
+            pass
+        
+        try:        
+            if flow_direction[i, j-1] == 1:
+                scale = 1.0
+                self.__recurse_chi((i, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale)
+        except:
+            pass
+        
+        try: 
+            if flow_direction[i-1, j-1] == 2:
+                scale = 1.414
+                self.__recurse_chi((i-1, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale)
+        except:
+            pass
+        
+        try:    
+            if flow_direction[i-1, j] == 4:
+                scale = 1.0
+                self.__recurse_chi((i-1, j), area, flow_direction, pixel_dimension, Ao, theta, chi, scale)
+        except:
+            pass
+        
+        try:    
+            if flow_direction[i-1, j+1] == 8:
+                scale = 1.414
+                self.__recurse_chi((i-1, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale)
+        except:
+            pass  
+ 
 class Deflection(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
