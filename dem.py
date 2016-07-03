@@ -1494,7 +1494,13 @@ class RestoredElevation(BaseSpatialGrid):
         
         
         mask = Mask(flow_direction = flow_direction, outlets = outlets)
+        external_divides = copy.deepcopy(mask)
         
+        if kwargs.get('fix_external_outlets') == True:
+            from scipy.ndimage import binary_erosion as erosion
+            external_divides._griddata = external_divides._griddata - erosion(external_divides._griddata, np.ones((3,3)), border_value = 0).astype(int)
+        else:
+            external_divides._griddata = np.zeros_like(external_divides._griddata, int)
         if randomize:
             filled = FilledElevation(elevation = self, mask = mask, randomize = randomize, outlets = outlets)
             flow_direction.update_flow_codes_in_mask(filled, mask)
@@ -1507,7 +1513,7 @@ class RestoredElevation(BaseSpatialGrid):
             print('Filling outlets.')
             divides = self.__fill_outlets(area, flow_direction, pixel_dimension, v, ks, theta)
             print('Migrating divides')
-            flow_direction = self.__migrate_divides(flow_direction, divides)
+            flow_direction = self.__migrate_divides(flow_direction, divides, external_divides)
             area = self.__recalculate_area(area, flow_direction, pixel_dimension, outlets)
             change_in_elevation = np.mean((self._griddata - last_grid)**2)
             print('Change: {0}'.format(change_in_elevation))
@@ -1526,38 +1532,68 @@ class RestoredElevation(BaseSpatialGrid):
         
     def __migrate_divides(self, *args, **kwargs):
         
-        #area = args[0]
         flow_direction = args[0]
         divides = args[1]
+        external_divides = args[2]
         migrated = 0
-        #import itertools
-        #idxs = area.sort(reverse = False, force=False, mask = kwargs.get('mask'))
-        #[ind_i, ind_j] = np.unravel_index(idxs, flow_direction._griddata.shape)
+
         for (i, j) in divides:
-            if self[i,j+1] > self[i,j]:
-                flow_direction[i,j+1] = 16
-                migrated += 1
-            if self[i+1, j+1] > self[i,j]:
-                flow_direction[i+1, j+1] = 32
-                migrated += 1
-            if self[i+1, j] > self[i,j]:
-                flow_direction[i+1, j] = 64
-                migrated += 1
-            if self[i+1, j-1] > self[i,j]:
-                flow_direction[i+1, j-1] = 128
-                migrated += 1
-            if self[i, j-1] > self[i,j]:
-                flow_direction[i, j-1] = 1
-                migrated += 1
-            if self[i-1,j-1] > self[i,j]:
-                flow_direction[i-1, j-1] = 2
-                migrated += 1
-            if self[i-1, j] > self[i,j]:
-                flow_direction[i-1, j] = 4
-                migrated += 1
-            if self[i-1, j+1] > self[i,j]:
-                flow_direction[i-1, j+1] = 8
-                migrated += 1
+            if external_divides[i,j] != 1:
+                try:
+                    if self[i,j+1] > self[i,j] and external_divides[i,j+1] != 1:
+                        flow_direction[i,j+1] = 16
+                        migrated += 1
+                except:
+                    pass
+                
+                try:
+                    if self[i+1, j+1] > self[i,j] and external_divides[i+1,j+1] != 1:
+                        flow_direction[i+1, j+1] = 32
+                        migrated += 1
+                except:
+                    pass
+                
+                try:
+                    if self[i+1, j] > self[i,j] and external_divides[i+1,j] != 1:
+                        flow_direction[i+1, j] = 64
+                        migrated += 1
+                except:
+                    pass
+                
+                try:
+                    if self[i+1, j-1] > self[i,j] and external_divides[i+1,j-1] != 1:
+                        flow_direction[i+1, j-1] = 128
+                        migrated += 1
+                except:
+                    pass
+                
+                try:
+                    if self[i, j-1] > self[i,j] and external_divides[i,j-1] != 1:
+                        flow_direction[i, j-1] = 1
+                        migrated += 1
+                except:
+                    pass
+                
+                try:        
+                    if self[i-1,j-1] > self[i,j] and external_divides[i-1,j-1] != 1:
+                        flow_direction[i-1, j-1] = 2
+                        migrated += 1
+                except:
+                    pass
+                
+                try:
+                    if self[i-1, j] > self[i,j] and external_divides[i-1,j] != 1:
+                        flow_direction[i-1, j] = 4
+                        migrated += 1
+                except:
+                    pass
+                
+                try:
+                    if self[i-1, j+1] > self[i,j] and external_divides[i-1,j+1] != 1:
+                        flow_direction[i-1, j+1] = 8
+                        migrated += 1
+                except:
+                    pass
                 
         print("Migrated " + str(migrated) + " divides.")
         return flow_direction
