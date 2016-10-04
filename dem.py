@@ -1904,9 +1904,9 @@ class ChannelSlope(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                (('gdal_filename',), '_read_gdal'), 
-                               (('flow_direction','elevation'), '__create_from_flow_direction_and_elevation'))
+                               (('flow_direction','elevation'), '_create_from_flow_direction_and_elevation'))
     
-    def __create_from_flow_direction_and_elevation(self, *args, **kwargs):
+    def _create_from_flow_direction_and_elevation(self, *args, **kwargs):
         
         flow_dir = kwargs['flow_direction']
         elevation = kwargs['elevation']
