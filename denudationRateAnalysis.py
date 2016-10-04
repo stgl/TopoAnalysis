@@ -98,10 +98,28 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
         relief_mean = np.mean(relief_array)
         total_residuals = np.sum((relief_array - relief_mean)**2)
         model_residuals = np.sum((best_ks * (ksi_array - 90.0) - relief_array )**2)
-	R2 = 1 - model_residuals / total_residuals            
+        R2 = 1 - model_residuals / total_residuals            
         ks.append((best_ks, R2))
 
     return ks
+
+def calculate_slope_fraction_for_sample(v, d8, area, slope, cutoff = 0.2):
+        
+    fraction = list()
+    
+    for position in v:
+        
+        (row, col) = area._xy_to_rowscols((position, ))[0]
+        
+        indexes_of_area = d8.get_indexes_of_upstream_cells(row, col)
+        total_number_of_points_in_basin = len(indexes_of_area)
+        number_of_points_in_basin_above_cutoff = 0
+        for (row, col) in indexes_of_area:
+            number_of_points_in_basin_above_cutoff += 1
+                    
+        fraction.append(number_of_points_in_basin_above_cutoff / total_number_of_points_in_basin)
+
+    return fraction
 
 def plot_stock_and_montgomery():
     
