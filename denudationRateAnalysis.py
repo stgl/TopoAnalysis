@@ -115,6 +115,7 @@ def calculate_slope_fraction_for_sample(v, d8, area, slope, cutoff = 0.2):
         total_number_of_points_in_basin = len(indexes_of_area)
         number_of_points_in_basin_above_cutoff = 0
         for (row, col) in indexes_of_area:
+            print(slope[row,col])
             if slope[row,col] > cutoff:
                 number_of_points_in_basin_above_cutoff += 1
                     
