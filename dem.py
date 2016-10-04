@@ -1926,6 +1926,8 @@ class ChannelSlope(BaseSpatialGrid):
             i_next, j_next, is_good = fd.get_flow_to_cell(i,j)
             if is_good:
                 dist = np.sqrt((i-i_next)**2 + (j-j_next)**2)*dx
+                print(dist)
+                print((dem[i,j] - dem[i_next, j_next]))
                 self._griddata[i,j] = (dem[i,j] - dem[i_next, j_next]) / dist
 
     
