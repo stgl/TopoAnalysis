@@ -1914,7 +1914,7 @@ class ChannelSlope(BaseSpatialGrid):
         if flow_dir.__class__ == FlowDirectionD8:
             self.__calc_D8_slope(flow_dir, elevation)            
 
-    def __calc_D8_slope(self, dem,fd):
+    def __calc_D8_slope(self, fd, dem):
 
         dx = self._georef_info.dx
         
