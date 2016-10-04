@@ -1917,7 +1917,7 @@ class ChannelSlope(BaseSpatialGrid):
     def __calc_D8_slope(self, fd, dem):
 
         dx = self._georef_info.dx
-        
+        print(dx)
         idcs = fd.sort() # Get the sorted indices of the array in reverse order (e.g. largest first)
     
         for idx in idcs:  # Loop through all the data in sorted order
