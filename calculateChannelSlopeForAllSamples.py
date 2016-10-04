@@ -3,7 +3,7 @@ import dem as d
 import numpy as np
 import pickle
 
-prefixes = ['brazil', 'costarica', 'guatemala', 'taiwan', 'venezuela']
+prefixes = ['brazil', ]#'costarica', 'guatemala', 'taiwan', 'venezuela']
 
 slp = dict()
 
