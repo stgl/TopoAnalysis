@@ -19,6 +19,6 @@ for prefix in prefixes:
     ks = copy.deepcopy(ksi)
     ks._griddata = ((relief._griddata / ksi._griddata) >= threshold).astype(int)
     
-    ks.save(prefix + '_ks_mask_250000_' + suffix + "_" + threshold)
+    ks.save(prefix + '_ks_mask_250000_' + suffix + "_" + str(threshold))
         
     
