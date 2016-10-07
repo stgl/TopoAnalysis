@@ -9,8 +9,8 @@ def read_csv(filename):
     
 def best_ksn(ksi, scaled_relief, xo = 500, theta = 0.5):
     
-    A = np.vstack(ksi) - xo 
-    return np.linalg.lstsq(A, scaled_relief)[0]
+    A = np.vstack([ksi-np.ones(len(ksi))*float(xo), np.ones(len(ksi))]).T 
+    return np.linalg.lstsq(A, scaled_relief)
 
 def find_ksi_scaled_relief(lat, lon, area, ksi, relief, d8, A_measured, pixel_radius = 5):
     
@@ -90,14 +90,14 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5, 
             if area[row, col] >= Ao:
                 ksi_values.append(ksi[row,col])
                 relief_values.append(relief[row,col])
-        
-        best_ks = best_ksn(ksi_values, relief_values, xo, theta)[0]
-        
+         
+        best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo, theta)
+        best_ks = best_fit[0] 
+        model_residuals = residuals[0] 
         ksi_array = np.array(ksi_values)
         relief_array = np.array(relief_values)
         relief_mean = np.mean(relief_array)
         total_residuals = np.sum((relief_array - relief_mean)**2)
-        model_residuals = np.sum((best_ks * (ksi_array - 90.0) - relief_array )**2)
         R2 = 1 - model_residuals / total_residuals            
         ks.append((best_ks, R2))
 

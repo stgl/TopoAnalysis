@@ -1,7 +1,7 @@
 #! /usr/bin/env python2.7
 
 prefixes = ('af', 'as', 'au', 'ca', 'eu', 'na', 'sa')
-threshold = 100
+threshold = 100.0
 
 import matplotlib
 matplotlib.use('Agg')
