@@ -25,7 +25,7 @@ def processAll(prefix_name, Ao, theta, base_name = '.'):
 
 def processAllUTM(prefix_name, EPSGprojectionCode, Ao, theta, base_name = '.'):
     
-    from dem import Elevation, FlowDirectionD8, Area, FlowLength, GeographicKsi, ScaledRelief
+    from dem import Elevation, FlowDirectionD8, Area, FlowLength, Ksi, ScaledRelief
     
     full_path_without_suffix = base_name + "/" + prefix_name
     elevation_unfilled_ascii_filename = full_path_without_suffix + ".txt"
@@ -40,7 +40,7 @@ def processAllUTM(prefix_name, EPSGprojectionCode, Ao, theta, base_name = '.'):
     
     flow_length = FlowLength(flow_direction = d8)
     flow_length.save(full_path_without_suffix + "_flow_length")
-    ksi = GeographicKsi(area = area, flow_direction = d8, theta = theta, Ao = Ao, flow_length = flow_length)
+    ksi = Ksi(area = area, flow_direction = d8, theta = theta, Ao = Ao, flow_length = flow_length)
     ksi.save(full_path_without_suffix + "_ksi_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
     relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta)
     relief.save(full_path_without_suffix + "_relief_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
