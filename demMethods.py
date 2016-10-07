@@ -27,23 +27,23 @@ def processAllUTM(prefix_name, EPSGprojectionCode, Ao, theta, base_name = '.'):
     
     from dem import Elevation, FlowDirectionD8, Area, FlowLength, GeographicKsi, ScaledRelief
     
-    elevation_unfilled_ascii_filename = base_name + "/" + base_name + ".txt"
-    prefix_name = base_name + "/" + base_name
+    full_path_without_suffix = base_name + "/" + prefix_name
+    elevation_unfilled_ascii_filename = full_path_without_suffix + ".txt"
     elevation = Elevation(ai_ascii_filename = elevation_unfilled_ascii_filename, EPSGprojectionCode= EPSGprojectionCode)
-    elevation.save(prefix_name + "_elevation")
+    elevation.save(full_path_without_suffix + "_elevation")
     filled = FilledElevation(elevation = elevation)
-    filled.save(prefix_name + "_filled")
+    filled.save(full_path_without_suffix + "_filled")
     d8 = FlowDirectionD8(flooded_dem = filled)
-    d8.save(prefix_name + "_flow_direction")
+    d8.save(full_path_without_suffix + "_flow_direction")
     area = Area(flow_direction = d8)
-    area.save(prefix_name + "_area")
+    area.save(full_path_without_suffix + "_area")
     
     flow_length = FlowLength(flow_direction = d8)
-    flow_length.save(prefix_name + "_flow_length")
+    flow_length.save(full_path_without_suffix + "_flow_length")
     ksi = GeographicKsi(area = area, flow_direction = d8, theta = theta, Ao = Ao, flow_length = flow_length)
-    ksi.save(prefix_name + "_ksi_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
+    ksi.save(full_path_without_suffix + "_ksi_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
     relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta)
-    relief.save(prefix_name + "_relief_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
+    relief.save(full_path_without_suffix + "_relief_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
         
 def processForTheta(prefix_name, Ao, theta, base_name = '.'):
     
