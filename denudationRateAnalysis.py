@@ -73,7 +73,7 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5, xo = 500):
         
     return ksn_vec, a_calc_vec
                 
-def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
+def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5, xo = 500):
         
     ks = list()
     
@@ -91,7 +91,7 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
                 ksi_values.append(ksi[row,col])
                 relief_values.append(relief[row,col])
         
-        best_ks = best_ksn(ksi_values, relief_values, 90.0, theta)[0]
+        best_ks = best_ksn(ksi_values, relief_values, xo, theta)[0]
         
         ksi_array = np.array(ksi_values)
         relief_array = np.array(relief_values)
