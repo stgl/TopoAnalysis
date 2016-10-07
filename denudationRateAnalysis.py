@@ -64,10 +64,11 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5, xo = 500):
             
             ksi_vec, relief_vec, a_calc = find_ksi_scaled_relief(lat, lon, area, ksi, relief, d8, area_m*1.0e6, 15)
             if ksi_vec is not None and (abs(area_m*1.0e6 - a_calc) < abs(area_m*1.0e6 - a_calc_vec[counter])):
-                ksn = best_ksn(ksi_vec, relief_vec, xo, theta)[0]
-                ksn_vec[counter] = ksn
+                best_fit, residuals, rank, s = best_ksn(ksi_vec, relief_vec, xo, theta)
+                best_ks = best_fit[0]
+                ksn_vec[counter] = best_ks
                 a_calc_vec[counter] = a_calc
-                print 'lat = {0}, long = {1}, ksn = {2}'.format(lat,lon,ksn)
+                print 'lat = {0}, long = {1}, ksn = {2}'.format(lat,lon,best_ks)
 
             counter = counter + 1
         

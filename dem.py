@@ -1415,8 +1415,7 @@ class MaxFlowLengthTrackingMixin(object):
         for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)  
             if is_good and flow_length.is_along_flow_length((i,j), (i_next, j_next)):
-                self._calculate_grid_value((i,j), (i_next, j_next), *args, **kwargs)
-                
+                self._calculate_grid_value((i,j), (i_next, j_next), *args, **kwargs)        
         
 class Relief(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
     
