@@ -1432,6 +1432,12 @@ class Relief(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
     def _calculate_grid_value(self, pos, next_pos, *args, **kwargs):
         (i,j) = pos
         (i_next, j_next) = next_pos
+
+        if kwargs.get('area') is not None and kwargs.get('Ao') is not None:
+            if kwargs.get('area')[i,j] <= kwargs['Ao']:
+                self._griddata[i_next, j_next] = self._griddata[i_next, j_next]
+                return
+            
         self._griddata[i_next, j_next] = self._griddata[i,j]
         
 class ScaledRelief(Relief):
@@ -1459,7 +1465,11 @@ class Ksi(BaseSpatialGrid, MaxFlowLengthTrackingMixin):
     
     def _create_from_inputs(self, *args, **kwargs):
         self._copy_info_from_grid(kwargs['flow_direction'], True)
-        self._griddata = ( (kwargs['Ao'] / kwargs['area']._griddata) ** kwargs['theta']) * self._mean_pixel_dimension(*args, **kwargs) * kwargs['flow_direction'].pixel_scale()
+        area_grid = kwargs['area']._griddata - kwargs['Ao']
+        area_grid[area_grid <= 0] = np.nan
+        self._griddata = np.zeros_like(area_grid)
+        i = np.where(area_grid > 0)
+        self._griddata[i] = ( (kwargs['Ao'] / area_grid[i]) ** kwargs['theta']) * self._mean_pixel_dimension(*args, **kwargs)[i] * kwargs['flow_direction'].pixel_scale()[i]
         self._calculate_by_tracking_down_max_flow_length(*args, **kwargs)
         
     def _calculate_grid_value(self, pos, next_pos, *args, **kwargs):
