@@ -7,9 +7,9 @@ def read_csv(filename):
         reader = csv.reader(f)
         return list(reader)
     
-def best_ksn(ksi, scaled_relief, xo = 500, theta = 0.5):
+def best_ksn(ksi, scaled_relief, xo = 500):
     
-    A = np.vstack([ksi-np.ones(len(ksi))*float(xo), np.ones(len(ksi))]).T 
+    A = np.vstack([ksi-np.ones(len(ksi))*float(xo)]).T 
     return np.linalg.lstsq(A, scaled_relief)
 
 def find_ksi_scaled_relief(lat, lon, area, ksi, relief, d8, A_measured, pixel_radius = 5):
@@ -74,7 +74,7 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5, xo = 500):
         
     return ksn_vec, a_calc_vec
                 
-def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
+def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000):
         
     ks = list()
     xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
@@ -91,11 +91,10 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, theta = 0.5):
             if area[row, col] >= Ao:
                 ksi_values.append(ksi[row,col])
                 relief_values.append(relief[row,col])
-         
-        best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo, theta)
+        from matplotlib import pyplot as plt
+        best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo)
         best_ks = best_fit[0] 
         model_residuals = residuals[0] 
-        ksi_array = np.array(ksi_values)
         relief_array = np.array(relief_values)
         relief_mean = np.mean(relief_array)
         total_residuals = np.sum((relief_array - relief_mean)**2)
