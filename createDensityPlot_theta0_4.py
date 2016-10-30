@@ -11,7 +11,7 @@ from demMethods import plotGrids
 import numpy as np
 import demMethods as dm
 
-a = [0, 35000, 0, 1200000]
+a = [0, 70000, 0, 2400000]
 suffix = '0_4'
 
 dx = 100.0
@@ -24,8 +24,8 @@ y_bins = np.arange(a[2],a[3],dy)
 
 for prefix in prefixes:
     print(prefix)    
-    ksi = d.Ksi.load(prefix + '_ksi_250000_' + suffix)
-    relief = d.ScaledRelief.load(prefix + '_relief_250000_' + suffix)
+    ksi = d.Ksi.load(prefix + '_ksi_2000000_' + suffix)
+    relief = d.ScaledRelief.load(prefix + '_relief_2000000_' + suffix)
     
     H, xedges, yedges = dm.create_density(ksi,relief,x_bins,y_bins)
     

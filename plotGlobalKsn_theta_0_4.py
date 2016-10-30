@@ -10,13 +10,13 @@ from matplotlib import pyplot as plt
 from demMethods import plotGrids
 import numpy as np
 
-a = [0, 35000, 0, 1200000]
+a = [0, 70000, 0, 2400000]
 suffix = '0_4'
 
 for prefix in prefixes:
     
-    ksi = d.Ksi.load(prefix + '_ksi_250000_' + suffix)
-    relief = d.ScaledRelief.load(prefix + '_relief_250000_' + suffix)
+    ksi = d.Ksi.load(prefix + '_ksi_2000000_' + suffix)
+    relief = d.ScaledRelief.load(prefix + '_relief_2000000_' + suffix)
     
     fig = plt.figure()
     ksi_vec, relief_vec = plotGrids(ksi, relief, 'k.', rasterized = True, markersize=5.0)

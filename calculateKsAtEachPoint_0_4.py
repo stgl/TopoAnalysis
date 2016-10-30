@@ -11,13 +11,13 @@ for prefix in prefixes:
     
     import copy
     
-    ksi = d.Ksi.load(prefix + '_ksi_250000_' + suffix)
-    relief = d.ScaledRelief.load(prefix + '_relief_250000_' + suffix)
+    ksi = d.Ksi.load(prefix + '_ksi_2000000_' + suffix)
+    relief = d.ScaledRelief.load(prefix + '_relief_2000000_' + suffix)
     
     ks = copy.deepcopy(ksi)
     ks._griddata = np.divide(relief._griddata, ksi._griddata)
     
-    ks.save(prefix + '_ks_250000_' + suffix)
+    ks.save(prefix + '_ks_2000000_' + suffix)
     
 
         

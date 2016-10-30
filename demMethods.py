@@ -47,22 +47,21 @@ def processAllUTM(prefix_name, EPSGprojectionCode, Ao, theta, base_name = '.'):
         
 def processForTheta(prefix_name, Ao, theta, base_name = '.'):
     
-    from dem import FlowDirectionD8, GeographicArea, GeographicFlowLength, GeographicKsi, ScaledRelief
+    from dem import FlowDirectionD8, GeographicArea, GeographicFlowLength, GeographicKsi, ScaledRelief, Elevation
     
     area_name = base_name + "/" + prefix_name + "_area"
     d8_name = base_name + "/" + prefix_name + "_flow_direction"
-    flow_length = base_name + "/" + prefix_name + "_flow_length"
-    
+    flow_length_name = base_name + "/" + prefix_name + "_flow_length"
+    elevation_name = base_name + "/" + prefix_name + "_elevation"
+ 
     area = GeographicArea.load(area_name)
     d8 = FlowDirectionD8.load(d8_name)
-    flow_length = GeographicFlowLength.load(flow_length)
-    
+    flow_length = GeographicFlowLength.load(flow_length_name)
+    elevation = Elevation.load(elevation_name) 
     idx = area.sort(reverse = False)
     ksi = GeographicKsi(area = area, flow_direction = d8, theta = theta, Ao = Ao, flow_length = flow_length, sorted_indexes = idx)
     ksi.save(prefix_name + "_ksi_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
-    relief = ScaledRelief.load(prefix_name + '_relief_250000_0_0_5')
-    scale_factor = Ao**(theta) / (250000.0 **(0.5))
-    relief._griddata *= scale_factor
+    relief = ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = flow_length, Ao = Ao, theta = theta, sorted_indexes = idx, area = area) 
     relief.save(prefix_name + "_relief_" + str(Ao).replace('.','_') + "_" + str(theta).replace('.','_'))
     
 def plotGrids(x_grid, y_grid, plot_string, **kwargs):

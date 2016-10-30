@@ -29,8 +29,8 @@ def find_ksi_scaled_relief(lat, lon, area, ksi, relief, d8, A_measured, pixel_ra
         relief_values.append(relief[row,col])
     return ksi_values, relief_values, A_calculated
     
-def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5, xo = 500):
-    
+def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
+   
     import sys
     sys.setrecursionlimit(1000000)
     
@@ -59,12 +59,13 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5, xo = 500):
 
         print('Done loading prefix: ' + prefix)
         counter = 0
-        
+        xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
+       
         for (lon, lat), area_m in zip(locations, areas):
             
             ksi_vec, relief_vec, a_calc = find_ksi_scaled_relief(lat, lon, area, ksi, relief, d8, area_m*1.0e6, 15)
             if ksi_vec is not None and (abs(area_m*1.0e6 - a_calc) < abs(area_m*1.0e6 - a_calc_vec[counter])):
-                best_fit, residuals, rank, s = best_ksn(ksi_vec, relief_vec, xo, theta)
+                best_fit, residuals, rank, s = best_ksn(ksi_vec, relief_vec, xo)
                 best_ks = best_fit[0]
                 ksn_vec[counter] = best_ks
                 a_calc_vec[counter] = a_calc

@@ -14,11 +14,11 @@ suffix = '0_4'
 
 for prefix in prefixes:
     
-    ksi = d.Ksi.load(prefix + '_ksi_250000_' + suffix)
-    relief = d.ScaledRelief.load(prefix + '_relief_250000_' + suffix)
+    ksi = d.Ksi.load(prefix + '_ksi_2000000_' + suffix)
+    relief = d.ScaledRelief.load(prefix + '_relief_2000000_' + suffix)
     ks = copy.deepcopy(ksi)
     ks._griddata = ((relief._griddata / ksi._griddata) >= threshold).astype(int)
     
-    ks.save(prefix + '_ks_mask_250000_' + suffix + "_" + str(threshold))
+    ks.save(prefix + '_ks_mask_2000000_' + suffix + "_" + str(threshold))
         
     
