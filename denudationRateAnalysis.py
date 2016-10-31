@@ -75,7 +75,7 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         
     return ksn_vec, a_calc_vec
                 
-def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000):
+def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None):
         
     ks = list()
     xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
@@ -90,9 +90,14 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000):
             if ksi[row,col] is None or relief[row,col] is None or np.isnan(ksi[row, col]) or np.isnan(relief[row,col]):
                 return None, None, None
             if area[row, col] >= Ao:
-                ksi_values.append(ksi[row,col])
-                relief_values.append(relief[row,col])
+                if mask is None:
+                    ksi_values.append(ksi[row,col])
+                    relief_values.append(relief[row,col])
+                elif mask[row, col] == 1:
+                    ksi_values.append(ksi[row,col])
+                    relief_values.append(relief[row,col])
         from matplotlib import pyplot as plt
+        print(len(ksi_values))
         best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo)
         best_ks = best_fit[0] 
         model_residuals = residuals[0] 
