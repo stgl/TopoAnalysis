@@ -74,30 +74,32 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
             counter = counter + 1
         
     return ksn_vec, a_calc_vec
-                
+
+def extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask=None):
+    (row, col) = area._xy_to_rowscols((position, ))[0]
+        
+    indexes_of_area = d8.get_indexes_of_upstream_cells(row, col)
+    ksi_values = list()
+    relief_values = list()
+    for (row, col) in indexes_of_area:
+        if ksi[row,col] is None or relief[row,col] is None or np.isnan(ksi[row, col]) or np.isnan(relief[row,col]):
+            return None, None, None
+        if area[row, col] >= Ao:
+            if mask is None:
+                ksi_values.append(ksi[row,col])
+                relief_values.append(relief[row,col])
+            elif mask[row, col] == 1:
+                ksi_values.append(ksi[row,col])
+                relief_values.append(relief[row,col])
+    return ksi_values, relief_values
+                 
 def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None):
         
     ks = list()
     xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
     for position in v:
-        
-        (row, col) = area._xy_to_rowscols((position, ))[0]
-        
-        indexes_of_area = d8.get_indexes_of_upstream_cells(row, col)
-        ksi_values = list()
-        relief_values = list()
-        for (row, col) in indexes_of_area:
-            if ksi[row,col] is None or relief[row,col] is None or np.isnan(ksi[row, col]) or np.isnan(relief[row,col]):
-                return None, None, None
-            if area[row, col] >= Ao:
-                if mask is None:
-                    ksi_values.append(ksi[row,col])
-                    relief_values.append(relief[row,col])
-                elif mask[row, col] == 1:
-                    ksi_values.append(ksi[row,col])
-                    relief_values.append(relief[row,col])
+        ksi_values, relief_values = extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask)
         from matplotlib import pyplot as plt
-        print(len(ksi_values))
         best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo)
         best_ks = best_fit[0] 
         model_residuals = residuals[0] 
@@ -108,6 +110,14 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None):
         ks.append((best_ks, R2))
 
     return ks
+
+def plot_relief_and_ksi(v, d8, ksi, relief, area, Ao = 250000, mask = None):
+    from matplotlib import pyplot as plt
+    for position in v:
+	ksi_values, relief_values = extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask = mask)
+        plt.figure()
+        plt.plot(ksi_values, relief_values, 'k.', rasterized = True)
+
 
 def calculate_slope_fraction_for_sample(v, d8, area, slope, cutoff = 0.2):
         
