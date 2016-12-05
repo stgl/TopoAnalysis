@@ -5,6 +5,7 @@ import pickle
 
 prefixes = ['brazil', 'costarica', 'guatemala', 'taiwan', 'venezuela']
 suffixes = ['0_4', '0_5', '0_6']
+theta_values = [0.4, 0.5, 0.6]
 
 ks = dict()
 
@@ -19,22 +20,14 @@ for prefix in prefixes:
     local_dict = dict()
     elevation = d.Elevation.load(prefix + '/' + prefix + '_elevation')
     filled = d.FilledElevation(elevation = elevation)
-    length = d.FlowLength.load(prefix + "/" + prefix + "_flow_length") 
-    for suffix in suffixes:    
-#        ksi = d.Ksi.load(prefix + "/" + prefix + '_ksi' + suffix)
-#        relief = d.ScaledRelief.load(prefix + '/' + prefix + '_relief' + suffix)
-	d8.sort()
-	d8._sort_indexes = filled.sort(reverse = False, force = True)
-	theta = float(suffix.replace('_','.'))
-	ksi = d.Ksi(area = area, flow_direction = d8, theta = theta, Ao = Ao, flow_length = length)
-	relief = d.ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = length, Ao = Ao, theta = theta, area = area)
-	relief.save(prefix + "/" + prefix + '_' + str(Ao) + '_' + str(theta) + '_relief')
-	ksi.save(prefix + "/" + prefix + '_' + str(Ao) + '_' + str(theta) + '_ksi')
-        print(theta)
-        try:
-          local_dict[suffix] = dra.calculate_ks_for_sample(locs, d8, ksi, relief, area, Ao)
-        except:
-          pass 
-    	ks[prefix] = local_dict
+    d8.sort()
+    d8._sort_indexes = filled.sort(reverse = False, force = True)
+    elevation = d.Elevation.load(prefix + "/" + prefix + '_elevation')
+    for theta in theta_values:    
+        chi = d.Chi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = locs)
+        relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = locs)
+        local_dict[str(theta).replace('.','_')] = dra.calculate_ks_for_sample(locs, d8, chi, relief, area, Ao)
+    
+    ks[prefix] = local_dict
 
 pickle.dump( ks, open( "ks.p", "wb" ) )

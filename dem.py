@@ -1764,6 +1764,25 @@ class RestoredElevation(BaseSpatialGrid):
 class GeographicRestoredElevation(GeographicGridMixin, RestoredElevation):
     pass
 
+class ChiScaledRelief(BaseSpatialGrid):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('elevation', 'flow_direction', 'theta', 'Ao', 'outlets'), '_create_from_inputs'))
+    
+    def _create_from_inputs(self, *args, **kwargs):
+        self._copy_info_from_grid(kwargs['elevation'], True)
+        outlet_indexes = self._xy_to_rowscols(kwargs['outlets'])
+        elevation = kwargs['elevation']
+        scale = np.power(kwargs['Ao'],kwargs['theta'])
+        for outlet_index in outlet_indexes:
+            indexes = kwargs['flow_direction'].get_indexes_of_upstream_cells(outlet_index[0], outlet_index[1])
+            elevation_of_outlet = kwargs['elevation'][outlet_index[0],outlet_index[1]]
+            for index in indexes:
+                self[index[0],index[1]] = (elevation[index[0], index[1]] - elevation_of_outlet) * scale
+        
+            
+
 class Chi(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
@@ -1775,8 +1794,7 @@ class Chi(BaseSpatialGrid):
     def _create_from_inputs(self, *args, **kwargs):
         self._copy_info_from_grid(kwargs['flow_direction'], True)
         self.__calculate_chi(*args, **kwargs)
-        
-        
+            
     def __calculate_chi(self, *args, **kwargs):
         pixel_dimension = self._mean_pixel_dimension(*args, **kwargs)
         area = kwargs['area']

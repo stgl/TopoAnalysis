@@ -74,6 +74,7 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
             counter = counter + 1
         
     return ksn_vec, a_calc_vec
+<<<<<<< HEAD
 
 def extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask=None):
     (row, col) = area._xy_to_rowscols((position, ))[0]
@@ -94,9 +95,14 @@ def extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, 
     return ksi_values, relief_values
                  
 def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None):
+=======
+                
+def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None, xo = None):
+>>>>>>> fea62cb9c33c754eb419432c8c6e951b54e0a73d
         
     ks = list()
-    xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
+    if xo is None:
+        xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
     for position in v:
         ksi_values, relief_values = extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask)
         from matplotlib import pyplot as plt
