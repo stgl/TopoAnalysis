@@ -26,7 +26,7 @@ for prefix in prefixes:
 	elevation = d.Elevation.load(full_prefix + '_elevation')
 	ksi = d.Ksi(area = area, flow_direction = d8, theta = theta, Ao = Ao, flow_length = length)
 	relief = d.ScaledRelief(flow_direction = d8, elevation = elevation, flow_length = length, Ao = Ao, theta = theta, area = area)
-	relief.save(prefix + "/" + prefix '_' + str(A0) + '_' + str(theta) + '_relief')
+	relief.save(prefix + "/" + prefix + '_' + str(A0) + '_' + str(theta) + '_relief')
 	ksi.save(prefix + "/" + prefix + '_' + str(Ao) + '_' + str(theta) + '_ksi')
         theta = float(suffix.replace('_','.'))
         print(theta)

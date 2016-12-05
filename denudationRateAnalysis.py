@@ -75,10 +75,11 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         
     return ksn_vec, a_calc_vec
                 
-def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None):
+def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None, xo = None):
         
     ks = list()
-    xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
+    if xo is None:
+        xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
     for position in v:
         
         (row, col) = area._xy_to_rowscols((position, ))[0]
