@@ -26,7 +26,8 @@ ksdict = pickle.load(open('ks.p','rb'))
 
 for suffix in suffixes:
     for prefix in prefixes:
-        ks = ksdict[prefix][suffix[0]+'_'+suffix[1]][0]
+        this_ks = ksdict[prefix][suffix[0]+'_'+suffix[1]]
+        ks = [ks[0] for ks in this_ks]
         #ks = np.load(prefix + '_ks' + suffix + '.npy')
         dr = np.load(prefix + '/'  + 'dr.npy')
         dr_sig = np.load(prefix + '/' + 'drstd.npy')
