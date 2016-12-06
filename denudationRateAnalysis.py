@@ -35,7 +35,6 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
     sys.setrecursionlimit(1000000)
     
     prefixes = ['af', 'as', 'au', 'ca', 'eu', 'na', 'sa']
-
     suffix = str(Ao) + '_' + str(theta).replace('.', '_')
     
     lats = list()
@@ -62,10 +61,9 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
        
         for (lon, lat), area_m in zip(locations, areas):
-            index = d8._xy_to_rowscols(((lon, lat),))[0]
-            if index[0] is not None and index[1] is not None:
-                chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lat, lon), ))
-                scaled_relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lat, lon), ))
+            if d8.location_in_grid((lon, lat)):
+                chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat), ))
+                scaled_relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat), ))
                 chi_vec, scaled_relief_vec, a_calc = find_ksi_scaled_relief(lat, lon, area, chi, scaled_relief, d8, area_m*1.0e6, 15)
                 if chi_vec is not None and (abs(area_m*1.0e6 - a_calc) < abs(area_m*1.0e6 - a_calc_vec[counter])):
                     best_fit, residuals, rank, s = best_ksn(chi_vec, scaled_relief_vec, 0.0)
@@ -73,6 +71,7 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
                     ksn_vec[counter] = best_ks
                     a_calc_vec[counter] = a_calc
                     print 'lat = {0}, long = {1}, ksn = {2}'.format(lat,lon,best_ks)
+                    print(best_ks)
     
                 counter = counter + 1
         
