@@ -28,8 +28,8 @@ for suffix in suffixes:
     for prefix in prefixes:
         ks = ksdict[prefix][suffix[0]+'_'+suffix[1]]
         #ks = np.load(prefix + '_ks' + suffix + '.npy')
-        dr = np.load(prefix + '/' + prefix + '_dr.npy')
-        dr_sig = np.load(prefix + '/' + prefix + '_drstd.npy')
+        dr = np.load(prefix + '/'  + 'dr.npy')
+        dr_sig = np.load(prefix + '/' + 'drstd.npy')
         
         plt.loglog(dr,ks,colors[prefix] + '.')
         for (m,s,k) in zip(dr,dr_sig,ks):
