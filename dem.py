@@ -1885,6 +1885,10 @@ class Chi(BaseSpatialGrid):
                 self.__recurse_chi((i-1, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
         except:
             pass  
+
+class GeographicChi(GeographicGridMixin, Chi):
+    pass
+
          
 class Deflection(BaseSpatialGrid):
     
