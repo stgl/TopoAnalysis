@@ -1,5 +1,7 @@
 #! /usr/bin/env python2.7
 
+import pickle
+
 prefixes = ('brazil', 'costarica', 'guatemala', 'taiwan', 'venezuela')
 
 colors = {'brazil': 'b',
@@ -20,11 +22,12 @@ sm = 1.36
 b = 3.29
 # R2 is 0.96
 
+ksdict = pickle.load(open('ks.p','rb'))
+
 for suffix in suffixes:
-    
     for prefix in prefixes:
-        
-        ks = np.load(prefix + '_ks' + suffix + '.npy')
+        ks = ksdict[prefix][suffix[0]+'_'+suffix[1]]
+        #ks = np.load(prefix + '_ks' + suffix + '.npy')
         dr = np.load(prefix + '_dr.npy')
         dr_sig = np.load(prefix + '_drstd.npy')
         
