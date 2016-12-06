@@ -101,13 +101,17 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None, 
     for position in v:
         ksi_values, relief_values = extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask)
         from matplotlib import pyplot as plt
-        best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo)
-        best_ks = best_fit[0] 
-        model_residuals = residuals[0] 
-        relief_array = np.array(relief_values)
-        relief_mean = np.mean(relief_array)
-        total_residuals = np.sum((relief_array - relief_mean)**2)
-        R2 = 1 - model_residuals / total_residuals            
+        try:
+            best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo)
+            best_ks = best_fit[0] 
+            model_residuals = residuals[0] 
+            relief_array = np.array(relief_values)
+            relief_mean = np.mean(relief_array)
+            total_residuals = np.sum((relief_array - relief_mean)**2)
+            R2 = 1 - model_residuals / total_residuals        
+        except:
+            best_ks = 0
+            R2 = 0    
         ks.append((best_ks, R2))
 
     return ks

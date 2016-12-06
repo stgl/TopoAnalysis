@@ -9,11 +9,10 @@ theta_values = [0.4, 0.5, 0.6]
 
 ks = dict()
 
-Ao = 1000000.0
+Ao = 2000000.0
 
 for prefix in prefixes:
     print(prefix)
-
     d8 = d.FlowDirectionD8.load(prefix + "/" + prefix + '_flow_direction')
     area = d.Area.load(prefix + '/' + prefix + '_area')
     locs = np.load(prefix + '/' + prefix +  '_sample_locations.npy')
@@ -23,11 +22,10 @@ for prefix in prefixes:
     d8.sort()
     d8._sort_indexes = filled.sort(reverse = False, force = True)
     elevation = d.Elevation.load(prefix + "/" + prefix + '_elevation')
-    for theta in theta_values:    
+    for theta in theta_values:
         chi = d.Chi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = locs)
         relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = locs)
         local_dict[str(theta).replace('.','_')] = dra.calculate_ks_for_sample(locs, d8, chi, relief, area, Ao)
-    
     ks[prefix] = local_dict
 
 pickle.dump( ks, open( "ks.p", "wb" ) )
