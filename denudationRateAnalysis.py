@@ -17,9 +17,9 @@ def find_ksi_scaled_relief(lat, lon, area, ksi, relief, d8, A_measured, pixel_ra
     index = area._xy_to_rowscols(((lon,lat),))[0]
     if index[0] is None:
         return None, None, None
-    row, col = area.find_nearest_cell_with_value(index, A_measured, pixel_radius)
-    A_calculated = area[row,col]
-    indexes_of_area = d8.get_indexes_of_upstream_cells(row, col)
+    #row, col = area.find_nearest_cell_with_value(index, A_measured, pixel_radius)
+    A_calculated = area[index[0], index[1]]
+    indexes_of_area = d8.get_indexes_of_upstream_cells(index[0], index[1])
     ksi_values = list()
     relief_values = list()
     for (row, col) in indexes_of_area:
@@ -34,16 +34,16 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
     import sys
     sys.setrecursionlimit(1000000)
     
-    prefixes = ['af', 'as', 'au', 'ca', 'eu', 'na', 'sa']
-    suffix = str(Ao) + '_' + str(theta).replace('.', '_')
+    pixel_radius = 5
     
+    prefixes = ['af', 'as', 'au', 'ca', 'eu', 'na', 'sa']
     lats = list()
     lons = list()
     areas = list()
     for sample_name, lat, lon, dr, dr_sig, a in data:
         lats.append(float(lat))
         lons.append(float(lon))
-        areas.append(float(a))
+        areas.append(float(a)*1.0E6)
     
     locations = zip(lons,lats)
     ksn_vec = np.zeros(len(areas), dtype = np.float64)
@@ -59,21 +59,31 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         print('Done loading prefix: ' + prefix)
         counter = 0
         xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
-       
+        locs = tuple()
+        areas_for_valid_points = tuple()
         for (lon, lat), area_m in zip(locations, areas):
-            if d8.location_in_grid((lon, lat)):
-                chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat), ))
-                scaled_relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat), ))
-                chi_vec, scaled_relief_vec, a_calc = find_ksi_scaled_relief(lat, lon, area, chi, scaled_relief, d8, area_m*1.0e6, 15)
-                if chi_vec is not None and (abs(area_m*1.0e6 - a_calc) < abs(area_m*1.0e6 - a_calc_vec[counter])):
-                    best_fit, residuals, rank, s = best_ksn(chi_vec, scaled_relief_vec, 0.0)
-                    best_ks = best_fit[0]
-                    ksn_vec[counter] = best_ks
-                    a_calc_vec[counter] = a_calc
-                    print 'lat = {0}, long = {1}, ksn = {2}'.format(lat,lon,best_ks)
-                    print(best_ks)
-    
-                counter = counter + 1
+            if elevation.location_in_grid((lon, lat)) and area_m > 5.0*Ao:
+                locs = locs + ((counter, (lon, lat)),)
+                areas_for_valid_points = areas_for_valid_points + (area_m, )
+            counter = counter + 1
+        counter = tuple([el[0] for el in locs]);
+        locat = tuple([el[1] for el in locs]);
+        locations_snap = area.snap_locations_to_closest_value(locat, areas_for_valid_points, pixel_radius = pixel_radius)
+        locations_snap_indexes = area._xy_to_rowscols(locations_snap)
+        dem_derived_areas = [area[i,j] for (i,j) in locations_snap_indexes]
+        fraction_difference = [np.abs(derived_area - measured_area) / measured_area for (derived_area, measured_area) in zip(dem_derived_areas, areas)]
+        
+        chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = locations_snap)
+        scaled_relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = locations_snap)
+        
+        for (lon, lat), areas_m, counter_v, areas_dem in zip(locations_snap, areas_for_valid_points, counter, dem_derived_areas):
+            chi_vec, scaled_relief_vec, a_calc = find_ksi_scaled_relief(lat, lon, area, chi, scaled_relief, d8, area_m, pixel_radius)
+            if chi_vec is not None:
+                best_fit, residuals, rank, s = best_ksn(chi_vec, scaled_relief_vec)
+                best_ks = best_fit[0]
+                ksn_vec[counter_v] = best_ks
+                a_calc_vec[counter_v] = a_calc
+                print 'lat = {0}, long = {1}, ksn = {2}, np = {3}, reported area = {4}, measured area = {5}, np/4 = {6}'.format(lat,lon,best_ks, len(chi_vec), areas_m/1.0E6, areas_dem/1.0E6, len(chi_vec)/4)
         
     return ksn_vec, a_calc_vec
 

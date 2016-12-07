@@ -761,14 +761,17 @@ class BaseSpatialGrid(GDALMixin):
         (i, j) = index
         nearest = tuple()
         minimum_difference = np.nan
+        minimum_difference_value = np.nan
         for y in range(int(i-pixel_radius),int(i+pixel_radius)):
             for x in range(int(j-pixel_radius),int(j+pixel_radius)):
                 if np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius:
                     value_difference = np.abs(value - self._griddata[y,x])
                     if np.isnan(minimum_difference) or minimum_difference > value_difference:
                         minimum_difference = value_difference
+                        minimum_difference_value = self._griddata[y,x]
                         nearest = (y,x)
-        
+        print('Minimum difference fraction')
+        print(minimum_difference_value/value)
         (y,x) = nearest
         return y, x
     
@@ -787,12 +790,22 @@ class BaseSpatialGrid(GDALMixin):
         (y,x) = nearest
         return y, x
     
+
     def snap_locations_to_greatest_value(self, v, pixel_radius = 5):
         
         idxs = self._xy_to_rowscols(v)
         snap_idxs = list()
         for idx in idxs:
             i, j = self.find_nearest_cell_with_greatest_value(idx, pixel_radius)
+            snap_idxs.append((i,j))
+        return self._rowscols_to_xy(snap_idxs)
+    
+    def snap_locations_to_closest_value(self, v, value, pixel_radius = 5):
+        idxs = self._xy_to_rowscols(v)
+        snap_idxs = list()
+        values_with_idx = zip(idxs, value)
+        for (idx, value) in values_with_idx:
+            i, j = self.find_nearest_cell_with_value(idx, value, pixel_radius)
             snap_idxs.append((i,j))
         return self._rowscols_to_xy(snap_idxs)
     
