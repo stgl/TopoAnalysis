@@ -71,6 +71,9 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         locations_snap = area.snap_locations_to_closest_value(locat, areas_for_valid_points, pixel_radius = pixel_radius)
         locations_snap_indexes = area._xy_to_rowscols(locations_snap)
         dem_derived_areas = [area[i,j] for (i,j) in locations_snap_indexes]
+        for (lon, lat), target_area, measured_area in zip(locat, areas_for_valid_points, dem_derived_areas):
+            print('Longitude: ' + str(lon) + '; Latitude: ' + str(lat) + '; target area: ' + target_area + '; measured area: ' + measured_area)
+
         fraction_difference = [np.abs(derived_area - measured_area) / measured_area for (derived_area, measured_area) in zip(dem_derived_areas, areas)]
         
         chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = locations_snap)

@@ -761,17 +761,13 @@ class BaseSpatialGrid(GDALMixin):
         (i, j) = index
         nearest = tuple()
         minimum_difference = np.nan
-        minimum_difference_value = np.nan
         for y in range(int(i-pixel_radius),int(i+pixel_radius)):
             for x in range(int(j-pixel_radius),int(j+pixel_radius)):
                 if np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius:
                     value_difference = np.abs(value - self._griddata[y,x])
                     if np.isnan(minimum_difference) or minimum_difference > value_difference:
                         minimum_difference = value_difference
-                        minimum_difference_value = self._griddata[y,x]
                         nearest = (y,x)
-        print('Minimum difference fraction')
-        print(minimum_difference_value/value)
         (y,x) = nearest
         return y, x
     
