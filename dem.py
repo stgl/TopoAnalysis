@@ -332,8 +332,8 @@ class GeographicGridMixin(object):
     
         re = 6371.0 * 1000.0 #radius of the earth in meters
     
-        dLong = self._georef_info.geoTransform[1]
-        dLat = self._georef_info.geoTransform[5]
+        dLong = np.abs(self._georef_info.geoTransform[1])
+        dLat = np.abs(self._georef_info.geoTransform[5])
         
         lats = self._georef_info.yllcenter + np.float64(range(self._georef_info.ny))*dLat
         longs = self._georef_info.xllcenter + np.float64(range(self._georef_info.nx))*dLong
