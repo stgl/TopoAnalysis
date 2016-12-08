@@ -1,9 +1,7 @@
 import dem as d
 base_path = '/data/sesfs/scarp1/GlobalSteepness/Datasets/Grids/'
 
-prefixes = ['au', 'ca', 'eu', 'na', 'sa']
-
-for prefix in prefixes:
+def repair_area_for_prefix(prefix):
     area = d.GeographicArea(gdal_filename = base_path + prefix + '/' + prefix + '_acc_15s')
     print('Successfully read: ' + prefix)
     d8 = d.FlowDirectionD8.load(prefix + '_flow_direction')
@@ -13,3 +11,10 @@ for prefix in prefixes:
     print('Area recomputed.')
     area.save(prefix + "_area")
     print('File saved.')
+
+
+
+prefixes = ['au', 'ca', 'eu', 'na', 'sa']
+
+for prefix in prefixes:
+    repair_area_for_prefix(prefix)
