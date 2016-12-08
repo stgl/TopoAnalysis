@@ -1,7 +1,7 @@
 import dem as d
 base_path = '/data/sesfs/scarp1/GlobalSteepness/Datasets/Grids/'
 
-prefixes = ['af', 'as', 'au', 'ca', 'eu', 'na', 'sa']
+prefixes = ['au', 'ca', 'eu', 'na', 'sa']
 
 for prefix in prefixes:
     area = d.GeographicArea(gdal_filename = base_path + prefix + '/' + prefix + '_acc_15s')

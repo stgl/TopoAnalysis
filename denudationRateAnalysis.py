@@ -35,6 +35,7 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
     sys.setrecursionlimit(1000000)
     
     pixel_radius = 5
+    reject_fraction = 0.1
     
     prefixes = ['af', 'as', 'au', 'ca', 'eu', 'na', 'sa']
     lats = list()
@@ -72,16 +73,16 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         locations_snap_indexes = area._xy_to_rowscols(locations_snap)
         dem_derived_areas = [area[i,j] for (i,j) in locations_snap_indexes]
         for (lon, lat), target_area, measured_area in zip(locat, areas_for_valid_points, dem_derived_areas):
-            print('Longitude: ' + str(lon) + '; Latitude: ' + str(lat) + '; target area: ' + str(target_area) + '; measured area: ' + str(measured_area) + 'fractional difference: ' + str(np.abs(measured_area - target_area)/target_area))
+            print('Longitude: ' + str(lon) + '; Latitude: ' + str(lat) + '; target area: ' + str(target_area) + '; measured area: ' + str(measured_area) + '; fractional difference: ' + str(np.abs(measured_area - target_area)/target_area))
 
         fraction_difference = [np.abs(derived_area - measured_area) / measured_area for (derived_area, measured_area) in zip(dem_derived_areas, areas)]
         
         chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = locations_snap)
         scaled_relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = locations_snap)
         
-        for (lon, lat), areas_m, counter_v, areas_dem in zip(locations_snap, areas_for_valid_points, counter, dem_derived_areas):
+        for (lon, lat), areas_m, counter_v, areas_dem, sample_fraction_difference in zip(locations_snap, areas_for_valid_points, counter, dem_derived_areas, fraction_difference):
             chi_vec, scaled_relief_vec, a_calc = find_ksi_scaled_relief(lat, lon, area, chi, scaled_relief, d8, area_m, pixel_radius)
-            if chi_vec is not None:
+            if chi_vec is not None and sample_fraction_difference < reject_fraction:
                 best_fit, residuals, rank, s = best_ksn(chi_vec, scaled_relief_vec)
                 best_ks = best_fit[0]
                 ksn_vec[counter_v] = best_ks
