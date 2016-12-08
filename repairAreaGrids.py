@@ -12,9 +12,3 @@ def repair_area_for_prefix(prefix):
     area.save(prefix + "_area")
     print('File saved.')
 
-
-
-prefixes = ['au', 'ca', 'eu', 'na', 'sa']
-
-for prefix in prefixes:
-    repair_area_for_prefix(prefix)
