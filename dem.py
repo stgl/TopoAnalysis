@@ -346,7 +346,7 @@ class GeographicGridMixin(object):
         LONG1 = np.radians(LONG - dLong / 2.0)
         LONG2 = np.radians(LONG + dLong / 2.0)
         
-        initialAreas = np.abs((re**2)*(LONG1 - LONG2)*(np.sin(LAT2) - np.sin(LAT1)))
+        initialAreas = np.flipud(np.abs((re**2)*(LONG1 - LONG2)*(np.sin(LAT2) - np.sin(LAT1))))
         
         return initialAreas
     
