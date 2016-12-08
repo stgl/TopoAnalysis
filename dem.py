@@ -648,7 +648,7 @@ class BaseSpatialGrid(GDALMixin):
     
     def location_in_grid(self, xo):
         index = self._xy_to_rowscols((xo,))[0]
-        return index[0] is not None and index[1] is not None and self[index[0], index[1]] is not None and self[index[0], index[1]] != 0
+        return index[0] is not None and index[1] is not None and self[index[0], index[1]] is not None and self[index[0], index[1]] != 0 and not np.isnan(self[index[0], index[1]])
     
     def sort(self, reverse=True, force = False, mask = None):
         if force:
