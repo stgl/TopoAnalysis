@@ -1,6 +1,7 @@
 import dem as d
 import csv
 import numpy as np
+from __builtin__ import None
 
 def read_csv(filename):
     with open(filename, 'rb') as f:
@@ -87,6 +88,12 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
                 ksn_vec[counter_v] = best_ks
                 a_calc_vec[counter_v] = a_calc
                 print('lat = {0}, long = {1}, ksn = {2}, np = {3}, reported area = {4}, measured area = {5}, np/4 = {6}'.format(lat,lon,best_ks, len(chi_vec), areas_m/1.0E6, areas_dem/1.0E6, len(chi_vec)/4))
+            chi = None
+            scaled_relief = None
+        
+        area = None
+        d8 = None
+        elevation = None
         
     return ksn_vec, a_calc_vec
 
