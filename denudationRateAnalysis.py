@@ -1,7 +1,6 @@
 import dem as d
 import csv
 import numpy as np
-from __builtin__ import None
 
 def read_csv(filename):
     with open(filename, 'rb') as f:
