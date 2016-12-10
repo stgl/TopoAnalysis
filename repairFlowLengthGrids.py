@@ -1,5 +1,5 @@
 import dem as d
-import sys.stdout.flush as flush
+from sys.stdout import flush 
 
 prefixes = ['af', 'as', 'au', 'ca', 'eu', 'na', 'sa']
 
