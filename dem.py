@@ -1821,12 +1821,17 @@ class Chi(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                            (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                            (('gdal_filename',), '_read_gdal'), 
-                           (('area','flow_direction','theta', 'Ao', 'outlets'), '_create_from_inputs'))
+                           (('area','flow_direction','theta', 'Ao', 'outlets'), '_create_from_inputs'),
+                           (('area', 'flow_direction', 'flow_length', 'theta', 'Ao', 'basin_length'), '_create_from_basin_length'))
     
     
     def _create_from_inputs(self, *args, **kwargs):
         self._copy_info_from_grid(kwargs['flow_direction'], True)
         self.__calculate_chi(*args, **kwargs)
+    
+    def _create_from_basin_length(self, *args, **kwargs):
+        kwargs['outlets'] = kwargs['flow_length'].points_with_length(kwargs['basin_length'],kwargs['flow_direction'])
+        return self._create_from_inputs(*args, **kwargs)
             
     def __calculate_chi(self, *args, **kwargs):
         pixel_dimension = self._mean_pixel_dimension(*args, **kwargs)
