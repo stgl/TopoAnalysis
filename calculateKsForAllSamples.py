@@ -9,7 +9,7 @@ theta_values = [0.4, 0.5, 0.6]
 
 ks = dict()
 
-Ao = 2000000.0
+Ao = 1000000.0
 
 for prefix in prefixes:
     print(prefix)
