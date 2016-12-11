@@ -1813,12 +1813,16 @@ class ChiScaledRelief(BaseSpatialGrid):
         outlet_indexes = self._xy_to_rowscols(kwargs['outlets'])
         elevation = kwargs['elevation']
         scale = np.power(kwargs['Ao'],kwargs['theta'])
+        outlet_number = 1
         for outlet_index in outlet_indexes:
             indexes = kwargs['flow_direction'].get_indexes_of_upstream_cells(outlet_index[0], outlet_index[1])
             elevation_of_outlet = kwargs['elevation'][outlet_index[0],outlet_index[1]]
             for index in indexes:
                 self[index[0],index[1]] = (elevation[index[0], index[1]] - elevation_of_outlet) * scale
-        
+            if kwargs.get('output_flag', False):
+                print('Outlet ' + str(outlet_number) + '/' + str(len(outlet_indexes)) + ' completed.')
+            outlet_number = outlet_number + 1
+            
     def _create_from_basin_length(self, *args, **kwargs):
         kwargs['outlets'] = kwargs['flow_length'].points_with_length(kwargs['basin_length'],kwargs['flow_direction'])
         kwargs['output_flag'] = True
