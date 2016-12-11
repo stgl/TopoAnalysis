@@ -328,6 +328,9 @@ class GeographicGridMixin(object):
     
     def _area_per_pixel(self, *args, **kwargs):
 
+        if hasattr(self, '__app'):
+            return self.__app
+        
         #Returns a grid of the area of each pixel within the domain specified by the gdalDataset
     
         re = 6371.0 * 1000.0 #radius of the earth in meters
@@ -348,7 +351,8 @@ class GeographicGridMixin(object):
         
         initialAreas = np.flipud(np.abs((re**2)*(LONG1 - LONG2)*(np.sin(LAT2) - np.sin(LAT1))))
         
-        return initialAreas
+        self.__app = initialAreas
+        return self.__app
     
     def _mean_pixel_dimension(self, *args, **kwargs):
         
@@ -1801,7 +1805,8 @@ class ChiScaledRelief(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                            (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                            (('gdal_filename',), '_read_gdal'), 
-                           (('elevation', 'flow_direction', 'theta', 'Ao', 'outlets'), '_create_from_inputs'))
+                           (('elevation', 'flow_direction', 'theta', 'Ao', 'outlets'), '_create_from_inputs'),
+                           (('elevation', 'flow_direction', 'flow_length', 'theta', 'Ao', 'basin_length'), '_create_from_basin_length'))
     
     def _create_from_inputs(self, *args, **kwargs):
         self._copy_info_from_grid(kwargs['elevation'], True)
@@ -1814,7 +1819,10 @@ class ChiScaledRelief(BaseSpatialGrid):
             for index in indexes:
                 self[index[0],index[1]] = (elevation[index[0], index[1]] - elevation_of_outlet) * scale
         
-            
+    def _create_from_basin_length(self, *args, **kwargs):
+        kwargs['outlets'] = kwargs['flow_length'].points_with_length(kwargs['basin_length'],kwargs['flow_direction'])
+        kwargs['output_flag'] = True
+        return self._create_from_inputs(*args, **kwargs)       
 
 class Chi(BaseSpatialGrid):
     

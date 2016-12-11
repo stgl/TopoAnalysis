@@ -76,10 +76,16 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
             print('Longitude: ' + str(lon) + '; Latitude: ' + str(lat) + '; target area: ' + str(target_area) + '; measured area: ' + str(measured_area) + '; fractional difference: ' + str(np.abs(measured_area - target_area)/target_area))
 
         fraction_difference = [np.abs(derived_area - measured_area) / measured_area for (derived_area, measured_area) in zip(dem_derived_areas, areas_for_valid_points)]
-        
+        chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = (locations_snap[0],))
+        scaled_relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = (locations_snap[0],)) 
+        first_element = True
+            
         for (lon, lat), areas_m, counter_v, areas_dem, sample_fraction_difference in zip(locations_snap, areas_for_valid_points, counter, dem_derived_areas, fraction_difference):
-            chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat),))
-            scaled_relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat),)) 
+            if first_element:
+                first_element = False
+            else:
+                chi._create_from_inputs(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat),))
+                scaled_relief._create_from_inputs(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat),)) 
             chi_vec, scaled_relief_vec, a_calc = find_ksi_scaled_relief(lat, lon, area, chi, scaled_relief, d8, area_m, pixel_radius)
             if chi_vec is not None and sample_fraction_difference < reject_fraction:
                 best_fit, residuals, rank, s = best_ksn(chi_vec, scaled_relief_vec)
