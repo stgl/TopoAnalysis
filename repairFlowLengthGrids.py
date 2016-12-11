@@ -2,7 +2,7 @@ import dem as d
 from sys import stdout 
 
 #prefixes = ['as', 'au', 'eu', 'na', 'sa']
-prefixes = ['au']
+prefixes = ['as']
 
 for prefix in prefixes:
     
