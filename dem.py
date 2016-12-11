@@ -1831,6 +1831,7 @@ class Chi(BaseSpatialGrid):
     
     def _create_from_basin_length(self, *args, **kwargs):
         kwargs['outlets'] = kwargs['flow_length'].points_with_length(kwargs['basin_length'],kwargs['flow_direction'])
+        kwargs['output_flag'] = True
         return self._create_from_inputs(*args, **kwargs)
             
     def __calculate_chi(self, *args, **kwargs):
@@ -1844,6 +1845,8 @@ class Chi(BaseSpatialGrid):
         outlet_number = 1
         for outlet in outlet_indexes:
             self.__recurse_chi(outlet, area, flow_direction, pixel_dimension, Ao, theta, 0, 1, kwargs.get('mask'))
+            if kwargs.get('output_flag', False):
+                print('Outlet ' + str(outlet_number) + '/' + str(len(outlet_indexes)) + ' completed.')
             outlet_number += 1
         self.__occupied = None
         try:
