@@ -1371,9 +1371,10 @@ class FlowLength(BaseSpatialGrid):
         
         indexes_of_locations = list()
         ind = np.where(np.logical_and((self._griddata >= min_length), (self._griddata <= max_length)))
-        for (this_row,this_col) in ind:
-            (next_row, next_col) = fd.get_flow_to_cell(this_row, this_col)
-            if next_row is not None and next_col is not None:
+        import itertools
+        for (this_row,this_col) in itertools.izip(ind[0],ind[1]):
+            (next_row, next_col, is_good) = fd.get_flow_to_cell(this_row, this_col)
+            if next_row is not None and next_col is not None and is_good:
                 this_value = self[this_row, this_col]
                 next_value = self[next_row, next_col]
                 if this_value <= length and next_value >= length:

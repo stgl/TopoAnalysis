@@ -1,7 +1,8 @@
 import dem as d
 from sys import stdout 
 
-prefixes = ['af', 'as', 'au', 'ca', 'eu', 'na', 'sa']
+#prefixes = ['as', 'au', 'eu', 'na', 'sa']
+prefixes = ['ca']
 
 for prefix in prefixes:
     
