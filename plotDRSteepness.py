@@ -19,10 +19,9 @@ for suffix in suffixes:
     data = np.load('ks_area_data_' + suffix + '.npz')
     ks = data['ksn_vec']
     plt.figure()
-    plt.loglog(np.float64(dr)/1000.0,ks,'k.')
     for (m, s, k) in zip(np.float64(dr)/1000.0, np.float64(dr_sig)/1000.0, ks):
         plt.loglog((m-s, m+s), (k,k), 'k-')
-    
+        plt.loglog(m,k,'k.')    
     
     if suffix == '0_4':
         dra.plot_stock_and_montgomery()
