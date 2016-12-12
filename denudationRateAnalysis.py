@@ -117,6 +117,21 @@ def extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, 
                 ksi_values.append(ksi[row,col])
                 relief_values.append(relief[row,col])
     return ksi_values, relief_values
+
+def create_chi_grid_for_geographic_prefix(prefix, thetas, Ao, basin_lengths):
+    
+    area = d.GeographicArea.load(prefix + "_area")
+    d8 = d.FlowDirectionD8.load(prefix + "_flow_direction")
+    flow_length = d.GeographicFlowLength.load(prefix + "_flow_length")
+    elevation = d.Elevation.load(prefix + "_elevation")
+    for theta in thetas:
+        for basin_length in basin_lengths:
+            chi = d.GeographicChi(area = area, flow_direction=d8, flow_length=flow_length, theta=theta, Ao=Ao, basin_length=basin_length)
+            chi.save(prefix + '_chi_' + str(basin_length) + '_' + str(theta).replace('.', '_') + '_' + str(Ao))
+            chi = None
+            relief = d.ChiScaledRelief(elevation = elevation, area = area, flow_direction=d8, flow_length=flow_length, theta=theta, Ao=Ao, basin_length=basin_length)
+            relief.save(prefix + '_relief_' + str(basin_length) + '_' + str(theta).replace('.', '_') + '_' + str(Ao))
+            relief = None
                                  
 def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None, xo = None):
         
