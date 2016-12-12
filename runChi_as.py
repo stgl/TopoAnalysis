@@ -1,5 +1,3 @@
-#! /usr/bin/env python2.7
-
 from denudationRateAnalysis import create_chi_grid_for_geographic_prefix as create_chi
 
 prefix = 'as' 

@@ -9,7 +9,7 @@ theta_values = [0.4, 0.5, 0.6]
 
 ks = dict()
 
-Ao = 1000000.0
+Ao = 250000.0
 
 for prefix in prefixes:
     print(prefix)
@@ -27,5 +27,6 @@ for prefix in prefixes:
         relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = locs)
         local_dict[str(theta).replace('.','_')] = dra.calculate_ks_for_sample(locs, d8, chi, relief, area, Ao)
     ks[prefix] = local_dict
+    print(local_dict['0_4'])
 
 pickle.dump( ks, open( "ks.p", "wb" ) )
