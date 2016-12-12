@@ -9,7 +9,8 @@ theta_values = [0.4, 0.5, 0.6]
 
 ks = dict()
 
-Ao = 250000.0
+Ao = 1000000.0
+A_cutoff = 250000.0 
 
 for prefix in prefixes:
     print(prefix)
@@ -25,7 +26,7 @@ for prefix in prefixes:
     for theta in theta_values:
         chi = d.Chi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = locs)
         relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = locs)
-        local_dict[str(theta).replace('.','_')] = dra.calculate_ks_for_sample(locs, d8, chi, relief, area, Ao)
+        local_dict[str(theta).replace('.','_')] = dra.calculate_ks_for_sample(locs, d8, chi, relief, area, Ao, A_cutoff=A_cutoff)
     ks[prefix] = local_dict
     print(local_dict['0_4'])
 

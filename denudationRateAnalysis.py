@@ -100,16 +100,18 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         
     return ksn_vec, a_calc_vec
 
-def extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask=None):
+def extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask=None, A_cutoff = None):
     (row, col) = area._xy_to_rowscols((position, ))[0]
         
     indexes_of_area = d8.get_indexes_of_upstream_cells(row, col)
     ksi_values = list()
     relief_values = list()
+    if A_cutoff is None:
+        A_cutoff = Ao
     for (row, col) in indexes_of_area:
         if ksi[row,col] is None or relief[row,col] is None or np.isnan(ksi[row, col]) or np.isnan(relief[row,col]):
             return None, None, None
-        if area[row, col] >= Ao:
+        if area[row, col] >= A_cutoff:
             if mask is None:
                 ksi_values.append(ksi[row,col])
                 relief_values.append(relief[row,col])
@@ -133,13 +135,13 @@ def create_chi_grid_for_geographic_prefix(prefix, thetas, Ao, basin_lengths):
             relief.save(prefix + '_relief_' + str(basin_length) + '_' + str(theta).replace('.', '_') + '_' + str(Ao))
             relief = None
                                  
-def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None, xo = None):
+def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None, xo = None, A_cutoff = None):
         
     ks = list()
     if xo is None:
         xo = np.mean(d8._mean_pixel_dimension(flow_direction = d8) * d8.pixel_scale())
     for position in v:
-        ksi_values, relief_values = extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask)
+        ksi_values, relief_values = extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask, A_cutoff=A_cutoff)
         from matplotlib import pyplot as plt
         try:
             best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo)
