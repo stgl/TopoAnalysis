@@ -25,12 +25,11 @@ basin_lengths = [50000, 100000, 200000, 400000]
 x_bins = np.arange(a[0],a[1],dx)
 y_bins = np.arange(a[2],a[3],dy)
 
-chi_vec = np.array([])
-relief_vec = np.array([])
-
 f = open('stats_for_concavity0_4.txt','w')
 
 for basin_length in basin_lengths:
+    chi_vec = np.array([])
+    relief_vec = np.array([])
     for prefix in prefixes:
         print(prefix)    
         chi = d.GeographicChi.load(prefix + '_chi_' + str(basin_length) + '_' + suffix + '_1000000')
@@ -64,7 +63,7 @@ for basin_length in basin_lengths:
     ks_vec = relief_vec / chi_vec
     for ks_to_report in kss_to_report:
         i = np.where(ks_vec > ks_to_report)
-        f.write('Fraction of points exceeding threshold: ' + str(ks_to_report) + '; basin length: ' + str(basin_length) + '; concavity: ' + suffix + ': ' + str(len(i[0])/len(this_chi)) + '\n')
+        f.write('Fraction of points exceeding threshold: ' + str(ks_to_report) + '; basin length: ' + str(basin_length) + '; concavity: ' + suffix + ': ' + str(float(len(i[0]))/float(len(this_chi))) + '\n')
 
     H, xedges, yedges = dm.create_density(chi_vec,relief_vec,x_bins,y_bins)
     H = np.flipud(H.T)
