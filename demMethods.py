@@ -80,8 +80,8 @@ def plotGrids(x_grid, y_grid, plot_string, **kwargs):
     plt.plot(x_vec, y_vec, plot_string, **kwargs)
 
     return x_vec, y_vec
-    
-def create_density(x_grid, y_grid, x_boundaries, y_boundaries, ignore_zeros=False):
+
+def extract_values_from_grid(x_grid, y_grid, ignore_zeros=False):
     
     import numpy as np
     x_vec = np.ndarray.flatten(x_grid._griddata)
@@ -91,17 +91,11 @@ def create_density(x_grid, y_grid, x_boundaries, y_boundaries, ignore_zeros=Fals
         x_vec = x_vec[i[0]]
         y_vec = y_vec[i[0]]
         
-    #x_bin_boundaries = (x_centers[1:] + x_centers[0:-1]) / 2.0
-    #print(x_bin_boundaries)
-    #print((3.0*x_centers[-1]/2.0 - x_bin_boundaries[-1]/2.0))
-    #x_bin_boundaries = np.concatenate((x_bin_boundaries[0] - x_centers[0], x_bin_boundaries, (3.0*x_centers[-1]/2.0 - x_bin_boundaries[-1]/2.0)))
-    
-    #y_bin_boundaries = (y_centers[1:] + y_centers[0:-1]) / 2.0
-    #y_bin_boundaries = np.concatenate((y_bin_boundaries[0] - y_centers[0], y_bin_boundaries, (3.0*y_centers[-1]/2.0 - y_bin_boundaries[-1]/2.0)))
-    
-    
-    
-    H, xedges, yedges = np.histogram2d(x_vec, y_vec, bins = (x_boundaries, y_boundaries))
+    return x_vec, y_vec
+        
+def create_density(x, y, x_boundaries, y_boundaries):
+    import numpy as np
+    H, xedges, yedges = np.histogram2d(x, y, bins = (x_boundaries, y_boundaries))
     
     return H, xedges, yedges
     

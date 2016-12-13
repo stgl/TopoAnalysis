@@ -11,6 +11,8 @@ from demMethods import plotGrids
 import numpy as np
 import demMethods as dm
 
+kss_to_report = [100.0, 150.0, 200.0]
+
 a = [0, 20000, 0, 2000000]
 suffix = '0_4'
 
@@ -18,42 +20,71 @@ dx = 100.0
 dy = 10000.0
 
 contours = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+basin_lengths = [50000, 100000, 200000, 400000]
 
 x_bins = np.arange(a[0],a[1],dx)
 y_bins = np.arange(a[2],a[3],dy)
 
-for prefix in prefixes:
-    print(prefix)    
-    chi = d.GeographicChi.load(prefix + '_chi_200000_' + suffix + '_1000000')
-    relief = d.ChiScaledRelief.load(prefix + '_relief_200000_' + suffix + '_1000000')
+chi_vec = np.array()
+relief_vec = np.array()
+
+for basin_length in basin_lengths:
+    for prefix in prefixes:
+        print(prefix)    
+        chi = d.GeographicChi.load(prefix + '_chi_' + str(basin_length) + '_' + suffix + '_1000000')
+        relief = d.ChiScaledRelief.load(prefix + '_relief_' + str(basin_length) + '_' + suffix + '_1000000')
+        this_chi, this_relief = dm.extract_values_from_grid(chi, relief, ignore_zeros=True)
+        chi_vec = np.concatenate((chi_vec, this_chi))
+        relief_vec = np.concatenate((relief_vec, this_relief))
+        ks_vec = this_relief / this_chi
+        for ks_to_report in kss_to_report:
+            i = np.where(ks_vec > ks_to_report)
+            print('Fraction of points exceeding threshold: ' + ks_to_report + '; for dataset: ' + prefix + '; basin length: ' + str(basin_length) + '; concavity: ' + suffix + ': ' + str(len(i[0])/len(this_chi)))
+        H, xedges, yedges = dm.create_density(this_chi,this_relief,x_bins,y_bins)
+        H = np.flipud(H.T)
+        H = H / np.sum(H) / dx / dy
+        v = np.ndarray.flatten(H)
+        v = np.sort(v)
+        vc = np.cumsum(v) * dx * dy
+        plt.figure()
+        plt.imshow(np.log10(H), extent = a)
+        plt.colorbar()
+        plt.ion()
+        plt.axis('normal')
+        for contour in contours:
+            i = np.where(vc >= contour)
+            i = np.min(i)
+            contour_value = v[i]
+            plt.contour(np.flipud(H) > contour_value, levels = [0], extent = a)
     
-    H, xedges, yedges = dm.create_density(chi,relief,x_bins,y_bins, ignore_zeros=True)
+            plt.savefig('density_' + prefix + '_' + str(basin_length) + '_' + suffix + '.eps')
     
-    if 'H_tot' not in locals():
-        H_tot = H.copy()
-    else:
-        H_tot = H_tot + H
+    ks_vec = relief_vec / chi_vec
+    for ks_to_report in kss_to_report:
+        i = np.where(ks_vec > ks_to_report)
+        print('Fraction of points exceeding threshold: ' + ks_to_report + + '; basin length: ' + str(basin_length) + '; concavity: ' + suffix + ': ' + str(len(i[0])/len(this_chi)))
 
-H_tot = np.flipud(H_tot.T)
-H_tot = H_tot / np.sum(H_tot) / dx / dy
-v = np.ndarray.flatten(H_tot)
-v = np.sort(v)
-
-vc = np.cumsum(v) * dx * dy
-
-plt.figure()
-plt.imshow(np.log10(H_tot), extent = a)
-plt.colorbar()
-plt.ion()
-plt.axis('normal')
-
-for contour in contours:
-    i = np.where(vc >= contour)
-    i = np.min(i)
-    contour_value = v[i]
-    plt.contour(np.flipud(H_tot) > contour_value, levels = [0], extent = a)
-
-plt.savefig('density' + suffix + '.eps')
+    H, xedges, yedges = dm.create_density(chi_vec,relief_vec,x_bins,y_bins)
+    H = np.flipud(H.T)
+    H = H / np.sum(H) / dx / dy
+    v = np.ndarray.flatten(H)
+    v = np.sort(v)
+    
+    vc = np.cumsum(v) * dx * dy
+    
+    plt.figure()
+    plt.imshow(np.log10(H), extent = a)
+    plt.colorbar()
+    plt.ion()
+    plt.axis('normal')
+    
+    for contour in contours:
+        i = np.where(vc >= contour)
+        i = np.min(i)
+        contour_value = v[i]
+        plt.contour(np.flipud(H) > contour_value, levels = [0], extent = a)
+    
+    plt.savefig('density_' + str(basin_length) + '_'+ suffix + '.eps')
 
 
     
