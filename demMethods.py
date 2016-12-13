@@ -81,12 +81,16 @@ def plotGrids(x_grid, y_grid, plot_string, **kwargs):
 
     return x_vec, y_vec
     
-def create_density(x_grid, y_grid, x_boundaries, y_boundaries):
+def create_density(x_grid, y_grid, x_boundaries, y_boundaries, ignore_zeros=False):
     
     import numpy as np
     x_vec = np.ndarray.flatten(x_grid._griddata)
     y_vec = np.ndarray.flatten(y_grid._griddata)
-    
+    if ignore_zeros:
+        i = np.where(logical_and(x_vec != 0, y_vec != 0))
+        xvec = xvec[i[0]]
+        yvec = yvec[i[0]]
+        
     #x_bin_boundaries = (x_centers[1:] + x_centers[0:-1]) / 2.0
     #print(x_bin_boundaries)
     #print((3.0*x_centers[-1]/2.0 - x_bin_boundaries[-1]/2.0))

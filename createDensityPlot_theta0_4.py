@@ -24,10 +24,10 @@ y_bins = np.arange(a[2],a[3],dy)
 
 for prefix in prefixes:
     print(prefix)    
-    ksi = d.Ksi.load(prefix + '_ksi_2000000_' + suffix)
-    relief = d.ScaledRelief.load(prefix + '_relief_2000000_' + suffix)
+    chi = d.GeographicChi.load(prefix + '_chi_200000_' + suffix + '_1000000')
+    relief = d.ChiScaledRelief.load(prefix + '_relief_200000_' + suffix + '_1000000')
     
-    H, xedges, yedges = dm.create_density(ksi,relief,x_bins,y_bins)
+    H, xedges, yedges = dm.create_density(chi,relief,x_bins,y_bins, ignore_zeros=True)
     
     if 'H_tot' not in locals():
         H_tot = H.copy()
