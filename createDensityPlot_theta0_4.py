@@ -11,7 +11,7 @@ from demMethods import plotGrids
 import numpy as np
 import demMethods as dm
 
-a = [0, 70000, 0, 2400000]
+a = [0, 20000, 0, 2000000]
 suffix = '0_4'
 
 dx = 100.0
