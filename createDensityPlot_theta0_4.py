@@ -25,8 +25,10 @@ basin_lengths = [50000, 100000, 200000, 400000]
 x_bins = np.arange(a[0],a[1],dx)
 y_bins = np.arange(a[2],a[3],dy)
 
-chi_vec = np.array()
-relief_vec = np.array()
+chi_vec = np.array([])
+relief_vec = np.array([])
+
+f = open('stats_for_concavity0_4.txt','w')
 
 for basin_length in basin_lengths:
     for prefix in prefixes:
@@ -39,7 +41,7 @@ for basin_length in basin_lengths:
         ks_vec = this_relief / this_chi
         for ks_to_report in kss_to_report:
             i = np.where(ks_vec > ks_to_report)
-            print('Fraction of points exceeding threshold: ' + ks_to_report + '; for dataset: ' + prefix + '; basin length: ' + str(basin_length) + '; concavity: ' + suffix + ': ' + str(len(i[0])/len(this_chi)))
+            f.write('Fraction of points exceeding threshold: ' + str(ks_to_report) + '; for dataset: ' + prefix + '; basin length: ' + str(basin_length) + '; concavity: ' + suffix + ': ' + str(float(len(i[0]))/float(len(this_chi))) + '\n')
         H, xedges, yedges = dm.create_density(this_chi,this_relief,x_bins,y_bins)
         H = np.flipud(H.T)
         H = H / np.sum(H) / dx / dy
@@ -62,7 +64,7 @@ for basin_length in basin_lengths:
     ks_vec = relief_vec / chi_vec
     for ks_to_report in kss_to_report:
         i = np.where(ks_vec > ks_to_report)
-        print('Fraction of points exceeding threshold: ' + ks_to_report + + '; basin length: ' + str(basin_length) + '; concavity: ' + suffix + ': ' + str(len(i[0])/len(this_chi)))
+        f.write('Fraction of points exceeding threshold: ' + str(ks_to_report) + '; basin length: ' + str(basin_length) + '; concavity: ' + suffix + ': ' + str(len(i[0])/len(this_chi)) + '\n')
 
     H, xedges, yedges = dm.create_density(chi_vec,relief_vec,x_bins,y_bins)
     H = np.flipud(H.T)
