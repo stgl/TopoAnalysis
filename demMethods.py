@@ -87,9 +87,9 @@ def create_density(x_grid, y_grid, x_boundaries, y_boundaries, ignore_zeros=Fals
     x_vec = np.ndarray.flatten(x_grid._griddata)
     y_vec = np.ndarray.flatten(y_grid._griddata)
     if ignore_zeros:
-        i = np.where(logical_and(x_vec != 0, y_vec != 0))
-        xvec = xvec[i[0]]
-        yvec = yvec[i[0]]
+        i = np.where(np.logical_and(x_vec != 0, y_vec != 0))
+        x_vec = x_vec[i[0]]
+        y_vec = y_vec[i[0]]
         
     #x_bin_boundaries = (x_centers[1:] + x_centers[0:-1]) / 2.0
     #print(x_bin_boundaries)
