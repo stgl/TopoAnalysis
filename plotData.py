@@ -40,6 +40,9 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
 
+print(ks_regress_check)
+print(dr_regress_check)
+
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
 ks_regress_check = np.array(ks_regress_check)
@@ -73,6 +76,9 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
      if np.isfinite(dr_el) and np.isfinite(ks_el):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
+
+print(ks_regress_check)
+print(dr_regress_check)
 
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
