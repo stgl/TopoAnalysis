@@ -40,8 +40,8 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
 
-print(ks_regress_check)
-print(dr_regress_check)
+print(np.power(10,ks_regress_check))
+print(np.power(10,dr_regress_check))
 
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
@@ -77,8 +77,8 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
 
-print(ks_regress_check)
-print(dr_regress_check)
+print(np.power(10,ks_regress_check))
+print(np.power(10,dr_regress_check))
 
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
