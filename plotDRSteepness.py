@@ -20,7 +20,7 @@ for suffix in suffixes:
     ks = data['ksn_vec']
     print(suffix)
     print(np.max(ks))
-    print(np.max(dr))
+    print(np.max(np.float64(dr)/1000))
     plt.figure()
     for (m, s, k) in zip(np.float64(dr)/1000.0, np.float64(dr_sig)/1000.0, ks):
         plt.loglog((m-s, m+s), (k,k), 'k-')
