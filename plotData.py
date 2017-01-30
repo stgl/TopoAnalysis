@@ -24,6 +24,42 @@ suffixes = ('04', '05', '06')
 
 dr_regress = list()
 ks_regress = list()
+dr = np.load('costarica/dr.npy')
+dr_regress = dr_regress + [np.log10(x) for x in dr]
+dr = np.load('guatemala/dr.npy')
+dr_regress = dr_regress + [np.log10(x) for x in dr]
+dr = np.load('taiwan/dr.npy')
+dr_regress = dr_regress + [np.log10(x) for x in dr]
+ks_regress = ks_regress + [np.log10(x[0]) for x in ksdict['costarica']['0_4']] + [np.log10(y[0]) for y in ksdict['guatemala']['0_4']] + [np.log10(z[0]) for z in ksdict['taiwan']['0_4']]
+
+dr_regress_check = list()
+ks_regress_check = list()
+
+for (dr_el, ks_el) in zip(dr_regress, ks_regress):
+     if np.isfinite(dr_el) and np.isfinite(ks_el):
+         dr_regress_check.append(dr_el)
+         ks_regress_check.append(ks_el)
+
+A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
+
+ks_regress_check = np.array(ks_regress_check)
+
+result = np.linalg.lstsq(A, ks_regress_check)
+(m, b) = result[0]
+R = result[1]
+print(R)
+R2 = 1 - R / np.sum(np.power(ks_regress_check,2))
+
+sm = m
+
+print('slope: ' + str(sm))
+print('intercept: ' + str(b))
+print('R2 = ' + str(R2))
+
+# Calculate fit to rest of data:
+
+dr_regress = list()
+ks_regress = list()
 dr = np.load('brazil/dr.npy')
 dr_regress = dr_regress + [np.log10(x) for x in dr]
 dr = np.load('venezuela/dr.npy')
