@@ -82,7 +82,7 @@ result = np.linalg.lstsq(A, ks_regress_check)
 (m, b) = result[0]
 R = result[1]
 print(R)
-R2 = 1 - R / np.sum(np.power(ks_regress_check,2))
+R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 
 sm = m
 
