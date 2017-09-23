@@ -100,6 +100,7 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         
     return ksn_vec, a_calc_vec
 
+
 def extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask=None, A_cutoff = None):
     (row, col) = area._xy_to_rowscols((position, ))[0]
         

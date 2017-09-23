@@ -18,6 +18,7 @@ from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 from operator import pos
 import sys
+from matplotlib.sphinxext.mathmpl import latex2html
 
 sys.setrecursionlimit(1000000)
 
@@ -1052,7 +1053,23 @@ class FlowDirectionD8(FlowDirection):
         dim = np.ones_like(self._griddata, dtype = dtype)
         dim[np.where((self._griddata == 32) | (self._griddata == 128) | (self._griddata == 2) | (self._griddata == 8))] = 1.41421356
         return dim
+    
+    def bounds_of_basin_for_outlet(self, outlet):
         
+        (lat, lon) = outlet
+        indexes = self.get_indexes_of_upstream_cells_for_location(lon, lat)
+        xy = self._rowscols_to_xy(indexes) 
+        bounds = [[None, None], [None, None]]
+        for (lon, lat) in xy:
+            if lon > bounds[0][1] or bounds[0][1] is None:
+                bounds[0][1] = lon
+            if lon < bounds[0][0] or bounds[0][0] is None:
+                bounds[0][0] = lon
+            if lat > bounds[1][1] or bounds[1][1] is None:
+                bounds[1][1] = lat
+            if lat < bounds[1][0] or bounds[1][0] is None:
+                bounds[1][0] = lat
+        return ((bounds[0][0], bounds[0][1]), (bounds[1][0], bounds[1][1]))
             
 class Elevation(CalculationMixin, BaseSpatialGrid):
 
