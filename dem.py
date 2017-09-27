@@ -679,6 +679,10 @@ class BaseSpatialGrid(GDALMixin):
         out_grid._griddata = moving_window.apply_moving_window(self._griddata, self._georef_info.dx, self.dtype)
         return out_grid
     
+    def clip_to_bounds(self, bounds):
+        extent = (bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1])
+        return self.clip_to_extent(extent)
+    
     def clip_to_extent(self, extent):
         import copy
         return_grid = copy.deepcopy(self)
