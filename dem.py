@@ -248,8 +248,8 @@ class GDALMixin(object):
         #A function to write the data stored in the numpy array npArrayData to a ArcInfo Text grid. Gdal doesn't
         #allow creation of these types of data for whatever reason
     
-        header = "ncols     %s\n" % georef_info.ncols
-        header += "nrows    %s\n" % georef_info.nrows
+        header = "ncols     %s\n" % georef_info.nx
+        header += "nrows    %s\n" % georef_info.ny
         header += "xllcenter %s\n" % georef_info.xllcenter
         header += "yllcenter %s\n" % georef_info.yllcenter
         header += "cellsize %s\n" % georef_info.dx
@@ -817,6 +817,9 @@ class BaseSpatialGrid(GDALMixin):
     def save(self, filename):
         
         self._create_gdal_representation_from_array(self._georef_info, 'GTiff', self._griddata, self.dtype, filename, ['COMPRESS=LZW'])
+    
+    def write_to_ai(self, filename):
+        self._writeArcAsciiRaster(self._georef_info, filename, self._griddata, np.NAN, '%10.2f')
     
     @classmethod
     def load(cls, filename):
