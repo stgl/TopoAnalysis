@@ -16,9 +16,7 @@ import Error
 from numpy import uint8
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
-from operator import pos
 import sys
-from matplotlib.sphinxext.mathmpl import latex2html
 
 sys.setrecursionlimit(1000000)
 
@@ -782,6 +780,28 @@ class BaseSpatialGrid(GDALMixin):
         Curv[winRad:-winRad,winRad:-winRad] = Cx+Cy
         return Curv
 
+    def principal_curvatures(self):
+        Zy, Zx  = np.gradient(self._griddata, self._georef_info.dx)
+        Zxy, Zxx = np.gradient(Zx, self._georef_info.dx)
+        Zyy, _ = np.gradient(Zy, self._georef_info.dx)
+        
+        H = (Zx**2 + 1)*Zyy - 2*Zx*Zy*Zxy + (Zy**2 + 1)*Zxx
+        H = -H/(2*(Zx**2 + Zy**2 + 1)**(1.5))
+        
+        K = (Zxx * Zyy - (Zxy ** 2)) /  (1 + (Zx ** 2) + (Zy **2)) ** 2
+        
+        k1 = H + np.sqrt(np.power(H,2) - K)
+        k2 = H - np.sqrt(np.power(H,2) - K)
+        
+        k1re = BaseSpatialGrid()
+        k1re._copy_info_from_grid(self, True)
+        k2re = BaseSpatialGrid()
+        k2re._copy_info_from_grid(self, True)
+        k1re._griddata = k1
+        k2re._griddata = k2
+        
+        return (k1re, k2re)
+        
     def plot(self, **kwargs):
         
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-1)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-1)*self._georef_info.dx]
