@@ -2,6 +2,7 @@ import dem as d
 import csv
 import numpy as np
 
+
 def read_csv(filename):
     with open(filename, 'rb') as f:
         reader = csv.reader(f)
@@ -11,6 +12,32 @@ def best_ksn(ksi, scaled_relief, xo = 500):
     
     A = np.vstack([ksi-np.ones(len(ksi))*float(xo)]).T 
     return np.linalg.lstsq(A, scaled_relief)
+
+def best_chi_ksn(chi, scaled_relief, xo = 500):
+    
+    A = np.vstack([chi]).T
+    return np.linalg.lstsq(A, scaled_relief)
+
+def best_ks_and_theta_with_wrss(elevation, flow_direction, area, outlet, xo = 500):
+    
+    import scipy.optimize
+    chi_ks = lambda theta: best_ks_with_wrss(elevation, flow_direction, area, theta, outlet, xo)[1]
+    xopt = scipy.optimize.fmin(func=chi_ks, x0=np.array([0.5,]))
+    (m, WRSS) = best_ks_with_wrss(elevation, flow_direction, area, xopt[0], outlet, xo)
+    return (m, xopt[0], WRSS)
+    
+    
+def best_ks_with_wrss(elevation, flow_direction, area, theta, outlet, xo = 500):
+    
+    chi = d.GeographicChi(area = area, flow_direction = flow_direction, theta = theta, outlets = (outlet[0], ), Ao = np.power(xo,2))
+    valid_indexes = np.where((chi._griddata != np.NAN) & (elevation._griddata != np.NAN) & (chi._griddata != 0.0))
+    outlet_rowscols = flow_direction._xy_to_rowscols((outlet[0], ))[0]
+    base_elevation = elevation[outlet_rowscols[0], outlet_rowscols[1]]
+    sol = best_chi_ksn(chi._griddata[valid_indexes], elevation._griddata[valid_indexes]-base_elevation)
+    m = sol[0]
+    WRSS = sol[1]    
+    
+    return (m, WRSS)
 
 def find_ksi_scaled_relief(lat, lon, area, ksi, relief, d8, A_measured, pixel_radius = 5):
     

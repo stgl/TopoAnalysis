@@ -690,15 +690,39 @@ class BaseSpatialGrid(GDALMixin):
         lower_left = (extent[0], extent[2])
         upper_right = (extent[1], extent[3])
         idx = self._xy_to_rowscols((lower_left, upper_right))
+        print(idx)
         return_grid._griddata = return_grid._griddata[idx[1][0]:idx[0][0],idx[0][1]:idx[1][1]]
         return_grid._georef_info.nx = return_grid._griddata.shape[1]
         return_grid._georef_info.ny = return_grid._griddata.shape[0]
         return_grid._georef_info.xllcenter = self._rowscols_to_xy((idx[0],))[0][0]
         return_grid._georef_info.yllcenter = self._rowscols_to_xy((idx[0],))[0][1]
-        return_grid._georef_info.geoTransform = (return_grid._georef_info.xllcenter - return_grid._georef_info.dx / 2.0, return_grid._georef_info.geoTransform[1], return_grid._georef_info.geoTransform[2], return_grid._georef_info.yllcenter + (self._georef_info.dx*(self._georef_info.ny-0.5)), return_grid._georef_info.geoTransform[4], return_grid._georef_info.geoTransform[5],)
+        return_grid._georef_info.geoTransform = (return_grid._georef_info.xllcenter - return_grid._georef_info.dx / 2.0, return_grid._georef_info.geoTransform[1], return_grid._georef_info.geoTransform[2], return_grid._georef_info.yllcenter + (return_grid._georef_info.dx*(return_grid._georef_info.ny-0.5)), return_grid._georef_info.geoTransform[4], return_grid._georef_info.geoTransform[5],)
         
         return return_grid
-     
+    
+    def extent_of_data(self):
+        
+        top = 0
+        bottom = self._georef_info.ny - 1
+        left = 0
+        right = self._georef_info.nx - 1
+        
+        while np.sum(np.isnan(self._griddata[top,:])) == self._georef_info.nx:
+            top = top + 1
+        
+        while np.sum(np.isnan(self._griddata[bottom,:])) == self._georef_info.nx:
+            bottom = bottom - 1
+        
+        while np.sum(np.isnan(self._griddata[left,:])) == self._georef_info.ny:
+            left = left + 1
+            
+        while np.sum(np.isnan(self._griddata[right,:])) == self._georef_info.ny:
+            right = right - 1
+        
+        (ll, ur) = self._rowscols_to_xy(((bottom, left), (top, right)))   
+        return (ll[0], ur[0], ll[1], ur[1])
+    
+    
     def clip_to_mask_grid(self, mask_grid):
         gdal_source = self._create_gdal_representation_from_array(self._georef_info, 'MEM', self._griddata, self.dtype)
         gdal_mask = mask_grid._create_gdal_representation_from_array(mask_grid._georef_info, 'MEM', mask_grid._griddata, mask_grid.dtype)
@@ -1857,7 +1881,7 @@ class Chi(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                            (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                            (('gdal_filename',), '_read_gdal'), 
-                           (('area','flow_direction','theta', 'Ao', 'outlets'), '_create_from_inputs'),
+                           (('area','flow_direction', 'theta', 'Ao', 'outlets'), '_create_from_inputs'),
                            (('area', 'flow_direction', 'flow_length', 'theta', 'Ao', 'basin_length'), '_create_from_basin_length'))
     
     
