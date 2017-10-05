@@ -1316,7 +1316,7 @@ class PriorityQueueMixIn(object):
             priority, (row, col) = priority_queue.get()
             
             if kwargs.get('binary_result') is True:
-                visited[row, col] = True
+                visited[row, col] = 1.0
             
             elevation = self[row,col]
             
@@ -1338,7 +1338,7 @@ class PriorityQueueMixIn(object):
                     else:
                         priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
         if kwargs.get('binary_result'):
-            self._griddata = np.float(visited)
+            self._griddata = visited
             
 class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
     
