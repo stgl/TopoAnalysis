@@ -13,7 +13,7 @@ import heapq # Used for constructing priority queue, which is used for filling d
 import numpy as np # Used for tons o stuff, keeping most data stored as numpy arrays
 import subprocess # Used to run gdal_merge.py from the command line
 import Error
-from numpy import uint8
+from numpy import uint8, int8
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
@@ -1204,22 +1204,36 @@ class Hillshade(CalculationMixin, BaseSpatialGrid):
 
 class GeographicHillshade(GeographicGridMixin, Hillshade):
     pass
-            
-class FilledElevation(Elevation):
+
+class MaxSlope(CalculationMixin, BaseSpatialGrid):
     
-    aggradation_slope = 0.000000001
+    dtype = float
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
-                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
-                               (('gdal_filename',), '_read_gdal'), 
-                               (('elevation',), '_create_from_elevation'))
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('elevation',), '_create_from_elevation'))
     
     def _create_from_elevation(self, *args, **kwargs):
 
         elevation = kwargs['elevation']
+        
         self._copy_info_from_grid(elevation)
-        self.__flood(*args, **kwargs) 
-            
+        self.calcSlope()
+    
+    def calcSlope(self):
+ 
+        Sx, Sy = self._calcFiniteSlopes(self._griddata, self._mean_pixel_dimension(), self._georef_info.nx, self._georef_info.ny)  # Calculate slope in X and Y directions    
+        self._griddata = np.sqrt(Sx**2 + Sy**2)
+        
+class GeographicMaxSlope(GeographicGridMixin, MaxSlope):
+    
+    pass
+
+class PriorityQueueMixIn(object):
+    
+    aggradation_slope = 0.000000001
+
     class priorityQueue:
         #Implements a priority queue using heapq. Python has a priority queue module built in, but it
         # is not stably sorted (meaning that two items who are tied in priority are treated arbitrarily, as opposed to being
@@ -1256,7 +1270,7 @@ class FilledElevation(Elevation):
         
         self.__flood(mask = mask, outlets = outlets, randomize = True)
         
-    def __flood(self, *args, **kwargs):
+    def _flood(self, *args, **kwargs):
         # dem is a numpy array of elevations to be flooded, aggInc is the minimum amount to increment elevations by moving upstream
         # use priority flood algorithm described in  Barnes et al., 2013
         # Priority-Flood: An Optimal Depression-Filling and Watershed-Labeling Algorithm for Digital Elevation Models
@@ -1317,6 +1331,43 @@ class FilledElevation(Elevation):
                         priority_queue.put(np.random.rand(1)[0], [neighborRows[i], neighborCols[i]])
                     else:
                         priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
+    
+class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
+    
+    dtype = float
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('outlets', 'mask'), '_create_from_outlets_and_mask'))
+    
+    def _create_from_outlets_and_mask(self, *args, **kwargs):
+        
+        mask = kwargs['mask']
+        outlets = kwargs['outlets']
+        kwargs['randomize'] = True
+        self._copy_info_from_grid(mask,True)
+        i = np.where(np.isnan(mask._griddata))
+        self._griddata[i] = np.NAN
+        i = np.where(mask._griddata != 1)
+        self._griddata[i] = np.NAN
+        self._flood(*args, **kwargs)
+        
+class FilledElevation(PriorityQueueMixIn, Elevation):
+    
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                               (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                               (('gdal_filename',), '_read_gdal'), 
+                               (('elevation',), '_create_from_elevation'))
+    
+    def _create_from_elevation(self, *args, **kwargs):
+
+        elevation = kwargs['elevation']
+        self._copy_info_from_grid(elevation)
+        self._flood(*args, **kwargs) 
+            
+    
                     
 class Area(BaseSpatialGrid):
     
