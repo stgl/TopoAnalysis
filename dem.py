@@ -1307,10 +1307,16 @@ class PriorityQueueMixIn(object):
             closed[row, col] = True
             priority_queue.put(self._griddata[row, col], (row, col)) # store the indices as a vector of row column, in the priority queue prioritized by the dem value
     
+        if kwargs.get('binary_result') is True:
+            visited = np.zeros_like(self._griddata)
+            
         #While there is anything left in the priority queue, continue to fill holes
         while not priority_queue.isEmpty():
                         
             priority, (row, col) = priority_queue.get()
+            
+            if kwargs.get('binary_result') is True:
+                visited[row, col] = True
             
             elevation = self[row,col]
             
@@ -1331,7 +1337,9 @@ class PriorityQueueMixIn(object):
                         priority_queue.put(np.random.rand(1)[0], [neighborRows[i], neighborCols[i]])
                     else:
                         priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
-    
+        if kwargs.get('binary_result'):
+            self._griddata = visited
+            
 class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
     
     dtype = float
@@ -1345,14 +1353,18 @@ class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
         
         mask = kwargs['mask']
         outlets = kwargs['outlets']
-        kwargs['randomize'] = True
+        kwargs['randomize'] = False
+        kwargs['binary_result'] = True
         self._copy_info_from_grid(mask,True)
+        rcs = self._xy_to_rowscols(outlets)
+        for rc in rcs:
+            self._griddata[rc[0],rc[1]] = 100
         i = np.where(np.isnan(mask._griddata))
         self._griddata[i] = np.NAN
         i = np.where(mask._griddata != 1)
         self._griddata[i] = np.NAN
         self._flood(*args, **kwargs)
-        
+                
 class FilledElevation(PriorityQueueMixIn, Elevation):
     
     
