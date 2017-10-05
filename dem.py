@@ -13,7 +13,7 @@ import heapq # Used for constructing priority queue, which is used for filling d
 import numpy as np # Used for tons o stuff, keeping most data stored as numpy arrays
 import subprocess # Used to run gdal_merge.py from the command line
 import Error
-from numpy import uint8, int8
+from numpy import uint8, int8, float64
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
@@ -1207,7 +1207,7 @@ class GeographicHillshade(GeographicGridMixin, Hillshade):
 
 class MaxSlope(CalculationMixin, BaseSpatialGrid):
     
-    dtype = float
+    dtype = float64
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                            (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
@@ -1342,7 +1342,7 @@ class PriorityQueueMixIn(object):
             
 class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
     
-    dtype = float
+    dtype = uint8
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                            (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
@@ -1360,9 +1360,9 @@ class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
         for rc in rcs:
             self._griddata[rc[0],rc[1]] = 100
         i = np.where(np.isnan(mask._griddata))
-        self._griddata[i] = np.NAN
+        self._griddata[i] = 0
         i = np.where(mask._griddata != 1)
-        self._griddata[i] = np.NAN
+        self._griddata[i] = 0
         self._flood(*args, **kwargs)
                 
 class FilledElevation(PriorityQueueMixIn, Elevation):
