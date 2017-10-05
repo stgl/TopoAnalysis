@@ -1308,7 +1308,7 @@ class PriorityQueueMixIn(object):
             priority_queue.put(self._griddata[row, col], (row, col)) # store the indices as a vector of row column, in the priority queue prioritized by the dem value
     
         if kwargs.get('binary_result') is True:
-            visited = np.zeros_like(self._griddata)
+            visited = np.zeros_like(self._griddata, dtype = np.float)
             
         #While there is anything left in the priority queue, continue to fill holes
         while not priority_queue.isEmpty():
