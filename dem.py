@@ -1338,7 +1338,7 @@ class PriorityQueueMixIn(object):
                     else:
                         priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
         if kwargs.get('binary_result'):
-            self._griddata = visited
+            self._griddata = np.float(visited)
             
 class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
     
