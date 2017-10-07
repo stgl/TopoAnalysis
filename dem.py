@@ -629,8 +629,8 @@ class BaseSpatialGrid(GDALMixin):
     def _xy_to_rowscols(self, v):
         l = list()
         for (x,y) in v:
-            col = round((x-self._georef_info.xllcenter)/self._georef_info.dx)
-            row = (self._georef_info.ny - 1) - round((y-self._georef_info.yllcenter)/self._georef_info.dx)
+            col = int(round((x-self._georef_info.xllcenter)/self._georef_info.dx))
+            row = int((self._georef_info.ny - 1) - round((y-self._georef_info.yllcenter)/self._georef_info.dx))
             if col > self._georef_info.nx or row > self._georef_info.ny or col < 0 or row < 0:
                 l.append((None, None))
             else:
@@ -816,7 +816,7 @@ class BaseSpatialGrid(GDALMixin):
         minimum_difference = np.nan
         for y in range(int(i-pixel_radius),int(i+pixel_radius)):
             for x in range(int(j-pixel_radius),int(j+pixel_radius)):
-                if np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius:
+                if x is not None and y is not None and np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius:
                     value_difference = np.abs(value - self._griddata[y,x])
                     if np.isnan(minimum_difference) or minimum_difference > value_difference:
                         minimum_difference = value_difference

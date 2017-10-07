@@ -21,7 +21,9 @@ def relocate_p_and_b(data, pixel_radius = 5):
         
         for sample in data_processed:
             xy = (data_processed[sample]['lon'], data_processed[sample]['lat'])
+            print(xy)
             rc = area._xy_to_rowscols((xy, ))[0]
+            print(rc)
             if rc[0] is not None and rc[1] is not None:
                 area_measured = data_processed[sample]['area_measured']
                 locations_snap = area.snap_locations_to_closest_value((xy,), (area_measured,), pixel_radius = pixel_radius)
@@ -37,7 +39,7 @@ import denudationRateAnalysis as dra
 data = dra.read_csv('portengadata.csv')
 del(data[0])
 
-data_processed = relocate_p_and_b(data)
+data_processed = relocate_p_and_b(data, pixel_radius = 10)
 
 final_list = list()
 
