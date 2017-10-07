@@ -11,6 +11,15 @@ base_elevation = -300.0
 dem = d.Elevation.load(grid_name)
 dem.dtype = np.float32
 dem._griddata = dem._griddata.astype(np.float32)
+
+coast = d.Mask()
+coast._copy_info_from_grid(dem, True)
+
+# Need to implement tiling scheme:
+
+x_beg = range(-180, 160, 20)
+y = range(-90, 70, 20)
+
 mask1 = d.BaseSpatialGrid()
 mask2 = d.BaseSpatialGrid()
 
