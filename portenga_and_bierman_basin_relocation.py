@@ -21,9 +21,7 @@ def relocate_p_and_b(data, pixel_radius = 5):
         
         for sample in data_processed:
             xy = (data_processed[sample]['lon'], data_processed[sample]['lat'])
-            print(xy)
             rc = area._xy_to_rowscols((xy, ))[0]
-            print(rc)
             if rc[0] is not None and rc[1] is not None:
                 area_measured = data_processed[sample]['area_measured']
                 locations_snap = area.snap_locations_to_closest_value((xy,), (area_measured,), pixel_radius = pixel_radius)
@@ -48,7 +46,7 @@ for sample in data_processed:
     final_list.append([sample, data_processed[sample].get('lat'), data_processed[sample].get('lon'), data_processed[sample].get('dr'), data_processed[sample].get('dr_sig'), data_processed[sample].get('area_measured') / 1.0E6, data_processed[sample].get('lat_adjusted',-9999), data_processed[sample].get('lon_adjusted', -9999), data_processed[sample].get('area_dem', -9999) / 1.0E6, data_processed[sample].get('prefix','Not Found')])
     
 import csv
-with open('portenta_relocated.csv', 'wb') as f:
+with open('portenta_relocated_10.csv', 'wb') as f:
     writer = csv.writer(f, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     for row in final_list:
         writer.writerow(row)

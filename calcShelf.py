@@ -59,5 +59,5 @@ for x_s in x_beg:
         shelf_mask._griddata[rc_bounds[1][0]:rc_bounds[0][0],rc_bounds[0][1]:rc_bounds[1][1]] = shelf._griddata
         
 
-#shelf.save(grid_name + '_classified')
+shelf_mask.save(grid_name + '_classified')
 
