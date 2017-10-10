@@ -26,7 +26,14 @@ def best_ks_and_theta_with_wrss(elevation, flow_direction, area, outlet, xo = 50
     (m, WRSS) = best_ks_with_wrss(elevation, flow_direction, area, xopt[0], outlet, xo)
     return (m, xopt[0], WRSS)
     
+def best_ks_and_theta_with_clip(elevation, flow_direction, area, outlet, xo = 500):
     
+    bounds = flow_direction.bounds_of_basin_for_outlet(outlet);
+    elev_clip = elevation.clip_to_bounds(bounds)
+    area_clip = area.clip_to_bounds(bounds)
+    fd_clip = flow_direction.clip_to_bounds(bounds)
+    return best_ks_and_theta_with_wrss(elev_clip, fd_clip, area_clip, ((outlet[1], outlet[0]), ), xo)
+
 def best_ks_with_wrss(elevation, flow_direction, area, theta, outlet, xo = 500):
     
     chi = d.GeographicChi(area = area, flow_direction = flow_direction, theta = theta, outlets = (outlet[0], ), Ao = np.power(xo,2))

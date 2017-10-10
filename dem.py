@@ -629,8 +629,10 @@ class BaseSpatialGrid(GDALMixin):
     def _xy_to_rowscols(self, v):
         l = list()
         for (x,y) in v:
+
             col = int(round((x-self._georef_info.xllcenter)/self._georef_info.dx))
             row = int((self._georef_info.ny - 1) - round((y-self._georef_info.yllcenter)/self._georef_info.dx))
+
             if col > self._georef_info.nx or row > self._georef_info.ny or col < 0 or row < 0:
                 l.append((None, None))
             else:
@@ -642,7 +644,7 @@ class BaseSpatialGrid(GDALMixin):
         v = list()
         for(row,col) in l:
             x = float64(col)*self._georef_info.dx + self._georef_info.xllcenter
-            y = (float64(self._georef_info.ny - 1) - float64(row))*self._georef_info.dx + self._georef_info.yllcenter
+            y = (float64(self._georef_info.ny - 0.5) - float64(row))*self._georef_info.dx + self._georef_info.yllcenter
             v.append((x,y))
         return tuple(v)
     
@@ -688,13 +690,12 @@ class BaseSpatialGrid(GDALMixin):
         lower_left = (extent[0], extent[2])
         upper_right = (extent[1], extent[3])
         idx = self._xy_to_rowscols((lower_left, upper_right))
-        print(idx)
-        return_grid._griddata = return_grid._griddata[idx[1][0]:idx[0][0],idx[0][1]:idx[1][1]]
+        return_grid._griddata = return_grid._griddata[idx[1][0]+1:idx[0][0]+1,idx[0][1]:idx[1][1]]
         return_grid._georef_info.nx = return_grid._griddata.shape[1]
         return_grid._georef_info.ny = return_grid._griddata.shape[0]
         return_grid._georef_info.xllcenter = self._rowscols_to_xy((idx[0],))[0][0]
         return_grid._georef_info.yllcenter = self._rowscols_to_xy((idx[0],))[0][1]
-        return_grid._georef_info.geoTransform = (return_grid._georef_info.xllcenter - return_grid._georef_info.dx / 2.0, return_grid._georef_info.geoTransform[1], return_grid._georef_info.geoTransform[2], return_grid._georef_info.yllcenter + (return_grid._georef_info.dx*(return_grid._georef_info.ny-0.5)), return_grid._georef_info.geoTransform[4], return_grid._georef_info.geoTransform[5],)
+        return_grid._georef_info.geoTransform = (return_grid._georef_info.xllcenter, return_grid._georef_info.geoTransform[1], return_grid._georef_info.geoTransform[2], return_grid._georef_info.yllcenter + (return_grid._georef_info.dx*(return_grid._georef_info.ny-1)), return_grid._georef_info.geoTransform[4], return_grid._georef_info.geoTransform[5],)
         
         return return_grid
     
@@ -804,7 +805,7 @@ class BaseSpatialGrid(GDALMixin):
         
     def plot(self, **kwargs):
         
-        extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-1)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-1)*self._georef_info.dx]
+        extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         plt.imshow(self._griddata, extent = extent, **kwargs)
         plt.ion()
         plt.show()
