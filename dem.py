@@ -687,8 +687,8 @@ class BaseSpatialGrid(GDALMixin):
         import copy
         return_grid = copy.deepcopy(self)
         return_grid._georef_info = copy.deepcopy(self._georef_info)
-        lower_left = (extent[0], extent[2])
-        upper_right = (extent[1], extent[3])
+        lower_left = (extent[0]-self._georef_info.dx, extent[2]-self._georef_info.dx)
+        upper_right = (extent[1]+self._georef_info.dx, extent[3]+self._georef_info.dx)
         idx = self._xy_to_rowscols((lower_left, upper_right))
         return_grid._griddata = return_grid._griddata[idx[1][0]+1:idx[0][0]+1,idx[0][1]:idx[1][1]]
         return_grid._georef_info.nx = return_grid._griddata.shape[1]
@@ -817,7 +817,7 @@ class BaseSpatialGrid(GDALMixin):
         minimum_difference = np.nan
         for y in range(int(i-pixel_radius),int(i+pixel_radius)):
             for x in range(int(j-pixel_radius),int(j+pixel_radius)):
-                if x is not None and y is not None and np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius:
+                if x is not None and y is not None and np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius and x < self._griddata.shape[1] and y < self._griddata.shape[0]:
                     value_difference = np.abs(value - self._griddata[y,x])
                     if np.isnan(minimum_difference) or minimum_difference > value_difference:
                         minimum_difference = value_difference

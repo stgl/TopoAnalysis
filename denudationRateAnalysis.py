@@ -22,17 +22,23 @@ def best_ks_and_theta_with_wrss(elevation, flow_direction, area, outlet, xo = 50
     
     import scipy.optimize
     chi_ks = lambda theta: best_ks_with_wrss(elevation, flow_direction, area, theta, outlet, xo)[1]
-    xopt = scipy.optimize.fmin(func=chi_ks, x0=np.array([0.5,]))
+    if len(chi_ks(0.5)) == 0:
+        return (0, 0, 0)
+    xopt = scipy.optimize.fmin(func=chi_ks, x0=np.array([0.5]))
     (m, WRSS) = best_ks_with_wrss(elevation, flow_direction, area, xopt[0], outlet, xo)
-    return (m, xopt[0], WRSS)
+    SS = uninformative_SS(elevation, flow_direction, area, outlet, xopt[0], xo)
     
-def best_ks_and_theta_with_clip(elevation, flow_direction, area, outlet, xo = 500):
+    return (m, xopt[0], 1 - (WRSS / SS))
+    
+def best_ks_and_theta_with_clip(elevation, flow_direction, area, outlet, area_measured, xo = 500, pixel_radius = 5):
     
     bounds = flow_direction.bounds_of_basin_for_outlet(outlet);
     elev_clip = elevation.clip_to_bounds(bounds)
     area_clip = area.clip_to_bounds(bounds)
     fd_clip = flow_direction.clip_to_bounds(bounds)
-    return best_ks_and_theta_with_wrss(elev_clip, fd_clip, area_clip, ((outlet[1], outlet[0]), ), xo)
+    outlet_xy = (outlet[1], outlet[0])
+    locations_snap = area_clip.snap_locations_to_closest_value((outlet_xy, ), (area_measured, ), pixel_radius = pixel_radius)
+    return best_ks_and_theta_with_wrss(elev_clip, fd_clip, area_clip, locations_snap, xo)
 
 def best_ks_with_wrss(elevation, flow_direction, area, theta, outlet, xo = 500):
     
@@ -46,6 +52,13 @@ def best_ks_with_wrss(elevation, flow_direction, area, theta, outlet, xo = 500):
     
     return (m, WRSS)
 
+def uninformative_SS(elevation, flow_direction, area, outlet, theta, xo = 500):
+    
+    chi = d.GeographicChi(area = area, flow_direction = flow_direction, theta = theta, outlets = (outlet[0], ), Ao = np.power(xo,2))
+    valid_indexes = np.where((chi._griddata != np.NAN) & (elevation._griddata != np.NAN) & (chi._griddata != 0.0))
+    mean_elevation = np.mean(elevation._griddata[valid_indexes])
+    return np.sum(np.power(elevation._griddata[valid_indexes]-mean_elevation, 2))
+    
 def find_ksi_scaled_relief(lat, lon, area, ksi, relief, d8, A_measured, pixel_radius = 5):
     
     index = area._xy_to_rowscols(((lon,lat),))[0]
