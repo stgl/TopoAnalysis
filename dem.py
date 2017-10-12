@@ -327,8 +327,8 @@ class GeographicGridMixin(object):
     
     def _area_per_pixel(self, *args, **kwargs):
 
-        if hasattr(self, '__app'):
-            return self.__app
+        if hasattr(self, '_GeographicGridMixin__app'):
+            return self._GeographicGridMixin__app
         
         #Returns a grid of the area of each pixel within the domain specified by the gdalDataset
     
@@ -1046,6 +1046,65 @@ class FlowDirectionD8(FlowDirection):
                
         return i_source, j_source
     
+    def __map_flow_from_cell(self, index, **kwargs):
+        
+        i = index[0]
+        j = index[1]
+        
+        return_dict = dict()
+        
+        return_dict['index'] = index
+        for arg in kwargs:
+            return_dict[arg] = kwargs[arg][i,j]
+        
+        return_dict['next'] = []
+        return_dict['distance_scale'] = 1.0
+        
+        if self[i, j+1] == 16:
+            return_dict['distance_scale'] = 1.0
+            child_dict = self.__map_flow_from_cell((i,j+1), **kwargs)
+            return_dict['next'].append(child_dict)
+        
+        if self[i+1, j+1] == 32:
+            return_dict['distance_scale'] = 1.4142135623730951
+            child_dict = self.__map_flow_from_cell((i+1,j+1), **kwargs)
+            return_dict['next'].append(child_dict)
+
+        if self[i+1, j] == 64:
+            return_dict['distance_scale'] = 1.0
+            child_dict = self.__map_flow_from_cell((i+1,j), **kwargs)
+            return_dict['next'].append(child_dict)
+        
+        if self[i+1, j-1] == 128:
+            return_dict['distance_scale'] = 1.4142135623730951
+            child_dict = self.__map_flow_from_cell((i+1,j-1), **kwargs)
+            return_dict['next'].append(child_dict)
+                
+        if self[i, j-1] == 1:
+            return_dict['distance_scale'] = 1.0
+            child_dict = self.__map_flow_from_cell((i,j-1), **kwargs)
+            return_dict['next'].append(child_dict)
+
+        if self[i-1, j-1] == 2:
+            return_dict['distance_scale'] = 1.4142135623730951
+            child_dict = self.__map_flow_from_cell((i-1,j-1), **kwargs)
+            return_dict['next'].append(child_dict)
+            
+        if self[i-1, j] == 4:
+            return_dict['distance_scale'] = 1.0
+            child_dict = self.__map_flow_from_cell((i-1,j), **kwargs)
+            return_dict['next'].append(child_dict)
+            
+        if self[i-1, j+1] == 8:
+            return_dict['distance_scale'] = 1.4142135623730951
+            child_dict = self.__map_flow_from_cell((i-1,j+1), **kwargs)
+            return_dict['next'].append(child_dict)
+        
+        if len(return_dict.get('next', 0)) == 0:
+            return_dict.pop('next')
+                   
+        return return_dict
+    
     def update_flow_codes_in_mask(self, *args, **kwargs):
         
         flooded_dem = args[0]
@@ -1105,6 +1164,12 @@ class FlowDirectionD8(FlowDirection):
         dim = np.ones_like(self._griddata, dtype = dtype)
         dim[np.where((self._griddata == 32) | (self._griddata == 128) | (self._griddata == 2) | (self._griddata == 8))] = 1.41421356
         return dim
+    
+    def map_values_to_recursive_list(self, outlet, **kwargs):
+        
+        v = (outlet, )
+        (ij_outlet, ) = self._xy_to_rowscols(v)
+        return self.__map_flow_from_cell(ij_outlet, **kwargs)
     
     def bounds_of_basin_for_outlet(self, outlet):
         
