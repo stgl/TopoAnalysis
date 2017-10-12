@@ -1582,8 +1582,36 @@ class FlowLength(BaseSpatialGrid):
                     indexes_of_locations.append((this_row, this_col))
         
         return self._rowscols_to_xy(indexes_of_locations)
+    
+    def indexes_along_flow_path_from_outlet(self, outlet):
+        ij = self._xy_to_rowscols((outlet,))[0]
+        return self.__get_upstream_indexes((ij,))
         
+    def __get_upstream_indexes(self, index):
         
+        (i,j) = index[0]
+        indexes = [index]
+        
+        flow_code = self.__flow_directions[i,j]
+        if flow_code == 1:
+            indexes += self.__get_upstream_indexes(((i,j-1),))
+        elif flow_code == 2:
+            indexes += self.__get_upstream_indexes(((i+1,j-1),))
+        elif flow_code == 4:
+            indexes += self.__get_upstream_indexes(((i+1,j),))
+        elif flow_code == 8:
+            indexes += self.__get_upstream_indexes(((i+1,j+1),))
+        elif flow_code == 16:
+            indexes += self.__get_upstream_indexes(((i,j+1),))
+        elif flow_code == 32:
+            indexes += self.__get_upstream_indexes(((i-1,j+1),))
+        elif flow_code == 64:
+            indexes += self.__get_upstream_indexes(((i-1,j),))
+        elif flow_code == 128:
+            indexes += self.__get_upstream_indexes(((i-1, j-1),))
+        
+        return indexes
+    
     def is_along_flow_length(self, from_index, to_index):
         
         (i_to, j_to) = to_index
