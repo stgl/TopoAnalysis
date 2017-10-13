@@ -1590,28 +1590,89 @@ class FlowLength(BaseSpatialGrid):
     def __get_upstream_indexes(self, index):
         
         (i,j) = index[0]
-        indexes = [index]
+        indexes = list(index)
+        
         
         flow_code = self.__flow_directions[i,j]
         if flow_code == 1:
-            indexes += self.__get_upstream_indexes(((i,j-1),))
-        elif flow_code == 2:
-            indexes += self.__get_upstream_indexes(((i+1,j-1),))
-        elif flow_code == 4:
-            indexes += self.__get_upstream_indexes(((i+1,j),))
-        elif flow_code == 8:
-            indexes += self.__get_upstream_indexes(((i+1,j+1),))
-        elif flow_code == 16:
             indexes += self.__get_upstream_indexes(((i,j+1),))
-        elif flow_code == 32:
+        elif flow_code == 2:
             indexes += self.__get_upstream_indexes(((i-1,j+1),))
-        elif flow_code == 64:
+        elif flow_code == 4:
             indexes += self.__get_upstream_indexes(((i-1,j),))
+        elif flow_code == 8:
+            indexes += self.__get_upstream_indexes(((i-1,j-1),))
+        elif flow_code == 16:
+            indexes += self.__get_upstream_indexes(((i,j-1),))
+        elif flow_code == 32:
+            indexes += self.__get_upstream_indexes(((i+1,j-1),))
+        elif flow_code == 64:
+            indexes += self.__get_upstream_indexes(((i+1,j),))
         elif flow_code == 128:
-            indexes += self.__get_upstream_indexes(((i-1, j-1),))
+            indexes += self.__get_upstream_indexes(((i+1, j+1),))
         
         return indexes
     
+    def __map_flow_from_cell(self, index, **kwargs):
+        
+        (i,j) = index[0]
+        
+        return_dict = dict()
+        flow_code = self.__flow_directions[i,j]
+        
+        return_dict['index'] = index[0]
+        return_dict['distance'] = self._griddata[i,j]
+        for arg in kwargs:
+            return_dict[arg] = kwargs[arg][i,j]
+        
+        return_dict['next'] = []
+        return_dict['distance_scale'] = 1.0
+                
+        if flow_code == 1:
+            return_dict['distance_scale'] = 1.0
+            child_dict = self.__map_flow_from_cell(((i,j+1),), **kwargs)
+            return_dict['next'].append(child_dict)
+        
+        if flow_code == 2:
+            return_dict['distance_scale'] = 1.4142135623730951
+            child_dict = self.__map_flow_from_cell(((i-1,j+1),), **kwargs)
+            return_dict['next'].append(child_dict)
+
+        if flow_code == 4:
+            return_dict['distance_scale'] = 1.0
+            child_dict = self.__map_flow_from_cell(((i-1,j),), **kwargs)
+            return_dict['next'].append(child_dict)
+        
+        if flow_code == 8:
+            return_dict['distance_scale'] = 1.4142135623730951
+            child_dict = self.__map_flow_from_cell(((i-1,j-1),), **kwargs)
+            return_dict['next'].append(child_dict)
+                
+        if flow_code == 16:
+            return_dict['distance_scale'] = 1.0
+            child_dict = self.__map_flow_from_cell(((i,j-1),), **kwargs)
+            return_dict['next'].append(child_dict)
+
+        if flow_code == 32:
+            return_dict['distance_scale'] = 1.4142135623730951
+            child_dict = self.__map_flow_from_cell(((i+1,j-1),), **kwargs)
+            return_dict['next'].append(child_dict)
+            
+        if flow_code == 64:
+            return_dict['distance_scale'] = 1.0
+            child_dict = self.__map_flow_from_cell(((i+1,j),), **kwargs)
+            return_dict['next'].append(child_dict)
+            
+        if flow_code == 128:
+            return_dict['distance_scale'] = 1.4142135623730951
+            child_dict = self.__map_flow_from_cell(((i+1,j+1),), **kwargs)
+            return_dict['next'].append(child_dict)
+        
+        if len(return_dict.get('next', 0)) == 0:
+            return_dict.pop('next')
+                   
+        return return_dict
+
     def is_along_flow_length(self, from_index, to_index):
         
         (i_to, j_to) = to_index
@@ -1632,6 +1693,11 @@ class FlowLength(BaseSpatialGrid):
         
         return return_grid
 
+    def map_values_to_recursive_list(self, outlet, **kwargs):
+        
+        v = (outlet, )
+        (ij_outlet, ) = self._xy_to_rowscols(v)
+        return self.__map_flow_from_cell((ij_outlet,), **kwargs)
     
     def save(self, filename):
         

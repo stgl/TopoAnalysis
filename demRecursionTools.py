@@ -3,6 +3,7 @@ import numpy as np
 def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, xo = 500.0):
 
     Ao = np.power(xo, 2.0)
+    
     if ld_list['area'] >= Ao:
         elevation_f = np.array(ld_list['elevation'] - base_elevation)
         elevation = np.append(elevation, np.array(elevation_f))
@@ -11,9 +12,25 @@ def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base
         chi = chi + [chi_f]
         if ld_list.get('next') is not None:
             for next_list in ld_list['next']:
-                elevation, chi = extract_chi_elevation_values(next_list, de, theta, chi_f, elevation, chi, base_elevation)
+                elevation, chi = extract_chi_elevation_values(next_list, de, theta, chi_f, elevation, chi, base_elevation, xo = xo)
     
     return elevation, chi    
+
+def extract_profile_values(ld_list, xo = 500.0, items = ()):
+    
+    Ao = np.power(xo, 2.0)
+    return_list = list()
+    
+    if ld_list['area'] >= Ao:
+        this_list = list()
+        for arg in items:
+            this_list += [ld_list[arg]]
+        print(this_list)
+        return_list.append(this_list)
+        if ld_list.get('next', None) is not None:
+            return_list += extract_profile_values(ld_list['next'][0], xo = xo, items = items)
+    
+    return return_list
 
 def chi_elevation(ld_list, de, theta, xo = 500.0):
     
@@ -21,12 +38,12 @@ def chi_elevation(ld_list, de, theta, xo = 500.0):
     elevation = []
     chi = []
     base_elevation = ld_list['elevation']
-    e, c = extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, xo)
+    e, c = extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, xo=xo)
     return np.array(e), np.array(c)
 
 def best_ks_with_wrss_list(ld_list, de, theta, xo = 500):
     
-    e, c = chi_elevation(ld_list, de, theta, xo)
+    e, c = chi_elevation(ld_list, de, theta, xo=xo)
     A = np.vstack([c]).T
     sol = np.linalg.lstsq(A, e)
     m = sol[0]
@@ -36,17 +53,17 @@ def best_ks_with_wrss_list(ld_list, de, theta, xo = 500):
 
 def uninformative_SS_list(ld_list, de, xo = 500):
     
-    e, c = chi_elevation(ld_list, de, [0.5], xo)
+    e, c = chi_elevation(ld_list, de, [0.5], xo=xo)
     mean_elevation = np.mean(e)
     return np.sum(np.power(e-mean_elevation, 2))
 
-def best_ks_and_theta_with_wrss(elevation, flow_direction, area, outlet, xo = 500):
+def best_ks_and_theta_with_wrss(elevation, flow_direction_or_length, area, outlet, xo = 500):
     
-    ld_list = flow_direction.map_values_to_recursive_list(outlet, area = area, elevation = elevation)
+    ld_list = flow_direction_or_length.map_values_to_recursive_list(outlet, area = area, elevation = elevation)
     de = area._mean_pixel_dimension()
-    
+
     import scipy.optimize
-    chi_ks = lambda theta: best_ks_with_wrss_list(ld_list, de, theta, xo)[1]
+    chi_ks = lambda theta: best_ks_with_wrss_list(ld_list, de, theta, xo=xo)[1]
     if len(chi_ks([0.5])) == 0:
         return (0, 0, 0)
     xopt = scipy.optimize.fmin(func=chi_ks, x0=np.array([0.5]))
