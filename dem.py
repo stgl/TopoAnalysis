@@ -896,6 +896,17 @@ class BaseSpatialGrid(GDALMixin):
             
         gdal_file = None
         return return_object
+
+class ValueGrid(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'))
+    
+    def set_value_at_indexes(self, indexes, value):
+        ij = zip(*indexes)
+        self._griddata[ij] = value
+        
     
 class FlowDirection(BaseSpatialGrid):
     pass
