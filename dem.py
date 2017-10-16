@@ -644,7 +644,7 @@ class BaseSpatialGrid(GDALMixin):
         v = list()
         for(row,col) in l:
             x = float64(col)*self._georef_info.dx + self._georef_info.xllcenter
-            y = (float64(self._georef_info.ny - 0.5) - float64(row))*self._georef_info.dx + self._georef_info.yllcenter
+            y = (float64(self._georef_info.ny - 1.0) - float64(row))*self._georef_info.dx + self._georef_info.yllcenter
             v.append((x,y))
         return tuple(v)
     
