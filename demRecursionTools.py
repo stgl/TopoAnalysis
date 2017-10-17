@@ -25,10 +25,10 @@ def extract_profile_values(ld_list, xo = 500.0, items = ()):
         this_list = list()
         for arg in items:
             this_list += [ld_list[arg]]
-        print(this_list)
         return_list.append(this_list)
         if ld_list.get('next', None) is not None:
-            return_list += extract_profile_values(ld_list['next'][0], xo = xo, items = items)
+            for next_list in ld_list['next']:
+                return_list += extract_profile_values(next_list, xo = xo, items = items)
     
     return return_list
 
