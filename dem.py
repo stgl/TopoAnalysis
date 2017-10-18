@@ -2157,8 +2157,10 @@ class Chi(BaseSpatialGrid):
         outlet_indexes = self._xy_to_rowscols(kwargs['outlets'])
         self.__occupied = np.zeros_like(area._griddata, dtype=int)
         outlet_number = 1
+        lmax = kwargs.get('maximum_length')
+        
         for outlet in outlet_indexes:
-            self.__recurse_chi(outlet, area, flow_direction, pixel_dimension, Ao, theta, 0, 1, kwargs.get('mask'))
+            self.__recurse_chi(outlet, area, flow_direction, pixel_dimension, Ao, theta, 0, 1, kwargs.get('mask'), 0.0, lmax = lmax)
             if kwargs.get('output_flag', False):
                 print('Outlet ' + str(outlet_number) + '/' + str(len(outlet_indexes)) + ' completed.')
             outlet_number += 1
@@ -2168,7 +2170,7 @@ class Chi(BaseSpatialGrid):
         except:
             pass
         
-    def __recurse_chi(self, v, area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask):
+    def __recurse_chi(self, v, area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = None):
         
         (i,j) = v
         
@@ -2180,7 +2182,12 @@ class Chi(BaseSpatialGrid):
         if self.__occupied[i,j] == 1:
             return
         
-        self._griddata[i,j] = chi + (Ao / area[i,j])**theta * pixel_dimension[i,j] * scale
+        l = l + pixel_dimension[i,j] * scale
+        
+        if lmax is not None and l >= lmax:
+            return
+        
+        self._griddata[i,j] = chi + (Ao / area[i,j])**theta * l
         self.__occupied[i,j] = 1;
         chi = self._griddata[i,j]
         
@@ -2188,56 +2195,56 @@ class Chi(BaseSpatialGrid):
         try:
             if flow_direction[i, j+1] == 16:
                 scale = 1.0
-                self.__recurse_chi((i, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
+                self.__recurse_chi((i, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = lmax)
         except:
             pass
         
         try:
             if flow_direction[i+1, j+1] == 32:
                 scale = 1.414
-                self.__recurse_chi((i+1, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
+                self.__recurse_chi((i+1, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = lmax)
         except:
             pass
         
         try:                
             if flow_direction[i+1, j] == 64:
                 scale = 1.0
-                self.__recurse_chi((i+1, j), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
+                self.__recurse_chi((i+1, j), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = lmax)
         except:
             pass
         
         try:
             if flow_direction[i+1, j-1] == 128:
                 scale = 1.414
-                self.__recurse_chi((i+1, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
+                self.__recurse_chi((i+1, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = lmax)
         except:
             pass
         
         try:        
             if flow_direction[i, j-1] == 1:
                 scale = 1.0
-                self.__recurse_chi((i, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
+                self.__recurse_chi((i, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = lmax)
         except:
             pass
         
         try: 
             if flow_direction[i-1, j-1] == 2:
                 scale = 1.414
-                self.__recurse_chi((i-1, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
+                self.__recurse_chi((i-1, j-1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = lmax)
         except:
             pass
         
         try:    
             if flow_direction[i-1, j] == 4:
                 scale = 1.0
-                self.__recurse_chi((i-1, j), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
+                self.__recurse_chi((i-1, j), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = lmax)
         except:
             pass
         
         try:    
             if flow_direction[i-1, j+1] == 8:
                 scale = 1.414
-                self.__recurse_chi((i-1, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask)
+                self.__recurse_chi((i-1, j+1), area, flow_direction, pixel_dimension, Ao, theta, chi, scale, mask, l, lmax = lmax)
         except:
             pass  
 

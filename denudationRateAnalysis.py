@@ -192,7 +192,7 @@ def calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = 250000, mask = None, 
         ksi_values, relief_values = extract_all_ksi_relief_values_for_position(position, d8, area, ksi, relief, Ao, mask, A_cutoff=A_cutoff)
         from matplotlib import pyplot as plt
         try:
-            best_fit, residuals, rank, s = best_ksn(ksi_values, relief_values, xo)
+            best_fit, residuals, rank, s = best_chi_ksn(ksi_values, relief_values, xo)
             best_ks = best_fit[0] 
             model_residuals = residuals[0] 
             relief_array = np.array(relief_values)
