@@ -1198,7 +1198,51 @@ class FlowDirectionD8(FlowDirection):
             if lat < bounds[1][0] or bounds[1][0] is None:
                 bounds[1][0] = lat
         return ((bounds[0][0], bounds[0][1]), (bounds[1][0], bounds[1][1]))
+    
+    def divides(self):
+        
+        divides = BaseSpatialGrid()
+        divides._copy_info_from_grid(self, True)
+        
+        ip1j = self._griddata[2:-1,1:-2]
+        im1j = self._griddata[0:-3,1:-2]
+        ijp1 = self._griddata[1:-2,2:-1]
+        ijm1 = self._griddata[1:-2,0:-3]
+        
+        ip1jp1 = self._griddata[2:-1, 2:-1]
+        ip1jm1 = self._griddata[2:-1, 0:-3]
+        im1jp1 = self._griddata[0:-3, 2:-1]
+        im1jm1 = self._griddata[0:-3, 0:-3]
+        
+        divides._griddata[1:-2,1:-2] = ((ijm1 != 1) & (im1jm1 != 2) & (im1j != 4) & (im1jp1 != 8) & (ijp1 != 16) & (ip1jp1 != 32) & (ip1j != 64) & (ip1jm1 != 128))
+        return divides
+    
+    def paired_divides(self, mask = None):
+        
+        divides = self.divides()
+        if mask is not None:
+            i = np.where((divides._griddata == 1) & (mask._griddata > 0))
+        else:
+            i = np.where(divides._griddata == 1)
+
+        rcs = zip(i[0].tolist(),i[1].tolist())
+        
+        pairs = list()
+        for (i,j) in rcs:
             
+            (i_next, j_next, good) = self.get_flow_to_cell(i,j)
+            
+            if good and i_next is not None and j_next is not None:
+                i_next = 2*i - i_next
+                j_next = 2*j - j_next
+                
+                if i_next >= 0 and i_next < self._georef_info.ny and j_next >= 0 and j_next < self._georef_info.nx:
+                    (xy, ) = self._rowscols_to_xy(((i,j),))
+                    (xy_next, ) = self._rowscols_to_xy(((i_next, j_next),))
+                    pairs.append( (xy, xy_next))
+                
+        return tuple(pairs)
+                
 class Elevation(CalculationMixin, BaseSpatialGrid):
 
     def findDEMedge(self):
@@ -1214,6 +1258,26 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
         edges = dilated - original
         
         return np.where(edges)
+    
+    def outlets_at_coastlines(self):
+        
+        import scipy.ndimage.morphology as morph
+        
+        mask1 = BaseSpatialGrid()
+        mask2 = BaseSpatialGrid()
+        mask3 = BaseSpatialGrid()
+        mask1._copy_info_from_grid(self, True)
+        mask1.dtype = np.uint8
+        mask1._griddata = mask1._griddata.astype(np.uint8)
+        mask1._griddata[(self._griddata > 0)] = 1
+        mask2._copy_info_from_grid(mask1, False)
+        mask3._copy_info_from_grid(mask1, False)
+        mask2._griddata = morph.binary_dilation(mask2._griddata, iterations = 3).astype(uint8)
+        mask3._griddata = morph.binary_erosion(mask3._griddata, iterations = 3).astype(uint8)
+        mask3._griddata = (mask3._griddata.astype(float) + mask2._griddata.astype(float)).astype(uint8)
+        i = np.where(mask3._griddata == 1)
+        rc = zip(i[0].tolist(),i[1].tolist())
+        return self._rowscols_to_xy(rc)
         
 class Mask(BaseSpatialGrid):
     
@@ -2250,6 +2314,57 @@ class Chi(BaseSpatialGrid):
 
 class GeographicChi(GeographicGridMixin, Chi):
     pass
+
+
+class CrossDivideDChi(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('chi','flow_direction'), '_create_from_inputs'))
+    
+    def _create_from_inputs(self, *args, **kwargs):
+        self._copy_info_from_grid(kwargs['flow_direction'], True)
+        paired_divides = kwargs['flow_direction'].paired_divides()
+        divide_columns = zip(*paired_divides)
+        from_point = divide_columns[0]
+        to_point = divide_columns[1]
+        
+        from_idx = self._xy_to_rowscols(from_point)
+        to_idx = self._xy_to_rowscols(to_point)
+        
+        from_idx_column = zip(*from_idx)
+        to_idx_column = zip(*to_idx)
+        
+        self._griddata[from_idx_column[0],from_idx_column[1]] = np.abs(kwargs['chi']._griddata[to_idx_column[0],to_idx_column[1]] - kwargs['chi']._griddata[from_idx_column[0],to_idx_column[1]])
+                
+class NormalizedCrossDivideDChi(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('chi','flow_direction'), '_create_from_inputs'))
+    
+    def _create_from_inputs(self, *args, **kwargs):
+        self._copy_info_from_grid(kwargs['flow_direction'], True)
+        paired_divides = kwargs['flow_direction'].paired_divides(mask = kwargs['chi'])
+        divide_columns = zip(*paired_divides)
+        from_point = divide_columns[0]
+        to_point = divide_columns[1]
+        
+        from_idx = self._xy_to_rowscols(from_point)
+        to_idx = self._xy_to_rowscols(to_point)
+        
+        from_idx_column = zip(*from_idx)
+        to_idx_column = zip(*to_idx)
+        
+        minchi = np.minimum(kwargs['chi']._griddata[to_idx_column[0],to_idx_column[1]], kwargs['chi']._griddata[from_idx_column[0],from_idx_column[1]])
+        maxchi = np.maximum(kwargs['chi']._griddata[to_idx_column[0],to_idx_column[1]], kwargs['chi']._griddata[from_idx_column[0],from_idx_column[1]])
+        
+        rangechi = maxchi - minchi
+        meanchi = (maxchi + minchi) / 2
+        
+        self._griddata[from_idx_column[0],from_idx_column[1]] = rangechi / meanchi
 
          
 class Deflection(BaseSpatialGrid):
