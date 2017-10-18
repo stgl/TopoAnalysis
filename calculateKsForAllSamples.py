@@ -1,3 +1,5 @@
+#! /usr/bin/env python2.6
+
 import denudationRateAnalysis as dra
 import dem as d
 import numpy as np

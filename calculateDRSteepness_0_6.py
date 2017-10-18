@@ -1,4 +1,7 @@
-#! /usr/bin/env python2.7
+#! /usr/bin/env python2.6
+
+import matplotlib
+matplotlib.use('Agg')
 
 import denudationRateAnalysis as dra
 import numpy as np
