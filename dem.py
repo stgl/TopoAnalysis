@@ -859,6 +859,11 @@ class BaseSpatialGrid(GDALMixin):
             snap_idxs.append((i,j))
         return self._rowscols_to_xy(snap_idxs)
     
+    def export_arc_e00_grid(self, filename):
+
+        self._create_gdal_representation_from_array(self._georef_info, 'E00GRID', self._griddata, self.dtype, filename)
+
+        
     def save(self, filename):
         
         self._create_gdal_representation_from_array(self._georef_info, 'GTiff', self._griddata, self.dtype, filename, ['COMPRESS=LZW'])
