@@ -126,7 +126,10 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
         chi = d.GeographicChi(area = area, flow_direction = d8, theta = theta, Ao = Ao, outlets = (locations_snap[0],))
         scaled_relief = d.ChiScaledRelief(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = (locations_snap[0],)) 
         first_element = True
-            
+           
+        print('Ao=')
+        print(Ao)
+ 
         for (lon, lat), areas_m, counter_v, areas_dem, sample_fraction_difference in zip(locations_snap, areas_for_valid_points, counter, dem_derived_areas, fraction_difference):
             if first_element:
                 first_element = False
