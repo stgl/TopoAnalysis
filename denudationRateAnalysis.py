@@ -135,7 +135,7 @@ def calculate_ksn_for_data(data, Ao = 250000, theta = 0.5):
                 scaled_relief._create_from_inputs(elevation = elevation, flow_direction = d8, theta = theta, Ao = Ao, outlets = ((lon, lat),)) 
             chi_vec, scaled_relief_vec, a_calc = find_ksi_scaled_relief(lat, lon, area, chi, scaled_relief, d8, area_m, pixel_radius)
             if chi_vec is not None and sample_fraction_difference < reject_fraction:
-                best_fit, residuals, rank, s = best_ksn(chi_vec, scaled_relief_vec)
+                best_fit, residuals, rank, s = best_chi_ksn(chi_vec, scaled_relief_vec)
                 best_ks = best_fit[0]
                 ksn_vec[counter_v] = best_ks
                 a_calc_vec[counter_v] = a_calc
