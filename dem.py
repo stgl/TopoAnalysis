@@ -871,11 +871,23 @@ class BaseSpatialGrid(GDALMixin):
     def write_to_ai(self, filename):
         self._writeArcAsciiRaster(self._georef_info, filename, self._griddata, np.NAN, '%10.2f')
     
+    def vectorize(self, filename):
+        self.save('temp_grid')
+        gdal_dataset = gdal.Open('temp_grid')
+        srcband = gdal_dataset.GetRasterBand(1)
+        
+        dst_layername = filename
+        drv = ogr.GetDriverByName("ESRI Shapefile")
+        dst_ds = drv.CreateDataSource( dst_layername + ".shp" )
+        dst_layer = dst_ds.CreateLayer(dst_layername, srs = None )
+
+        gdal.Polygonize( srcband, None, dst_layer, -1, [], callback=None )
+        os.remove('temp_grid')
+        
     @classmethod
     def load(cls, filename):
         
         return_object = cls()
-        
         gdal_dataset = gdal.Open(filename)
         band = gdal_dataset.GetRasterBand(1)
         nodata = band.GetNoDataValue()
