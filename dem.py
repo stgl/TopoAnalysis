@@ -2246,12 +2246,13 @@ class Chi(BaseSpatialGrid):
         if self.__occupied[i,j] == 1:
             return
         
-        l = l + pixel_dimension[i,j] * scale
+        dl = pixel_dimension[i,j] * scale
+        l = l + dl
         
         if lmax is not None and l >= lmax:
             return
         
-        self._griddata[i,j] = chi + (Ao / area[i,j])**theta * l
+        self._griddata[i,j] = chi + (Ao / area[i,j])**theta * dl
         self.__occupied[i,j] = 1;
         chi = self._griddata[i,j]
         
