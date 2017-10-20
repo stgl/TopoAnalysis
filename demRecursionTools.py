@@ -51,6 +51,11 @@ def best_ks_with_wrss_list(ld_list, de, theta, xo = 500):
     
     return (m, WRSS)
 
+def best_ks_with_r2_list(ld_list, de, theta, xo = 500):
+    (ks, WRSS) = best_ks_with_wrss_list(ld_list, de, theta, xo =xo)
+    SS = uninformative_SS_list(ld_list, de, xo)
+    return (ks, 1 - (WRSS / SS))
+    
 def uninformative_SS_list(ld_list, de, xo = 500):
     
     e, c = chi_elevation(ld_list, de, [0.5], xo=xo)

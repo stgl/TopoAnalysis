@@ -2354,7 +2354,10 @@ class CrossDivideDChi(BaseSpatialGrid):
         from_idx_column = zip(*from_idx)
         to_idx_column = zip(*to_idx)
         
-        self._griddata[from_idx_column[0],from_idx_column[1]] = np.abs(kwargs['chi']._griddata[to_idx_column[0],to_idx_column[1]] - kwargs['chi']._griddata[from_idx_column[0],to_idx_column[1]])
+        minchi = np.minimum(kwargs['chi']._griddata[to_idx_column[0],to_idx_column[1]], kwargs['chi']._griddata[from_idx_column[0],from_idx_column[1]])
+        maxchi = np.maximum(kwargs['chi']._griddata[to_idx_column[0],to_idx_column[1]], kwargs['chi']._griddata[from_idx_column[0],from_idx_column[1]])
+        
+        self._griddata[from_idx_column[0],from_idx_column[1]] = (maxchi - minchi) * (minchi != 0).astype(float)
                 
 class NormalizedCrossDivideDChi(BaseSpatialGrid):
     
@@ -2379,7 +2382,7 @@ class NormalizedCrossDivideDChi(BaseSpatialGrid):
         minchi = np.minimum(kwargs['chi']._griddata[to_idx_column[0],to_idx_column[1]], kwargs['chi']._griddata[from_idx_column[0],from_idx_column[1]])
         maxchi = np.maximum(kwargs['chi']._griddata[to_idx_column[0],to_idx_column[1]], kwargs['chi']._griddata[from_idx_column[0],from_idx_column[1]])
         
-        rangechi = maxchi - minchi
+        rangechi = (maxchi - minchi) * (minchi != 0).astype(float)
         meanchi = (maxchi + minchi) / 2
         
         self._griddata[from_idx_column[0],from_idx_column[1]] = rangechi / meanchi
