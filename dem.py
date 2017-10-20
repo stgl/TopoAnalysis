@@ -872,8 +872,11 @@ class BaseSpatialGrid(GDALMixin):
         self._writeArcAsciiRaster(self._georef_info, filename, self._griddata, np.NAN, '%10.2f')
     
     def vectorize(self, filename):
-        self.save('temp_grid')
-        gdal_dataset = gdal.Open('temp_grid')
+        
+        import uuid
+        tmpfilename = str(uuid.uuid4())
+        self.save(tmpfilename)
+        gdal_dataset = gdal.Open(tmpfilename)
         srcband = gdal_dataset.GetRasterBand(1)
         
         dst_layername = filename
@@ -882,7 +885,7 @@ class BaseSpatialGrid(GDALMixin):
         dst_layer = dst_ds.CreateLayer(dst_layername, srs = None )
 
         gdal.Polygonize( srcband, None, dst_layer, -1, [], callback=None )
-        os.remove('temp_grid')
+        os.remove(tmpfilename)
         
     @classmethod
     def load(cls, filename):
