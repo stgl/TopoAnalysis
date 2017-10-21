@@ -883,8 +883,9 @@ class BaseSpatialGrid(GDALMixin):
         drv = ogr.GetDriverByName("ESRI Shapefile")
         dst_ds = drv.CreateDataSource( dst_layername + ".shp" )
         dst_layer = dst_ds.CreateLayer(dst_layername, srs = None )
-
-        gdal.Polygonize( srcband, None, dst_layer, -1, [], callback=None )
+        newField = ogr.FieldDefn('RASTER_VAL', ogr.OFTReal)
+        dst_layer.CreateField(newField)
+        gdal.Polygonize( srcband, None, dst_layer, 0, [], callback=None )
         os.remove(tmpfilename)
         
     @classmethod
