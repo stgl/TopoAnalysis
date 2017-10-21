@@ -62,17 +62,20 @@ def uninformative_SS_list(ld_list, de, xo = 500):
     mean_elevation = np.mean(e)
     return np.sum(np.power(e-mean_elevation, 2))
 
-def best_ks_and_theta_with_wrss_list(ld_list, de, xo = 500):
+def best_ks_and_theta_with_wrss_list(ld_list, de, xo = 500, maxiter = 100, maxfun = 200):
     
     import scipy.optimize
     chi_ks = lambda theta: best_ks_with_wrss_list(ld_list, de, theta, xo=xo)[1]
     if len(chi_ks([0.5])) == 0:
         return (0, 0, 0)
-    xopt = scipy.optimize.fmin(func=chi_ks, x0=np.array([0.5]))
+    (xopt, funval, iter, funcalls, warnflag) = scipy.optimize.fmin(func=chi_ks, x0=np.array([0.5]), maxiter = maxiter, maxfun = maxfun)
     (m, WRSS) = best_ks_with_wrss_list(ld_list, de, [xopt[0]], xo)
     SS = uninformative_SS_list(ld_list, de, xo)
     
-    return (m, xopt[0], 1 - (WRSS / SS))
+    R2 = 1 - (WRSS / SS)
+    if warnflag == 1 or warnflag == 2:
+        R2 = 0.0
+    return (m, xopt[0], R2)
     
 def best_ks_and_theta_with_wrss(elevation, flow_direction_or_length, area, outlet, xo = 500):
     
