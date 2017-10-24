@@ -68,7 +68,7 @@ def best_ks_and_theta_with_wrss_list(ld_list, de, xo = 500, maxiter = 100, maxfu
     chi_ks = lambda theta: best_ks_with_wrss_list(ld_list, de, theta, xo=xo)[1]
     if len(chi_ks([0.5])) == 0:
         return (0, 0, 0)
-    (xopt, funval, iter, funcalls, warnflag) = scipy.optimize.fmin(func=chi_ks, x0=np.array([0.5]), maxiter = maxiter, maxfun = maxfun)
+    (xopt, funval, funcalls, gradcalls, warnflag) = scipy.optimize.fmin_bfgs(chi_ks, np.array([0.5]), None, (), 1E-5, np.inf, 1.4901161193847656e-08, 100, True, True, 0, None)
     (m, WRSS) = best_ks_with_wrss_list(ld_list, de, [xopt[0]], xo)
     SS = uninformative_SS_list(ld_list, de, xo)
     
