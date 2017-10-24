@@ -4,9 +4,8 @@ import matplotlib
 matplotlib.use('Agg')
 import denudationRateAnalysis as dra
 
-portenga_data = dra.read_csv('portengadata.csv')
-del(portenga_data[0])
-
+portenga_data = dra.read_csv('portenga_filtered_steepness.csv')
+ 
 dr = [r[3] for r in portenga_data]
 dr_sig = [r[4] for r in portenga_data]
 

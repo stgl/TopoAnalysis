@@ -1594,6 +1594,40 @@ class Area(BaseSpatialGrid):
 class GeographicArea(GeographicGridMixin, Area):
     pass
 
+class DiscreteFlowAccumulation(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('elevation', 'outlets'), '_create_from_elevation_outlets'))
+    
+    def _create_from_elevation_outlets(self, *args, **kwargs):
+        
+        elevation = kwargs['elevation']
+        self._copy_info_from_grid(elevation, True)
+        adjust = [(-1, -1), (0, -1), (1,-1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
+        
+        for outlet in kwargs['outlets']:
+            (ij, ) = elevation._xy_to_rowscols((outlet,))
+            ij_a = [(ij[0] - x[0], ij[1] - x[1]) for x in adjust]
+            e_a = [elevation._griddata[i[0], i[1]] for i in ij_a]
+            while None not in e_a:
+                self._gridata[ij[0], ij[1]] += self._area_per_pixel()[ij[0], ij[1]]
+                next_adj = e_a.index(min(e_a))
+                ij = (ij[0] + adjust[next_adj][0], ij[1] + adjust[next_adj][1])
+                ij_a = [(ij[0] - x[0], ij[1] - x[1]) for x in adjust]
+                e_a = [elevation._griddata[i[0], i[1]] for i in ij_a]    
+    
+
+    def _area_per_pixel(self, *args, **kwargs):
+        return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
+
+    def _mean_pixel_dimension(self, *args, **kwargs):
+        return self._georef_info.dx * np.ones_like(kwargs['elevation']._griddata, self.dtype)
+
+class GeographicDiscreteFlowAccumulation(GeographicGridMixin, DiscreteFlowAccumulation):    
+    pass
+    
 class FlowLength(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
