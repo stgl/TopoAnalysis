@@ -1299,6 +1299,28 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
         i = np.where(mask3._griddata == 1)
         rc = zip(i[0].tolist(),i[1].tolist())
         return self._rowscols_to_xy(rc)
+
+class LocalRelief(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('elevation','pixel_radius'), '_create_from_elevation_and_radius'))
+    
+    def _create_from_elevation_and_radius(self, *args, **kwargs):
+        elevation = kwargs['elevation']
+        pixel_radius = kwargs['pixel_radius']
+        self._copy_info_from_grid(elevation,True)
+        nx = self._georef_info.nx
+        ny = self._georef_info.ny
+        for i in range(0, ny):
+            for j in range(0, nx):
+                d_kernel = [[ik, jk] for ik in range(i-pixel_radius, i+pixel_radius) if ((ik < ny) & (ik >= 0)) for jk in range(j-pixel_radius, j+pixel_radius) if ((jk < nx) & (jk >= 0) & (np.sqrt((float(jk) - float(j))**2 + (float(ik) - float(i))**2) <= pixel_radius))]
+                d = np.array(zip(*d_kernel))
+                
+                self._griddata[i,j] = np.nanmax(elevation._griddata[d[0],d[1]]) - np.nanmin(elevation._griddata[d[0],d[1]])
+            if kwargs.get('display_status') is True:
+                print('row ' + str(i) + ' / ' + str(ny))    
         
 class Mask(BaseSpatialGrid):
     
