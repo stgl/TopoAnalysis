@@ -24,8 +24,9 @@ ks['0.6'] = [np.float64(r[14].replace('[','').replace(']','')) for r in portenga
 r2['0.6'] = [np.float64(r[15].replace('[','').replace(']','')) for r in portenga_data]
 
 
-
 keys = ['0.4', '0.5', '0.6']
+
+maxks = 0
 
 for key in keys:
     
@@ -36,18 +37,21 @@ for key in keys:
         s = np.array(s)
         k = np.array(k)
         r = np.array(r)
-         
-        i = np.where(r >= 0.9)
-        plt.loglog((m[i]-s[i], m[i]+s[i]), (k[i],k[i]), 'k-')
-        plt.loglog(m[i],k[i],'k.') 
+
+	if key == '0.4' and k > maxks:
+		maxks = k
+
+        if r >= 0.9:
+		plt.loglog((m-s, m+s), (k,k), 'k-')
+        	plt.loglog(m,k,'k.') 
         
-        i = np.where((r < 0.9) & (r >= 0.7))
-        plt.loglog((m[i]-s[i], m[i]+s[i]), (k[i],k[i]), 'b-')
-        plt.loglog(m[i],k[i],'b.')
+        if (r < 0.9) & (r >= 0.7):
+		plt.loglog((m-s, m+s), (k,k), 'b-')
+        	plt.loglog(m,k,'b.')
         
-        i = np.where(r < 0.7)
-        plt.loglog((m[i]-s[i], m[i]+s[i]), (k[i],k[i]), 'r-')
-        plt.loglog(m[i],k[i],'r.')
+        if r < 0.7:
+        	plt.loglog((m-s, m+s), (k,k), 'r-')
+        	plt.loglog(m,k,'r.')
     
     if key == '0.4':
         dra.plot_stock_and_montgomery()
@@ -57,4 +61,6 @@ for key in keys:
 
     plt.grid()
     plt.savefig('dr_steepness_' + key.replace('.','_') + '.eps')
+
+print(maxks)
     
