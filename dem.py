@@ -1443,15 +1443,16 @@ class PriorityQueueMixIn(object):
         closed = np.zeros_like(self._griddata)
         #using_mask = False
                 
-        if kwargs.get('mask') is not None and kwargs.get('outlets') is not None:
+        if kwargs.get('mask') is not None:
             closed = (kwargs.get('mask')._griddata != 1).astype(int)
+        if kwargs.get('outlets') is not None:
             v = self._xy_to_rowscols(kwargs.get('outlets'))
             #using_mask = True
             edgeRows = [a[0] for a in v]
             edgeCols = [a[1] for a in v]
-            if kwargs.get('randomize') is True:
-                self._randomize_grid_values(mask = kwargs['mask'])
-        else:
+        if kwargs.get('randomize') is True:
+            self._randomize_grid_values(mask = kwargs['mask'])
+        if kwargs.get('outlets') is None:
             #Add all the edge cells to the priority queue, mark those cells as draining (not closed)
             edgeRows, edgeCols = self.findDEMedge()
         
@@ -1462,7 +1463,8 @@ class PriorityQueueMixIn(object):
                 should_randomize_priority_queue = True
                 
         priority_queue = FilledElevation.priorityQueue() # priority queue to sort filling operation
-            
+        print(len(edgeRows))
+        
         for i in range(len(edgeCols)):
             row, col = edgeRows[i], edgeCols[i]
     
@@ -1471,7 +1473,7 @@ class PriorityQueueMixIn(object):
     
         if kwargs.get('binary_result') is True or kwargs.get('clip_to_fill') is True:
             visited = np.zeros_like(self._griddata, dtype = np.float)
-            
+                
         #While there is anything left in the priority queue, continue to fill holes
         while not priority_queue.isEmpty():
                         
@@ -1513,10 +1515,13 @@ class PriorityQueueMixIn(object):
                     else:
                         if should_fill:
                             priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
+            
         if kwargs.get('binary_result'):
             self._griddata = visited
         if kwargs.get('clip_to_fill') is True:
             self._griddata[visited == 0] = np.NAN
+            
+        
             
 class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
     
@@ -1615,8 +1620,21 @@ class DiscreteFlowAccumulation(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
-                                   (('elevation', 'outlets'), '_create_from_elevation_outlets'))
+                                   (('elevation', 'outlets'), '_create_from_elevation_outlets'),
+                                   (('elevation', ), '_create_from_elevation'),)
     
+    def _create_from_elevation(self, *args, **kwargs):
+        elevation = Elevation()
+        elevation._copy_info_from_grid(kwargs['elevation'])
+        if kwargs.get('mask') is not None:
+            i = np.where(kwargs['mask']._griddata != 1)
+            elevation._griddata[i] = np.NaN
+        kwargs['elevation'] = elevation
+        i = np.where(~np.isnan(elevation._griddata))
+        rcs = zip(i[0].tolist(),i[1].tolist())
+        kwargs['outlets'] = elevation._rowscols_to_xy(rcs)
+        self._create_from_elevation_outlets(*args, **kwargs)
+        
     def _create_from_elevation_outlets(self, *args, **kwargs):
         
         elevation = kwargs['elevation']
@@ -1635,6 +1653,7 @@ class DiscreteFlowAccumulation(BaseSpatialGrid):
             e_a = np.array([elevation[i[0], i[1]] for i in ij_a])
             new = True
             while None not in e_a and np.sum(np.isnan(e_a)) == 0 and new:
+                self._griddata[ij[0], ij[1]] += self._area_per_pixel()[ij[0], ij[1]]
                 sls = np.argsort(e_a)
                 new = False
                 for sl in sls:
@@ -1647,7 +1666,7 @@ class DiscreteFlowAccumulation(BaseSpatialGrid):
                 if new:
                     ij_a = [(ij[0] + x[0], ij[1] + x[1]) for x in adjust]
                     e_a = np.array([elevation[i[0], i[1]] for i in ij_a]) 
-            self._griddata[ij[0], ij[1]] += 1
+                    
 
     def _area_per_pixel(self, *args, **kwargs):
         return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
