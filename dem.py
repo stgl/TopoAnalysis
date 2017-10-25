@@ -1477,7 +1477,7 @@ class PriorityQueueMixIn(object):
                         
             priority, (row, col) = priority_queue.get()
             
-            if kwargs.get('binary_result') is True:
+            if kwargs.get('binary_result') is True or kwargs.get('clip_to_fill') is True:
                 visited[row, col] = 1.0
             
             elevation = self[row,col]
@@ -1516,7 +1516,7 @@ class PriorityQueueMixIn(object):
         if kwargs.get('binary_result'):
             self._griddata = visited
         if kwargs.get('clip_to_fill') is True:
-            self._griddata[closed == 1] = np.NAN
+            self._griddata[visited == 0] = np.NAN
             
 class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
     
