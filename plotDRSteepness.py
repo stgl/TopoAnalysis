@@ -3,6 +3,8 @@
 import matplotlib
 matplotlib.use('Agg')
 import denudationRateAnalysis as dra
+from matplotlib import pyplot as plt
+import numpy as np
 
 portenga_data = dra.read_csv('portenga_filtered_steepness.csv')
  
@@ -12,17 +14,16 @@ dr_sig = [r[4] for r in portenga_data]
 ks = dict()
 r2 = dict()
 
-ks['0.4'] = [r[10][0] for r in portenga_data]
-r2['0.4'] = [r[11][0] for r in portenga_data]
+ks['0.4'] = [np.float64(r[10].replace('[','').replace(']','')) for r in portenga_data]
+r2['0.4'] = [np.float64(r[11].replace('[','').replace(']','')) for r in portenga_data]
 
-ks['0.5'] = [r[12][0] for r in portenga_data]
-r2['0.5'] = [r[13][0] for r in portenga_data]
+ks['0.5'] = [np.float64(r[12].replace('[','').replace(']','')) for r in portenga_data]
+r2['0.5'] = [np.float64(r[13].replace('[','').replace(']','')) for r in portenga_data]
 
-ks['0.6'] = [r[14][0] for r in portenga_data]
-r2['0.6'] = [r[15][0] for r in portenga_data]
+ks['0.6'] = [np.float64(r[14].replace('[','').replace(']','')) for r in portenga_data]
+r2['0.6'] = [np.float64(r[15].replace('[','').replace(']','')) for r in portenga_data]
 
-from matplotlib import pyplot as plt
-import numpy as np
+
 
 keys = ['0.4', '0.5', '0.6']
 
