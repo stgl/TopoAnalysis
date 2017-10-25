@@ -9,28 +9,51 @@ portenga_data = dra.read_csv('portenga_filtered_steepness.csv')
 dr = [r[3] for r in portenga_data]
 dr_sig = [r[4] for r in portenga_data]
 
+ks = dict()
+r2 = dict()
+
+ks['0.4'] = [r[9] for r in portenga_data]
+r2['0.4'] = [r[10] for r in portenga_data]
+
+ks['0.5'] = [r[11] for r in portenga_data]
+r2['0.5'] = [r[12] for r in portenga_data]
+
+ks['0.6'] = [r[13] for r in portenga_data]
+r2['0.6'] = [r[14] for r in portenga_data]
+
 from matplotlib import pyplot as plt
 import numpy as np
 
-suffixes = ['0_4', '0_5', '0_6']
+keys = ['0.4', '0.5', '0.6']
 
-for suffix in suffixes:
-    data = np.load('ks_area_data_' + suffix + '.npz')
-    ks = data['ksn_vec']
-    print(suffix)
-    print(np.max(ks))
-    print(np.max(np.float64(dr)/1000))
-    plt.figure()
-    for (m, s, k) in zip(np.float64(dr)/1000.0, np.float64(dr_sig)/1000.0, ks):
-        plt.loglog((m-s, m+s), (k,k), 'k-')
-        plt.loglog(m,k,'k.')    
+for key in keys:
     
-    if suffix == '0_4':
+    plt.figure()
+    for (m, s, k, r) in zip(np.float64(dr)/1000.0, np.float64(dr_sig)/1000.0, ks[key], r2[key]):
+        
+        m = np.array(m)
+        s = np.array(s)
+        k = np.array(k)
+        r = np.array(r)
+         
+        i = np.where(r >= 0.9)
+        plt.loglog((m[i]-s[i], m[i]+s[i]), (k[i],k[i]), 'k-')
+        plt.loglog(m[i],k[i],'k.') 
+        
+        i = np.where((r < 0.9) & (r >= 0.7))
+        plt.loglog((m[i]-s[i], m[i]+s[i]), (k[i],k[i]), 'b-')
+        plt.loglog(m[i],k[i],'b.')
+        
+        i = np.where(r < 0.7)
+        plt.loglog((m[i]-s[i], m[i]+s[i]), (k[i],k[i]), 'r-')
+        plt.loglog(m[i],k[i],'r.')
+    
+    if key == '0.4':
         dra.plot_stock_and_montgomery()
         
     plt.axis('image')
     plt.axis([1e-4,1e1,1e-1,1e4])
 
     plt.grid()
-    plt.savefig('dr_steepness_' + suffix + '.eps')
+    plt.savefig('dr_steepness_' + key.replace('.','_') + '.eps')
     

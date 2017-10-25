@@ -1488,19 +1488,35 @@ class PriorityQueueMixIn(object):
                 
             #Look through the upstream neighbors
             for i in range(len(neighborCols)):
+                should_fill = True
+                
                 if not closed[neighborRows[i], neighborCols[i]]:    
                     #If this was a hole (lower than the cell downstream), fill it
-                    if self._griddata[neighborRows[i], neighborCols[i]] <= elevation:                        
-                        self._griddata[neighborRows[i], neighborCols[i]] = elevation + self.aggradation_slope*dxs[i]
+                    if self._griddata[neighborRows[i], neighborCols[i]] <= elevation:
+                        
+                        
+                        
+                        if kwargs.get('maximum_pit_depth'):
+                            fill_depth = elevation - self._griddata[neighborRows[i], neighborCols[i]]
+                            if fill_depth > kwargs.get('maximum_pit_depth'):
+                                should_fill = False
+                        
+                        if should_fill:
+                            self._griddata[neighborRows[i], neighborCols[i]] = elevation + self.aggradation_slope*dxs[i]
     
                     closed[neighborRows[i], neighborCols[i]] = True
                     if should_randomize_priority_queue:
                         #if not using_mask or (using_mask and ~edge_of_mask_is_in_kernel):
-                        priority_queue.put(np.random.rand(1)[0], [neighborRows[i], neighborCols[i]])
+                        
+                        if should_fill:
+                            priority_queue.put(np.random.rand(1)[0], [neighborRows[i], neighborCols[i]])
                     else:
-                        priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
+                        if should_fill:
+                            priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
         if kwargs.get('binary_result'):
             self._griddata = visited
+        if kwargs.get('clip_to_fill') is True:
+            self._griddata[closed == 1] = np.NAN
             
 class PriorityFillGrid(PriorityQueueMixIn, BaseSpatialGrid):
     
@@ -1607,17 +1623,31 @@ class DiscreteFlowAccumulation(BaseSpatialGrid):
         self._copy_info_from_grid(elevation, True)
         adjust = [(-1, -1), (0, -1), (1,-1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
         
+        counter = 1
+        
         for outlet in kwargs['outlets']:
+            if kwargs.get('display_output') is True:
+                print('Evaluating outlet ' + str(counter) + ' / ' + str(len(kwargs['outlets'])))
+            counter += 1
             (ij, ) = elevation._xy_to_rowscols((outlet,))
-            ij_a = [(ij[0] - x[0], ij[1] - x[1]) for x in adjust]
-            e_a = [elevation._griddata[i[0], i[1]] for i in ij_a]
-            while None not in e_a:
-                self._gridata[ij[0], ij[1]] += self._area_per_pixel()[ij[0], ij[1]]
-                next_adj = e_a.index(min(e_a))
-                ij = (ij[0] + adjust[next_adj][0], ij[1] + adjust[next_adj][1])
-                ij_a = [(ij[0] - x[0], ij[1] - x[1]) for x in adjust]
-                e_a = [elevation._griddata[i[0], i[1]] for i in ij_a]    
-    
+            visited = (ij, )
+            ij_a = [(ij[0] + x[0], ij[1] + x[1]) for x in adjust]
+            e_a = np.array([elevation[i[0], i[1]] for i in ij_a])
+            new = True
+            while None not in e_a and np.sum(np.isnan(e_a)) == 0 and new:
+                sls = np.argsort(e_a)
+                new = False
+                for sl in sls:
+                    this_ij = (ij[0] + adjust[sl][0], ij[1] + adjust[sl][1])
+                    if this_ij not in visited:
+                        visited += (this_ij, )
+                        ij = this_ij
+                        new = True
+                        break
+                if new:
+                    ij_a = [(ij[0] + x[0], ij[1] + x[1]) for x in adjust]
+                    e_a = np.array([elevation[i[0], i[1]] for i in ij_a]) 
+            self._griddata[ij[0], ij[1]] += 1
 
     def _area_per_pixel(self, *args, **kwargs):
         return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
