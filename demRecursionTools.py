@@ -39,6 +39,8 @@ def chi_elevation(ld_list, de, theta, xo = 500.0):
     chi = []
     base_elevation = ld_list['elevation']
     e, c = extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, xo=xo)
+    print(e)
+    print(c)
     return np.array(e), np.array(c)
 
 def best_ks_with_wrss_list(ld_list, de, theta, xo = 500):
