@@ -12,14 +12,14 @@ dr_sig = [r[4] for r in portenga_data]
 ks = dict()
 r2 = dict()
 
-ks['0.4'] = [r[9] for r in portenga_data]
-r2['0.4'] = [r[10] for r in portenga_data]
+ks['0.4'] = [r[10][0] for r in portenga_data]
+r2['0.4'] = [r[11][0] for r in portenga_data]
 
-ks['0.5'] = [r[11] for r in portenga_data]
-r2['0.5'] = [r[12] for r in portenga_data]
+ks['0.5'] = [r[12][0] for r in portenga_data]
+r2['0.5'] = [r[13][0] for r in portenga_data]
 
-ks['0.6'] = [r[13] for r in portenga_data]
-r2['0.6'] = [r[14] for r in portenga_data]
+ks['0.6'] = [r[14][0] for r in portenga_data]
+r2['0.6'] = [r[15][0] for r in portenga_data]
 
 from matplotlib import pyplot as plt
 import numpy as np
