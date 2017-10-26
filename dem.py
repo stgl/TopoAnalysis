@@ -1311,16 +1311,15 @@ class LocalRelief(BaseSpatialGrid):
         elevation = kwargs['elevation']
         pixel_radius = kwargs['pixel_radius']
         self._copy_info_from_grid(elevation,True)
-        nx = self._georef_info.nx
-        ny = self._georef_info.ny
-        for i in range(0, ny):
-            for j in range(0, nx):
-                d_kernel = [[ik, jk] for ik in range(i-pixel_radius, i+pixel_radius) if ((ik < ny) & (ik >= 0)) for jk in range(j-pixel_radius, j+pixel_radius) if ((jk < nx) & (jk >= 0) & (np.sqrt((float(jk) - float(j))**2 + (float(ik) - float(i))**2) <= pixel_radius))]
-                d = np.array(zip(*d_kernel))
-                
-                self._griddata[i,j] = np.nanmax(elevation._griddata[d[0],d[1]]) - np.nanmin(elevation._griddata[d[0],d[1]])
-            if kwargs.get('display_status') is True:
-                print('row ' + str(i) + ' / ' + str(ny))    
+        
+        import scipy.ndimage.filters as filters
+        y,x = np.ogrid[-pixel_radius:pixel_radius, -pixel_radius:pixel_radius]
+        footprint = x*x + y*y <= pixel_radius*pixel_radius
+        maximum = np.zeros_like(elevation._griddata)
+        minimum = np.zeros_like(elevation._griddata)
+        filters.maximum_filter(elevation._griddata, footprint = footprint, output = maximum)
+        filters.minimum_filter(elevation._griddata, footprint = footprint, output = minimum)
+        self._griddata = maximum - minimum
         
 class Mask(BaseSpatialGrid):
     
@@ -1485,7 +1484,6 @@ class PriorityQueueMixIn(object):
                 should_randomize_priority_queue = True
                 
         priority_queue = FilledElevation.priorityQueue() # priority queue to sort filling operation
-        print(len(edgeRows))
         
         for i in range(len(edgeCols)):
             row, col = edgeRows[i], edgeCols[i]
