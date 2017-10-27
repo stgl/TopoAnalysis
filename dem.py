@@ -946,10 +946,43 @@ class FlowDirectionD8(FlowDirection):
         flooded_dem = kwargs['flooded_dem']
         self._copy_info_from_grid(flooded_dem)
         self._griddata = np.zeros_like(flooded_dem._griddata, dtype = self.dtype)
-        for i in range(self._georef_info.ny-1):
-            for j in range(self._georef_info.nx-1):
-                flow_code = self.__flow_code_for_position(flooded_dem, i, j)
-                self._griddata[i,j] = flow_code
+        
+        flooded_dem_ijp1 = -np.ones_like(flooded_dem._griddata) * 1E22
+        flooded_dem_ijp1[:,0:-2] = (flooded_dem._griddata[:,0:-2] - flooded_dem._griddata[:, 1:-1])
+        
+        flooded_dem_ip1jp1 = -np.ones_like(flooded_dem._griddata) * 1E22
+        flooded_dem_ip1jp1[0:-2,0:-2] = (flooded_dem._griddata[0:-2,0:-2] - flooded_dem._griddata[1:-1, 1:-1]) / 1.41
+        
+        flooded_dem_ip1j = -np.ones_like(flooded_dem._griddata) * 1E22
+        flooded_dem_ip1j[0:-2,:] = (flooded_dem._griddata[0:-2,:] - flooded_dem._griddata[1:-1, :])
+        
+        flooded_dem_ip1jm1 = -np.ones_like(flooded_dem._griddata) * 1E22
+        flooded_dem_ip1jm1[0:-2,1:-1] = (flooded_dem._griddata[0:-2,1:-1] - flooded_dem._griddata[1:-1, 0:-2]) / 1.41
+        
+        flooded_dem_ijm1 = -np.ones_like(flooded_dem._griddata) * 1E22
+        flooded_dem_ijm1[:,1:-1] = (flooded_dem._griddata[:,1:-1] - flooded_dem._griddata[:, 0:-2])
+        
+        flooded_dem_im1jm1 = -np.ones_like(flooded_dem._griddata) * 1E22
+        flooded_dem_im1jm1[1:-1,1:-1] = (flooded_dem._griddata[1:-1,1:-1] - flooded_dem._griddata[0:-2, 0:-2]) / 1.41
+        
+        flooded_dem_im1j = -np.ones_like(flooded_dem._griddata) * 1E22
+        flooded_dem_im1j[1:-1,:] = (flooded_dem._griddata[1:-1,:] - flooded_dem._griddata[0:-2, :])
+        
+        flooded_dem_im1jp1 = -np.ones_like(flooded_dem._griddata) * 1E22
+        flooded_dem_im1jp1[1:-1,0:-2] = (flooded_dem._griddata[1:-1,0:-2] - flooded_dem._griddata[0:-2, 1:-1])  / 1.41
+        
+        min_sl = np.fmax(np.fmax(np.fmax(np.fmax(np.fmax(np.fmax(np.fmax(flooded_dem_ijp1, flooded_dem_ip1jp1), flooded_dem_ip1j), flooded_dem_ip1jm1), flooded_dem_ijm1), flooded_dem_im1jm1), flooded_dem_im1j), flooded_dem_im1jp1)
+        
+        self._griddata[flooded_dem_ijp1 == min_sl] = 1
+        self._griddata[flooded_dem_ip1jp1 == min_sl] = 2
+        self._griddata[flooded_dem_ip1j == min_sl] = 4
+        self._griddata[flooded_dem_ip1jm1 == min_sl] = 8
+        self._griddata[flooded_dem_ijm1 == min_sl] = 16
+        self._griddata[flooded_dem_im1jm1 == min_sl] = 32
+        self._griddata[flooded_dem_im1j == min_sl] = 64
+        self._griddata[flooded_dem_im1jp1 == min_sl] = 128
+        
+        self._griddata[np.isnan(flooded_dem._griddata)] = 0
         
         mask = kwargs.get('mask')
         self._sort_indexes = flooded_dem.sort(reverse = False, force = True, mask = mask)
