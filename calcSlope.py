@@ -3,7 +3,7 @@ import numpy as np
 import scipy.ndimage.morphology as morph
 
 grid_name = 'gebco_bath_near'
-shelf_grid_name = 'gebco_bath_near_classified'
+shelf_grid_name = 'gebco_bath_near_shelf'
 
 slope_threshold_degrees = 1.0
 
@@ -34,5 +34,5 @@ slope._griddata[(dem._griddata >-50) & (np.isnan(dem._griddata))] = 0
 slope._griddata = morph.binary_fill_holes(slope._griddata)
                         
 
-slope.save(grid_name + '_slope_classified')
+slope.save(grid_name + '_slope')
 

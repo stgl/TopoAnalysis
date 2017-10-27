@@ -32,5 +32,5 @@ shelf = d.PriorityFillGrid(mask = mask, outlets = outlets)
 shelf._griddata = morph.binary_fill_holes(shelf._griddata)
         
 
-shelf.save(grid_name + '_classified')
+shelf.save(grid_name + '_shelf')
 
