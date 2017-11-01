@@ -22,14 +22,14 @@ def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base
 
 def extract_dA_elevation_values(ld_list):
   
-    all_elevation = list()
-    all_dA = list()
+    all_elevation = np.array(ld_list['elevation'])
+    all_dA = np.array(ld_list['dA'])
     
     if ld_list.get('next') is not None:
         for next_list in ld_list['next']:
             elevation, dA = extract_dA_elevation_values(next_list)
-            all_elevation += elevation
-            all_dA += dA
+            all_elevation = np.append(all_elevation,elevation)
+            all_dA = np.append(all_dA,dA)
     
     return all_elevation, all_dA  
 
@@ -38,7 +38,7 @@ def extract_profile_values(ld_list, xo = 500.0, items = ()):
     Ao = np.power(xo, 2.0)
     return_list = list()
     
-    if ld_list['area'] >= Ao:
+    if ld_list.get('area') is None or ld_list.get('area') >= Ao:
         this_list = list()
         for arg in items:
             this_list += [ld_list[arg]]
@@ -102,20 +102,21 @@ def best_ks_and_theta_with_wrss(elevation, flow_direction_or_length, area, outle
     return best_ks_and_theta_with_wrss_list(ld_list, de, xo = xo)
 
 def hi(elevation, flow_direction, dA, outlet):
-    
     ld_list = flow_direction.map_values_to_recursive_list(outlet, dA = dA, elevation = elevation)
+    return hi_list(ld_list)
+
+def hi_list(ld_list):
+    
     elevation, dA = extract_dA_elevation_values(ld_list)
-    
-    i = np.argsort(elevation)[::-1]
-    sort_elevation = elevation[i]
-    sort_dA = dA[i]
-    area = np.cumsum(sort_dA)
-    norm_area = area / np.maximum(area)
-    
-    norm_elevation = (sort_elevation - sort_elevation[:]) / (sort_elevation[0] - sort_elevation[:])
-    
-    dA_hi = norm_area[1:-1] - norm_area[0:-2]
-    return np.cumsum((norm_elevation[1:-1] + norm_elevation[0:-2]) / (2 * dA_hi))
+   
+    if np.nan in elevation:
+        return 0.0
+
+    mean_elevation = np.mean(elevation)
+    max_elevation = np.max(elevation)
+    min_elevation = np.min(elevation) 
+
+    return (mean_elevation - min_elevation) / (max_elevation - min_elevation) 
     
     
     
