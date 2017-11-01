@@ -1347,7 +1347,7 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
             new = False
             for sl in sls:
                 this_ij = (ij[0] + adjust[sl][0], ij[1] + adjust[sl][1])
-                if this_ij not in visited:
+                if (this_ij not in visited) and ( (e_a[sl] - self[ij[0], ij[1]]) <= maximum_pit_depth):
                     visited += (this_ij, )
                     ij = this_ij
                     new = True
