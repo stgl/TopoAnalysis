@@ -1332,6 +1332,43 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
         i = np.where(mask3._griddata == 1)
         rc = zip(i[0].tolist(),i[1].tolist())
         return self._rowscols_to_xy(rc)
+    
+    def track_flow_downhill(self, starting_point, maximum_pit_depth = 20):
+        
+        adjust = [(-1, -1), (0, -1), (1,-1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
+        
+        (ij, ) = self._xy_to_rowscols((starting_point,))
+        visited = (ij, )
+        ij_a = [(ij[0] + x[0], ij[1] + x[1]) for x in adjust]
+        e_a = np.array([self[i[0], i[1]] for i in ij_a])
+        new = True
+        while None not in e_a and np.sum(np.isnan(e_a)) == 0 and new:
+            sls = np.argsort(e_a)
+            new = False
+            for sl in sls:
+                this_ij = (ij[0] + adjust[sl][0], ij[1] + adjust[sl][1])
+                if this_ij not in visited:
+                    visited += (this_ij, )
+                    ij = this_ij
+                    new = True
+                    break
+            if new:
+                ij_a = [(ij[0] + x[0], ij[1] + x[1]) for x in adjust]
+                e_a = np.array([self[i[0], i[1]] for i in ij_a]) 
+        xy = self._rowscols_to_xy(visited)
+        this_xy = xy[0]
+        l = tuple()
+        e = tuple()
+        last_l = 0
+        for txy in xy:
+            (ij, ) = self._xy_to_rowscols((txy,))
+            e += (self[ij[0], ij[1]], )
+            this_dl = np.sqrt(np.power(txy[0] - this_xy[0], 2) + np.power(txy[1] - this_xy[1], 2))
+            last_l = last_l + this_dl
+            l += (last_l, )
+            this_xy = txy
+        return xy, l, e
+        
 
 class LocalRelief(BaseSpatialGrid):
     
