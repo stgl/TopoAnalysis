@@ -33,30 +33,18 @@ mask._griddata[i] = 1
 shelf = d.PriorityFillGrid(mask = mask, outlets = outlets)
 shelf._griddata = morph.binary_fill_holes(shelf._griddata)
         
-shelf.save(grid_name + '_shelf')
-
-
-
-threshold = 5*1E6
-
-mask = shelf
-
 mask2 = d.Mask()
-mask2._copy_info_from_grid(mask)
-mask2._griddata = mask2._griddata = morph.binary_dilation(mask._griddata).astype(np.float) + mask._griddata.astype(np.float)
+mask2._copy_info_from_grid(mask, True)
+i = np.where(~np.isnan(dem._griddata))
+mask2._griddata[i] = 1
+mask2._griddata = mask2._griddata = morph.binary_erosion(mask2._griddata).astype(np.float) + mask2._griddata.astype(np.float)
 mask2._griddata[mask2._griddata != 1] = 0  
-mask2._griddata[dem._griddata >= 0] = 0
+mask2._griddata[dem._griddata >= -400] = 0
 mask2._griddata[np.isnan(dem._griddata)] = 0
 
 i = np.where(mask2._griddata == 1)
 rc = zip(i[0].tolist(),i[1].tolist())
 outlets = dem._rowscols_to_xy(rc) 
-
-discrete_flow_terminations = d.GeographicDiscreteFlowAccumulation(elevation = dem, outlets = outlets, terminations_only = True, display_output = True)
-
-i = np.where(discrete_flow_terminations._griddata >= threshold)
-rc = zip(i[0].tolist(),i[1].tolist())
-outlets = dem._rowscols_to_xy(rc)
 
 i = np.where(shelf._griddata == 1)
 dem._griddata[i] = np.NaN
@@ -66,6 +54,7 @@ fd = d.FlowDirectionD8(flooded_dem = filled_dem)
 area = d.GeographicArea(flow_direction = fd)
 logarea = d.LogArea(area = area)
 
+shelf.save(grid_name + '_shelf')
 filled_dem.save(grid_name + '_filled')
 fd.save(grid_name + '_flow_direction')
 area.save(grid_name + '_area')
