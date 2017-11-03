@@ -6,10 +6,10 @@ import numpy as np
 
 prefix = 'ca'
 
-threshold = 5
+threshold = 5*1E6
 
-dem = d.Elevation.load(prefix + '_elevation')
-mask = d.Mask.load(prefix + '_mask')
+dem = d.Elevation.load(prefix + '_dem')
+mask = d.Mask.load(prefix + '_shelf')
 
 mask2 = d.Mask()
 mask2._copy_info_from_grid(mask)
@@ -22,7 +22,7 @@ i = np.where(mask2._griddata == 1)
 rc = zip(i[0].tolist(),i[1].tolist())
 outlets = dem._rowscols_to_xy(rc) 
 
-discrete_flow_terminations = d.GeographicDiscreteFlowAccumulation(elevation = dem, outlets = outlets)
+discrete_flow_terminations = d.GeographicDiscreteFlowAccumulation(elevation = dem, outlets = outlets, terminations_only = True, display_output = True)
 
 i = np.where(discrete_flow_terminations._griddata >= threshold)
 rc = zip(i[0].tolist(),i[1].tolist())

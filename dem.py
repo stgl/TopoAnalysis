@@ -1532,6 +1532,8 @@ class PriorityQueueMixIn(object):
         
         #Create a grid to keep track of which cells have been filled        
         closed = np.zeros_like(self._griddata)
+        i = np.where(np.isnan(self._griddata))
+        closed[i] = 1
         #using_mask = False
                 
         if kwargs.get('mask') is not None:
@@ -1687,11 +1689,14 @@ class Area(BaseSpatialGrid):
         area = self._area_per_pixel(*args, **kwargs)  # area of a pixel
         [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
         
+        has_mask = kwargs.get('mask') is not None
         import itertools
         
         for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
-            if is_good:
+            if is_good and not has_mask:
+                area[i_next, j_next] += area[i,j]
+            elif is_good and kwargs['mask'][i, j] is not None:
                 area[i_next, j_next] += area[i,j]
     
         self._griddata = area # Return non bc version of area
@@ -1740,10 +1745,13 @@ class DiscreteFlowAccumulation(BaseSpatialGrid):
             (ij, ) = elevation._xy_to_rowscols((outlet,))
             visited = (ij, )
             ij_a = [(ij[0] + x[0], ij[1] + x[1]) for x in adjust]
-            e_a = np.array([elevation[i[0], i[1]] for i in ij_a])
+            e_a = np.array([elevation[i[0], i[1]] if elevation[i[0], i[1]] is not None else np.NaN for i in ij_a])
             new = True
+            area = 0
             while None not in e_a and np.sum(np.isnan(e_a)) == 0 and new:
-                self._griddata[ij[0], ij[1]] += self._area_per_pixel()[ij[0], ij[1]]
+                area += self._area_per_pixel()[ij[0], ij[1]]
+                if kwargs.get('terminations_only') is not True:
+                    self._griddata[ij[0], ij[1]] = area
                 sls = np.argsort(e_a)
                 new = False
                 for sl in sls:
@@ -1755,8 +1763,9 @@ class DiscreteFlowAccumulation(BaseSpatialGrid):
                         break
                 if new:
                     ij_a = [(ij[0] + x[0], ij[1] + x[1]) for x in adjust]
-                    e_a = np.array([elevation[i[0], i[1]] for i in ij_a]) 
-                    
+                    e_a = np.array([elevation[i[0], i[1]] if elevation[i[0], i[1]] is not None else np.NaN for i in ij_a]) 
+            if kwargs.get('terminations_only') is True:
+                self._griddata[ij[0], ij[1]] = area  
 
     def _area_per_pixel(self, *args, **kwargs):
         return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))

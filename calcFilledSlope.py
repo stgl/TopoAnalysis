@@ -4,8 +4,11 @@ import scipy.ndimage.morphology as morph
 
 grid_name = 'ca_bath_near'
 slope_grid_name = 'ca_bath_near_slope'
+maximum_pit_depth = 200
+
 
 dem = d.Elevation.load(grid_name)
+'''
 slope_mask = d.Mask.load(slope_grid_name)
 
 base_of_slope_mask = d.Mask()
@@ -18,8 +21,9 @@ rc = zip(i[0].tolist(),i[1].tolist())
 outlets = base_of_slope_mask._rowscols_to_xy(rc)
 
 dem._griddata[slope_mask._griddata == 0] = np.NaN
+'''
 
-filled_dem = d.FilledElevation(elevation = dem, outlets = outlets, mask = slope_mask)
+filled_dem = d.FilledElevation(elevation = dem, outlets = outlets, display_output = True, maximum_pit_depth = maximum_pit_depth)
 fd = d.FlowDirectionD8(flooded_dem = filled_dem)
 area = d.GeographicArea(flow_direction = fd)
 
