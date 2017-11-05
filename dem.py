@@ -1192,30 +1192,26 @@ class FlowDirectionD8(FlowDirection):
         return self.get_indexes_of_upstream_cells(i, j)
         
     def search_down_flow_direction(self, start):
-    
         l = list()
-	((row, col),) = self._xy_to_rowscols((start,))
-        l.append((row,col))
-        while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1):
-            print(row)
-            print(col)
-  
-	    row,col,inBounds = self.get_flow_to_cell(row, col)
+        ((row,col),) = self._xy_to_rowscols((start,))
+        
+        while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1 or (row,col) in l):
+            l.append((row, col))
+            row,col,inBounds = self.get_flow_to_cell(row, col)
             if not inBounds:
                 break    
-            l.append((row, col))
+            
             
         return tuple(l)
     
     def search_down_flow_direction_from_xy_location(self, start):
         
-        (start_rc, ) = self._xy_to_rowscols((start, ))
-        rcs = self.search_down_flow_direction(start_rc)
+        rcs = self.search_down_flow_direction(start)
         return self._rowscols_to_xy(rcs)
 
     def convert_rivertools_directions_to_arc(self):
         # Function to convert river tools flow directions to arcGisFlowDirections
-          # ArcGIS convention
+        # ArcGIS convention
         # |i-1,j-1  i-1,j  i-1,j+1|  |32 64 128|
         # |i,j-1     i,j     i,j+1|  |16  X  1 |
         # |i+1,j-1  i+1,j  i+1,j+1|  |8   4  2 |
