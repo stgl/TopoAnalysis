@@ -1207,7 +1207,13 @@ class FlowDirectionD8(FlowDirection):
                 break    
             l.append((row, col))
             
-        return tuple()
+        return tuple(l)
+    
+    def search_down_flow_direction_from_xy_location(self, start):
+        
+        (start_rc, ) = self._xy_to_rowscols((start, ))
+        rcs = self.searchDownFlowDirection(start_rc)
+        return self._rowscols_to_xy(rcs)
 
     def convert_rivertools_directions_to_arc(self):
         # Function to convert river tools flow directions to arcGisFlowDirections
