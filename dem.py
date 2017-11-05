@@ -1194,7 +1194,7 @@ class FlowDirectionD8(FlowDirection):
     def searchDownFlowDirection(self, start):
     
         l = list()
-        (row, col) = self._xy_to_rowscols(start)
+        ((row, col),) = self._xy_to_rowscols(start,)
         l.append((row,col))
         #So long as we are not at the edge of the demMethods
         while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1):
