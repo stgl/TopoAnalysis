@@ -1191,18 +1191,16 @@ class FlowDirectionD8(FlowDirection):
         ((i, j),) = self._xy_to_rowscols(v)
         return self.get_indexes_of_upstream_cells(i, j)
         
-    def searchDownFlowDirection(self, start):
+    def search_down_flow_direction(self, start):
     
         l = list()
-        ((row, col),) = self._xy_to_rowscols(start,)
+	((row, col),) = self._xy_to_rowscols((start,))
         l.append((row,col))
-        #So long as we are not at the edge of the demMethods
         while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1):
-            # Get the neighbors in the flow direction corresponding order - note, I might be in danger the way I handle this...
-            # Flow directions are indices of arrays which may be different sizes, this is not truly giving me flow directions
-            # Because in the getNeighbor function I don't return values at edges.... might want to think about improving this,
-            # although it should work in this application, and damn if it isn't clean
-            row,col,inBounds = self.__getFlowToCell(row, col) # Find the indices of the cell we drain too, only need first two inputs
+            print(row)
+            print(col)
+  
+	    row,col,inBounds = self.get_flow_to_cell(row, col)
             if not inBounds:
                 break    
             l.append((row, col))
@@ -1212,7 +1210,7 @@ class FlowDirectionD8(FlowDirection):
     def search_down_flow_direction_from_xy_location(self, start):
         
         (start_rc, ) = self._xy_to_rowscols((start, ))
-        rcs = self.searchDownFlowDirection(start_rc)
+        rcs = self.search_down_flow_direction(start_rc)
         return self._rowscols_to_xy(rcs)
 
     def convert_rivertools_directions_to_arc(self):
