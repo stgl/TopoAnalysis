@@ -1690,14 +1690,18 @@ class Area(BaseSpatialGrid):
         [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
         
         has_mask = kwargs.get('mask') is not None
+        has_evaluate_at = kwargs.get('evaluate_at') is not None
+        
         import itertools
         
         for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
             if is_good and not has_mask:
-                area[i_next, j_next] += area[i,j]
+                if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
+                    area[i_next, j_next] += area[i,j]
             elif is_good and kwargs['mask'][i, j] is not None:
-                area[i_next, j_next] += area[i,j]
+                if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
+                    area[i_next, j_next] += area[i,j]
     
         self._griddata = area # Return non bc version of area
 
