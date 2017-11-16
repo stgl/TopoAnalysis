@@ -40,9 +40,6 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
 
-print(np.power(10,ks_regress_check))
-print(np.power(10,dr_regress_check))
-
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
 ks_regress_check = np.array(ks_regress_check)
@@ -50,7 +47,6 @@ ks_regress_check = np.array(ks_regress_check)
 result = np.linalg.lstsq(A, ks_regress_check)
 (m, b) = result[0]
 R = result[1]
-print(R)
 R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 
 sm = m
@@ -81,9 +77,6 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
 
-print(np.power(10,ks_regress_check))
-print(np.power(10,dr_regress_check))
-
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
 ks_regress_check = np.array(ks_regress_check)
@@ -91,7 +84,6 @@ ks_regress_check = np.array(ks_regress_check)
 result = np.linalg.lstsq(A, ks_regress_check)
 (m, b) = result[0]
 R = result[1]
-print(R)
 R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 
 sm = m
@@ -128,8 +120,6 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
 
-print(np.power(10,ks_regress_check))
-print(np.power(10,dr_regress_check))
 
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
@@ -138,7 +128,6 @@ ks_regress_check = np.array(ks_regress_check)
 result = np.linalg.lstsq(A, ks_regress_check)
 (m, b) = result[0]
 R = result[1]
-print(R)
 R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 
 sm = m
@@ -147,7 +136,6 @@ syx = np.sqrt(R / (len(dr_regress_check)-2))
 sb = syx / np.sqrt(np.power(np.sum(dr_regress_check - np.mean(dr_regress_check)),2))
 
 print('slope: ' + str(sm))
-print('slope uncertainty: ' + str(sb))
 print('intercept: ' + str(b))
 print('R2 = ' + str(R2))
 
@@ -175,8 +163,6 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
 
-print(np.power(10,ks_regress_check))
-print(np.power(10,dr_regress_check))
 
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
@@ -185,7 +171,6 @@ ks_regress_check = np.array(ks_regress_check)
 result = np.linalg.lstsq(A, ks_regress_check)
 (m, b) = result[0]
 R = result[1]
-print(R)
 R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 
 sm = m
@@ -194,7 +179,6 @@ syx = np.sqrt(R / (len(dr_regress_check)-2))
 sb = syx / np.sqrt(np.power(np.sum(dr_regress_check - np.mean(dr_regress_check)),2))
 
 print('slope: ' + str(sm))
-print('slope uncertainty: ' + str(sb))
 print('intercept: ' + str(b))
 print('R2 = ' + str(R2))
 
@@ -224,8 +208,6 @@ for (dr_el, ks_el) in zip(dr_regress, ks_regress):
          dr_regress_check.append(dr_el)
          ks_regress_check.append(ks_el)
 
-print(np.power(10,ks_regress_check))
-print(np.power(10,dr_regress_check))
 
 A = np.vstack([dr_regress_check, np.ones(len(dr_regress_check))]).T
 
@@ -234,7 +216,6 @@ ks_regress_check = np.array(ks_regress_check)
 result = np.linalg.lstsq(A, ks_regress_check)
 (m, b) = result[0]
 R = result[1]
-print(R)
 R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 
 sm = m
@@ -243,7 +224,6 @@ syx = np.sqrt(R / (len(dr_regress_check)-2))
 sb = syx / np.sqrt(np.power(np.sum(dr_regress_check - np.mean(dr_regress_check)),2))
 
 print('slope: ' + str(sm))
-print('slope uncertainty: ' + str(sb))
 print('intercept: ' + str(b))
 print('R2 = ' + str(R2))
 
