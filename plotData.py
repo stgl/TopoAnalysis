@@ -1,4 +1,4 @@
-#! /usr/bin/env python2.6
+#! /usr/bin/env python2.7
 
 import pickle
 
@@ -56,7 +56,7 @@ R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 sm = m
 
 syx = np.sqrt(R / (len(dr_regress_check)-2))
-sb = syx / np.sqrt(np.power(np.sum(dr_regress_check - np.mean(dr_regress_check)),2))
+sb = syx / np.sqrt(np.sum(np.power(dr_regress_check - np.mean(dr_regress_check),2)))
 
 print('slope: ' + str(sm))
 print('slope uncertainty: ' + str(sb))
@@ -97,7 +97,7 @@ R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 sm = m
 
 syx = np.sqrt(R / (len(dr_regress_check)-2))
-sb = syx / np.sqrt(np.power(np.sum(dr_regress_check - np.mean(dr_regress_check)),2))
+sb = syx / np.sqrt(np.sum(np.power(dr_regress_check - np.mean(dr_regress_check),2)))
 
 print('slope: ' + str(sm))
 print('slope uncertainty: ' + str(sb))
