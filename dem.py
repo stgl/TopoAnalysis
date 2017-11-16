@@ -1707,6 +1707,11 @@ class Area(BaseSpatialGrid):
     def _mean_pixel_dimension(self, *args, **kwargs):
         return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
     
+    def areas_greater_than(self, min_area):
+        ij_cols = np.where(self._griddata >= min_area)
+        ij = zip(ij_cols[0].tolist(), ij_cols[1].tolist())
+        return self._rowscols_to_xy(ij)
+    
 class GeographicArea(GeographicGridMixin, Area):
     pass
 

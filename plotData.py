@@ -55,7 +55,11 @@ R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 
 sm = m
 
+syx = np.sqrt(R / (len(dr_regress_check)-2))
+sb = syx / np.sqrt(np.power(np.sum(dr_regress_check - np.mean(dr_regress_check)),2))
+
 print('slope: ' + str(sm))
+print('slope uncertainty: ' + str(sb))
 print('intercept: ' + str(b))
 print('R2 = ' + str(R2))
 
@@ -92,7 +96,11 @@ R2 = 1 - R / np.sum(np.power(ks_regress_check-np.mean(ks_regress_check),2))
 
 sm = m
 
+syx = np.sqrt(R / (len(dr_regress_check)-2))
+sb = syx / np.sqrt(np.power(np.sum(dr_regress_check - np.mean(dr_regress_check)),2))
+
 print('slope: ' + str(sm))
+print('slope uncertainty: ' + str(sb))
 print('intercept: ' + str(b))
 print('R2 = ' + str(R2))
 
