@@ -1687,11 +1687,15 @@ class Area(BaseSpatialGrid):
             idcs = flow_dir.sort()
             
         area = self._area_per_pixel(*args, **kwargs)  # area of a pixel
+        
         [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
         
         has_mask = kwargs.get('mask') is not None
         has_evaluate_at = kwargs.get('evaluate_at') is not None
         
+        if has_evaluate_at:
+            area[kwargs['evaluate_at']._griddata == 0] = 0
+            
         import itertools
         
         for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
@@ -1719,6 +1723,29 @@ class Area(BaseSpatialGrid):
 class GeographicArea(GeographicGridMixin, Area):
     pass
 
+class ValleyArea(Area):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('flow_direction', 'area', 'max_slope', 'valley_slope_value', 'min_area_value'), '_create_from_flow_direction_and_valley_slope_and_area'))
+
+    def _create_from_flow_direction_and_valley_slope_and_area(self, *args, **kwargs):
+        
+        mask = Mask()
+        mask._copy_info_from_grid(kwargs['max_slope'], True)
+        mask._griddata[kwargs['max_slope']._griddata <= np.tan(kwargs['valley_slope_value'] * np.pi / 180.0)] = 1
+        outlets = kwargs['area'].areas_greater_than(kwargs['min_area_value'])
+        pfg = PriorityFillGrid(mask = mask, outlets = outlets)
+        import scipy.ndimage.morphology as morph
+        pfg._griddata = morph.binary_fill_holes(pfg._griddata)
+        self._create_from_flow_direction(flow_direction = kwargs['flow_direction'], evaluate_at = pfg)
+        
+class GeographicValleyArea(GeographicGridMixin, ValleyArea):
+    pass    
+        
+        
+    
 class DiscreteFlowAccumulation(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
