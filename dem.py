@@ -1739,7 +1739,8 @@ class ValleyArea(Area):
         pfg = PriorityFillGrid(mask = mask, outlets = outlets)
         import scipy.ndimage.morphology as morph
         pfg._griddata = morph.binary_fill_holes(pfg._griddata)
-        self._create_from_flow_direction(flow_direction = kwargs['flow_direction'], evaluate_at = pfg)
+        kwargs['evaluate_at'] = pfg
+        self._create_from_flow_direction(*args, **kwargs)
         
 class GeographicValleyArea(GeographicGridMixin, ValleyArea):
     pass    
