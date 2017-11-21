@@ -1653,9 +1653,7 @@ class FilledElevation(PriorityQueueMixIn, Elevation):
         elevation = kwargs['elevation']
         self._copy_info_from_grid(elevation)
         self._flood(*args, **kwargs) 
-            
-from numba import jit    
-                    
+                                
 class Area(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
@@ -1670,7 +1668,6 @@ class Area(BaseSpatialGrid):
         #if flow_dir.__class__ == FlowDirectionD8:
         self.__calcD8Area(*args, **kwargs)
     
-    @jit
     def __calcD8Area(self, *args, **kwargs):
 
         # I am returning area and flowDirections but NOTE!I might be in danger the way I handle this...
