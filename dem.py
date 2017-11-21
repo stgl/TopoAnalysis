@@ -1654,7 +1654,7 @@ class FilledElevation(PriorityQueueMixIn, Elevation):
         self._copy_info_from_grid(elevation)
         self._flood(*args, **kwargs) 
             
-    
+from numba import jit    
                     
 class Area(BaseSpatialGrid):
     
@@ -1669,7 +1669,8 @@ class Area(BaseSpatialGrid):
         self._copy_info_from_grid(flow_dir, True)
         #if flow_dir.__class__ == FlowDirectionD8:
         self.__calcD8Area(*args, **kwargs)
-
+    
+    @jit
     def __calcD8Area(self, *args, **kwargs):
 
         # I am returning area and flowDirections but NOTE!I might be in danger the way I handle this...
@@ -1738,7 +1739,6 @@ class ValleyArea(Area):
         outlets = kwargs['area'].areas_greater_than(kwargs['min_area_value'])
         pfg = PriorityFillGrid(mask = mask, outlets = outlets)
         import scipy.ndimage.morphology as morph
-        pfg._griddata = morph.binary_fill_holes(pfg._griddata)
         kwargs['evaluate_at'] = pfg
         self._create_from_flow_direction(*args, **kwargs)
         
