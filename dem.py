@@ -1735,8 +1735,30 @@ class ValleyArea(Area):
         mask._griddata[kwargs['max_slope']._griddata <= np.tan(kwargs['valley_slope_value'] * np.pi / 180.0)] = 1
         outlets = kwargs['area'].areas_greater_than(kwargs['min_area_value'])
         pfg = PriorityFillGrid(mask = mask, outlets = outlets)
+        
+        
+        if kwargs.get('elevation') is not None:
+            i = np.where(kwargs['elevation']._griddata <= 0 | np.isnan(kwargs['elevation']._griddata))
+            pfg._griddata[i] = 1
+        pfg_mask_copy = Mask()
+        pfg_mask_copy._copy_info_from_grid(pfg, False)
+        
+        pfg._griddata[:,1] = 1
+        pfg._griddata[:,-1] = 1
+        pfg._griddata[1,:] = 1
+        pfg._griddata[-1,:] = 1
+        
         import scipy.ndimage.morphology as morph
-        kwargs['evaluate_at'] = pfg
+        pfg._griddata = morph.binary_fill_holes(pfg._griddata)
+        
+        if kwargs.get('elevation') is not None:
+            pfg._griddata[i] = 0
+        pfg._griddata[:,1] = pfg_mask_copy[:,1]
+        pfg._griddata[:,-1] = pfg_mask_copy[:,-1]
+        pfg._griddata[1,:] = pfg_mask_copy[1,:]
+        pfg._griddata[-1,:] = pfg_mask_copy[-1,:]
+        
+        kwargs['evaluate_at'] = pfg    
         self._create_from_flow_direction(*args, **kwargs)
         
 class GeographicValleyArea(GeographicGridMixin, ValleyArea):
