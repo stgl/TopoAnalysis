@@ -1736,12 +1736,12 @@ class ValleyArea(Area):
         outlets = kwargs['area'].areas_greater_than(kwargs['min_area_value'])
         pfg = PriorityFillGrid(mask = mask, outlets = outlets)
         import scipy.ndimage.morphology as morph
-        if kwargs.get('iterations') is None:
-            iterations = 1
+        if kwargs.get('iterations') is None or kwargs.get('iterations') == 0:
+            pass 
         else:
             iterations = kwargs['iterations']
-        pfg._griddata = morph.binary_dilation(pfg._griddata, iterations = iterations)
-        pfg._griddata = morph.binary_erosion(pfg._griddata, iterations = iterations)
+            pfg._griddata = morph.binary_dilation(pfg._griddata, iterations = iterations)
+            pfg._griddata = morph.binary_erosion(pfg._griddata, iterations = iterations)
         
         kwargs['evaluate_at'] = pfg    
         self._create_from_flow_direction(*args, **kwargs)
