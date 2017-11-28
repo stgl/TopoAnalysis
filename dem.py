@@ -1752,13 +1752,13 @@ class ValleyArea(Area):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
-                                   (('flow_direction', 'area', 'max_slope', 'valley_slope_value', 'min_area_value'), '_create_from_flow_direction_and_valley_slope_and_area'))
+                                   (('flow_direction', 'area', 'laplace', 'valley_laplace_value', 'min_area_value'), '_create_from_flow_direction_and_valley_slope_and_area'))
 
     def _create_from_flow_direction_and_valley_slope_and_area(self, *args, **kwargs):
         
         mask = Mask()
-        mask._copy_info_from_grid(kwargs['max_slope'], True)
-        mask._griddata[kwargs['max_slope']._griddata <= np.tan(kwargs['valley_slope_value'] * np.pi / 180.0)] = 1
+        mask._copy_info_from_grid(kwargs['laplace'], True)
+        mask._griddata[kwargs['laplace']._griddata <= kwargs['valley_laplace_value'] ] = 1
         outlets = kwargs['area'].areas_greater_than(kwargs['min_area_value'])
         pfg = PriorityFillGrid(mask = mask, outlets = outlets)
         import scipy.ndimage.morphology as morph
