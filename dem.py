@@ -406,7 +406,7 @@ class CalculationMixin(object):
         #Applies a boundary condition such that the size and location of the grids in is the same as that out.
     
         #Assign boundary conditions
-        Zbc = self.assignBCs(grid)
+        Zbc = self.assignBCs(grid,grid.shape[1],grid.shape[0])
     
         #Compute finite differences
         Cx = (Zbc[1:-1, 2:] - 2*Zbc[1:-1, 1:-1] + Zbc[1:-1, :-2])/dx**2
