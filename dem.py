@@ -1483,6 +1483,32 @@ class GeographicMaxSlope(GeographicGridMixin, MaxSlope):
     
     pass
 
+class Laplacian(CalculationMixin, BaseSpatialGrid):
+    
+    dtype = float64
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('elevation',), '_create_from_elevation'))
+    
+    def _create_from_elevation(self, *args, **kwargs):
+
+        elevation = kwargs['elevation']
+        
+        self._copy_info_from_grid(elevation)
+        self.calcLaplacian()
+    
+    def calcLaplacian(self):
+ 
+        Sx, Sy = self._calcFiniteSlopes(self._griddata, self._mean_pixel_dimension(), self._georef_info.nx, self._georef_info.ny)  # Calculate slope in X and Y directions    
+        self._griddata = self.calcFiniteCurv(self._griddata, self._mean_pixel_dimension())
+    
+
+class GeographicLaplacian(GeographicGridMixin, Laplacian):
+    
+    pass
+
 class PriorityQueueMixIn(object):
     
     aggradation_slope = 0.000000001
