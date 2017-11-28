@@ -1758,7 +1758,7 @@ class ValleyArea(Area):
         
         mask = Mask()
         mask._copy_info_from_grid(kwargs['laplace'], True)
-        mask._griddata[kwargs['laplace']._griddata <= kwargs['valley_laplace_value'] ] = 1
+        mask._griddata[kwargs['laplace']._griddata >= kwargs['valley_laplace_value'] ] = 1
         outlets = kwargs['area'].areas_greater_than(kwargs['min_area_value'])
         pfg = PriorityFillGrid(mask = mask, outlets = outlets)
         import scipy.ndimage.morphology as morph
