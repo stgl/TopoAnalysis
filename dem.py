@@ -1800,7 +1800,7 @@ class MainstemValleyArea(Area):
         kwargs['evaluate_at'] = pfg    
         self._create_from_flow_direction(*args, **kwargs)
         
-class GeographicMainstemValeyArea(GeographicGridMixin, MainstemValleyArea):
+class GeographicMainstemValleyArea(GeographicGridMixin, MainstemValleyArea):
     pass
     
 class DiscreteFlowAccumulation(BaseSpatialGrid):
@@ -1961,7 +1961,7 @@ class FlowLength(BaseSpatialGrid):
     def locations_along_flow_path_from_outlet(self, outlet):
         return self._rowscols_to_xy(self.indexes_along_flow_path_from_outlet(outlet))
     
-    def locations_along_flow_paths_from_outlets(self, outlets):
+    def locations_along_flow_path_from_outlets(self, outlets):
         points = tuple()
         for outlet in outlets:
             points += tuple(self.locations_along_flow_path_from_outlet(outlet))
