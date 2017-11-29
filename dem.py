@@ -1775,7 +1775,33 @@ class ValleyArea(Area):
 class GeographicValleyArea(GeographicGridMixin, ValleyArea):
     pass    
         
+class MainstemValleyArea(Area):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('flow_length', 'area', 'laplace', 'valley_laplace_value', 'min_area_value', 'flow_direction', 'outlets'), '_create_from_flow_direction_and_valley_slope_and_area'))
+
+    def _create_from_flow_direction_and_valley_slope_and_area(self, *args, **kwargs):
         
+        mask = Mask()
+        mask._copy_info_from_grid(kwargs['laplace'], True)
+        mask._griddata[kwargs['laplace']._griddata >= kwargs['valley_laplace_value'] ] = 1
+        outlets = kwargs['flow_length'].locations_along_flow_path_from_outlets(kwargs['outlets'])
+        pfg = PriorityFillGrid(mask = mask, outlets = outlets)
+        import scipy.ndimage.morphology as morph
+        if kwargs.get('iterations') is None or kwargs.get('iterations') == 0:
+            pass 
+        else:
+            iterations = kwargs['iterations']
+            pfg._griddata = morph.binary_dilation(pfg._griddata, iterations = iterations)
+            pfg._griddata = morph.binary_erosion(pfg._griddata, iterations = iterations)
+        
+        kwargs['evaluate_at'] = pfg    
+        self._create_from_flow_direction(*args, **kwargs)
+        
+class GeographicMainstemValeyArea(GeographicGridMixin, MainstemValleyArea):
+    pass
     
 class DiscreteFlowAccumulation(BaseSpatialGrid):
     
@@ -1931,6 +1957,15 @@ class FlowLength(BaseSpatialGrid):
     def indexes_along_flow_path_from_outlet(self, outlet):
         ij = self._xy_to_rowscols((outlet,))[0]
         return self.__get_upstream_indexes((ij,))
+    
+    def locations_along_flow_path_from_outlet(self, outlet):
+        return self._rowscols_to_xy(self.indexes_along_flow_path_from_outlet(outlet))
+    
+    def locations_along_flow_paths_from_outlets(self, outlets):
+        points = tuple()
+        for outlet in outlets:
+            points += tuple(self.locations_along_flow_path_from_outlet(outlet))
+        return points
         
     def __get_upstream_indexes(self, index):
         
