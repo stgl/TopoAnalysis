@@ -1781,14 +1781,14 @@ class MainstemValleyArea(Area):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
-                                   (('flow_length', 'area', 'laplace', 'valley_laplace_value', 'min_area_value', 'flow_direction', 'outlets'), '_create_from_flow_direction_and_valley_slope_and_area'))
+                                   (('area', 'laplace', 'valley_laplace_value', 'min_area_value', 'flow_direction'), '_create_from_flow_direction_and_valley_slope_and_area'))
 
     def _create_from_flow_direction_and_valley_slope_and_area(self, *args, **kwargs):
         
         mask = Mask()
         mask._copy_info_from_grid(kwargs['laplace'], True)
         mask._griddata[kwargs['laplace']._griddata >= kwargs['valley_laplace_value'] ] = 1
-        outlets = kwargs['flow_length'].locations_along_flow_path_from_outlets(kwargs['outlets'])
+        outlets = kwargs['area'].areas_greater_than(kwargs['min_area_value'])
         pfg = PriorityFillGrid(mask = mask, outlets = outlets)
         import scipy.ndimage.morphology as morph
         if kwargs.get('iterations') is None or kwargs.get('iterations') == 0:
@@ -1831,6 +1831,7 @@ class MainstemValleyArea(Area):
             if is_good:
                 next_l = length[i,j] + dx[i,j]
                 if next_l > length[i_next, j_next]:
+                    length[i_next, j_next] = next_l
                     if not has_mask:
                         if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
                             self._griddata[i_next, j_next] = dA[i_next,j_next] + self._griddata[i,j]
