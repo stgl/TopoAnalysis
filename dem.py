@@ -1830,16 +1830,22 @@ class MainstemValleyArea(Area):
             
             if is_good:
                 next_l = length[i,j] + dx[i,j]
-                if next_l > length[i_next, j_next] or kwargs['area'] <= kwargs['min_area_value']:
-                    if next_l > length[i_next,j_next]:
-                        length[i_next, j_next] = next_l
+                if next_l > length[i_next, j_next]:
+                    length[i_next, j_next] = next_l
                     if not has_mask:
                         if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
                             self._griddata[i_next, j_next] = dA[i_next,j_next] + self._griddata[i,j]
                     elif kwargs['mask'][i, j] is not None:
                         if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
                             self._griddata[i_next, j_next] = dA[i_next,j_next] + self._griddata[i,j]
-                
+                elif kwargs['area'] <= kwargs['min_area_value']:
+                    if not has_mask:
+                        if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
+                            self._griddata[i_next, j_next] += self._griddata[i,j]
+                    elif kwargs['mask'][i, j] is not None:
+                        if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
+                            self._griddata[i_next, j_next] += self._griddata[i,j]
+                            
 class GeographicMainstemValleyArea(GeographicGridMixin, MainstemValleyArea):
     pass
     
