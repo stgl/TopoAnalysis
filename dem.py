@@ -1771,7 +1771,8 @@ class ValleyArea(Area):
         
         kwargs['evaluate_at'] = pfg    
         self._create_from_flow_direction(*args, **kwargs)
-        
+    
+            
 class GeographicValleyArea(GeographicGridMixin, ValleyArea):
     pass    
         
@@ -1799,7 +1800,44 @@ class MainstemValleyArea(Area):
         
         kwargs['evaluate_at'] = pfg    
         self._create_from_flow_direction(*args, **kwargs)
+    
+    def __calcD8Area(self, *args, **kwargs):
+    
+        flow_dir = kwargs['flow_direction']
+
+        if kwargs.get('sorted_indexes') is not None:
+            idcs = kwargs.get('sorted_indexes')
+        else:
+            idcs = flow_dir.sort()
+            
+        dA = self._area_per_pixel(*args, **kwargs)
+        dx = self._mean_pixel_dimension(*args, **kwargs) * flow_dir.pixel_scale()
         
+        length = np.zeros_like(dA)
+        
+        [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
+        
+        has_mask = kwargs.get('mask') is not None
+        has_evaluate_at = kwargs.get('evaluate_at') is not None
+        
+        if has_evaluate_at:
+            dA[kwargs['evaluate_at']._griddata == 0] = 0
+            
+        import itertools
+        
+        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
+            i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
+            
+            if is_good:
+                next_l = length[i,j] + dx[i,j]
+                if next_l > length[i_next, j_next]:
+                    if not has_mask:
+                        if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
+                            self._griddata[i_next, j_next] = dA[i_next,j_next] + self._griddata[i,j]
+                    elif kwargs['mask'][i, j] is not None:
+                        if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
+                            self._griddata[i_next, j_next] = dA[i_next,j_next] + self._griddata[i,j]
+                
 class GeographicMainstemValleyArea(GeographicGridMixin, MainstemValleyArea):
     pass
     
