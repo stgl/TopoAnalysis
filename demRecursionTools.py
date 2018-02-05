@@ -118,7 +118,7 @@ def hi_list(ld_list):
 
     return (mean_elevation - min_elevation) / (max_elevation - min_elevation) 
 
-def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area = 1.0E7):
+def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta = 0.5, minimum_area = 1.0E7):
     
     import dem as d
     mean_pixel_dimension = d.BaseSpatialGrid()
@@ -129,9 +129,10 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
     
     area = [ld_list['area']]
     elevation = [ld_list['elevation']]
+    de = [ld_list['de']*ld_list['distance_scale']]
     tributary_ld = []
     
-    def get_elevations_and_areas(ld_list, area, elevation, tributary_ld, minimum_area_to_consider):
+    def get_elevations_and_areas(ld_list, area, elevation, de, tributary_ld, minimum_area_to_consider):
         maximum_area = 0.0
         for next in ld_list['next']:
             if (next['area'] > minimum_area_to_consider) and (next['area'] > maximum_area):
@@ -141,28 +142,47 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
             if next['area'] == maximum_area:
                 area += [next['area']]
                 elevation += [next['elevation']]
-                (area, elevation, tributary_ld) = get_elevations_and_areas(next, area, elevation, tributary_ld, minimum_area_to_consider)
+                de += [next['de'] * next['distance_scale']]
+                (area, elevation, de, tributary_ld) = get_elevations_and_areas(next, area, elevation, tributary_ld, minimum_area_to_consider)
             elif next['area'] > minimum_area_to_consider:
                 tributary_ld.append(next)   
-        return (area, elevation, tributary_ld)
+        return (area, elevation, de, tributary_ld)
     
-    (area, elevation, tributary_ld) = get_elevations_and_areas(ld_list, area, elevation, tributary_ld, minimum_area)
+    (area, elevation, de, tributary_ld) = get_elevations_and_areas(ld_list, area, elevation, de, tributary_ld, minimum_area)
     
     area = [area]
     elevation = [elevation]
+    de = [de]
     
     while len(tributary_ld) > 0:
         next_tributary_ld = []
         for trb_ld in tributary_ld:
             this_area = [trb_ld['area']]
             this_elevation = [trb_ld['elevation']]
-            
-            (this_area, this_elevation, next_tributary_ld) = get_elevations_and_areas(trb_ld, this_area, this_elevation, next_tributary_ld, minimum_area)
+            this_de = [trb_ld['de']+trb_ld['distance_scale']]
+            (this_area, this_elevation, this_de, next_tributary_ld) = get_elevations_and_areas(trb_ld, this_area, this_elevation, this_de, next_tributary_ld, minimum_area)
             area.append(this_area)
             elevation.append(this_elevation)
         tributary_ld = next_tributary_ld
 
-    return (area, elevation)
+    return_chi = []
+    return_elevation = []
+    for (this_area, this_elevation, this_de) in zip(area, elevation, de):
+        this_return_elevation = []
+        for elevation_value in this_elevation:
+            this_return_elevation += [elevation_value - this_elevation[0]]
+        return_elevation.append(this_return_elevation)
+        this_chi_value = 0.0
+        this_chi = []
+        for (area_value, de_value) in zip(this_area, this_de):
+            if area_value == this_area[0]:
+                this_chi += [0.0]
+            else:
+                this_chi_value += (1 / area_value)**theta * de_value
+                this_chi += [this_chi_value]
+        return_chi.append(this_chi)    
+        
+    return (return_chi, elevation)
     
                 
         
