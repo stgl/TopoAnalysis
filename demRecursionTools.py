@@ -143,7 +143,7 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
                 area += [next['area']]
                 elevation += [next['elevation']]
                 de += [next['de'] * next['distance_scale']]
-                (area, elevation, de, tributary_ld) = get_elevations_and_areas(next, area, elevation, tributary_ld, minimum_area_to_consider)
+                (area, elevation, de, tributary_ld) = get_elevations_and_areas(next, area, elevation, de, tributary_ld, minimum_area_to_consider)
             elif next['area'] > minimum_area_to_consider:
                 tributary_ld.append(next)   
         return (area, elevation, de, tributary_ld)
