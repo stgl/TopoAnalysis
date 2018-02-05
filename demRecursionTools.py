@@ -211,6 +211,9 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
 
     def best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area):
         (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
+        print(area)
+        print(elevation)
+        print(de)
         area = area[0]
         elevation = elevation[0]
         de = de[0]
