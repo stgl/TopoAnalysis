@@ -118,7 +118,7 @@ def hi_list(ld_list):
 
     return (mean_elevation - min_elevation) / (max_elevation - min_elevation) 
 
-def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta = 0.5, minimum_area = 1.0E7):
+def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta = 0.5, minimum_area = 1.0E7):
     
     import dem as d
     mean_pixel_dimension = d.BaseSpatialGrid()
@@ -166,8 +166,9 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
             de.append(this_de)
         tributary_ld = next_tributary_ld
 
-    return_chi = []
+    return_area = []
     return_elevation = []
+    return_de = []
     
     for (this_area, this_elevation, this_de) in zip(area, elevation, de):
         this_return_elevation = []
@@ -175,19 +176,87 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
             this_return_elevation += [elevation_value - this_elevation[0]]
         if len(this_return_elevation) > 4:
             return_elevation.append(this_return_elevation)
-        this_chi_value = 0.0
-        this_chi = []
+            
+        this_return_de = []
+        for de_value in this_de:
+            this_return_de += [de_value]
+        if len(this_return_de) > 4:
+            return_de.append(this_return_de)
+            
+        this_area = []
         for (area_value, de_value) in zip(this_area, this_de):
-            if area_value == this_area[0]:
-                this_chi += [0.0]
-            else:
-                this_chi_value += (1 / area_value)**theta * de_value
-                this_chi += [this_chi_value]
-        if len(this_chi) > 4:
-            return_chi.append(this_chi)    
+            this_area.append(area_value)
+        if len(this_area) > 4:
+            return_area.append(this_area)    
         
-    return (return_chi, return_elevation)
+    return (return_area, return_elevation, return_de)
     
-                
+def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7):
+    
+    def chi_for_profile(area, de, theta):
+        chi = []
+        chi_value = 0.0
+        for (a, d) in zip(area, de):
+            chi += [chi_value]
+            chi_value += (1/a)**theta[0] * d
+        return chi
+    
+    def best_ks_with_wrss(chi, elevation):
+        A = np.vstack([chi]).T
+        sol = np.linalg.lstsq(A, elevation)
+        m = sol[0]
+        WRSS = sol[1]        
+        return (m, WRSS)
+    
+
+    def best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area):
+        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
+        area = area[0]
+        elevation = elevation[0]
+        de = de[0]
+        chi = chi_for_profile(area, de, theta)
+        mean_elevation = np.mean(elevation)
+        SS = np.sum(np.power(elevation - mean_elevation, 2))
+        return (best_ks_with_wrss(chi, elevation), SS)
+    
+    def best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area):
+        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
+        area = area[1:]
+        elevation = elevation[1:]
+        de = de[1:]
+        chi = []
+        for (area_profile, de_profile) in zip(area, de):
+            chi.append(chi_for_profile(area_profile, de_profile, theta))
+        chi = [c for sublist in chi for c in sublist]
+        elevation = [e for sublist in elevation for e in sublist]
+        return best_ks_with_wrss(chi, elevation)
+        
+    import scipy.optimize
+    chi_ks_mainstem = lambda theta: best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
+    chi_ks_tribs = lambda theta: best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
+    (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_mainstem, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
+    ((_, WRSS), SS) = chi_ks_mainstem(xopt[0])
+    
+    R2 = 1 - (WRSS / SS)
+    if warnflag == 1 or warnflag == 2:
+        R2 = 0.0
+    theta_mainstem = xopt[0]
+    R2_mainstem = R2
+    
+    (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_tribs, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
+    ((_, WRSS), SS) = chi_ks_tribs(xopt[0])
+    
+    R2 = 1 - (WRSS / SS)
+    if warnflag == 1 or warnflag == 2:
+        R2 = 0.0
+    theta_tribs = xopt[0]
+    R2_tribs = R2
+    
+    return{'mainstem': {'theta': theta_mainstem,
+                        'R2': R2_mainstem},
+           'tributaries': {'theta': theta_tribs,
+                           'R2': R2_tribs}
+           }
+    
         
         
