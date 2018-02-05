@@ -211,16 +211,12 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
 
     def best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area):
         (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
-        print(area)
-        print(elevation)
-        print(de)
         area = area[0]
         elevation = elevation[0]
         de = de[0]
         chi = chi_for_profile(area, de, theta)
         mean_elevation = np.mean(elevation)
         SS = np.sum(np.power(elevation - mean_elevation, 2))
-        print('theta: ' + str(theta))
         return (best_ks_with_wrss(chi, elevation), SS)
     
     def best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area):
@@ -239,7 +235,8 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
     chi_ks_mainstem = lambda theta: best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
     chi_ks_tribs = lambda theta: best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
     (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_mainstem, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
-    ((_, WRSS), SS) = chi_ks_mainstem(xopt[0])
+    print('xopt: ' + str(xopt[0]))
+    ((_, WRSS), SS) = chi_ks_mainstem([xopt[0]])
     
     R2 = 1 - (WRSS / SS)
     if warnflag == 1 or warnflag == 2:
@@ -248,7 +245,7 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
     R2_mainstem = R2
     
     (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_tribs, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
-    ((_, WRSS), SS) = chi_ks_tribs(xopt[0])
+    ((_, WRSS), SS) = chi_ks_tribs([xopt[0]])
     
     R2 = 1 - (WRSS / SS)
     if warnflag == 1 or warnflag == 2:
