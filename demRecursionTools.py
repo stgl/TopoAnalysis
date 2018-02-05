@@ -143,13 +143,14 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
                 area += [next['area']]
                 elevation += [next['elevation']]
                 (area, elevation) = get_elevations_and_areas(next, area, elevation, minimum_area_to_consider)
+            '''
             elif next['area'] > minimum_area_to_consider:
                 this_area = [next['area']]
                 this_elevation = [next['elevation']]
                 (this_area, this_elevation) = get_elevations_and_areas(next, this_area, this_elevation, minimum_area_to_consider)
                 area.append(this_area)
                 elevation.append(this_elevation)
-                
+            '''    
         return (area, elevation)
     
     return get_elevations_and_areas(ld_list, area, elevation, minimum_area)
