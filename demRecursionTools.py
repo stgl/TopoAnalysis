@@ -141,7 +141,7 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
             if next['area'] == maximum_area:
                 area += [next['area']]
                 elevation += [next['elevation']]
-                (area, elevation, tributary_ld) = get_elevations_and_areas(next, area, elevation, minimum_area_to_consider)
+                (area, elevation, tributary_ld) = get_elevations_and_areas(next, area, elevation, tributary_ld, minimum_area_to_consider)
             elif next['area'] > minimum_area_to_consider:
                 tributary_ld.append(next)   
         return (area, elevation, tributary_ld)
