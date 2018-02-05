@@ -235,10 +235,10 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
         (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_mainstem, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
         ((ks, WRSS), SS) = best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, np.array([xopt[0]]), minimum_area)
     except:
-        SS = 1
-        WRSS = 0
-        xopt[0] = 0
-        ks = 0
+        SS = np.array([1.0])
+        WRSS = np.array([0.0])
+        xopt[0] = 0.0
+        ks = np.array([0.0])
     
     R2 = 1 - (WRSS / SS)
     if warnflag == 1 or warnflag == 2:
@@ -251,10 +251,10 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
         (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_tribs, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
         ((ks, WRSS), SS) = best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, np.array([xopt[0]]), minimum_area)
     except:
-        SS = 1
-        WRSS = 0
-        xopt[0] = 0
-        ks = 0
+        SS = np.array([1.0])
+        WRSS = np.array([0.0])
+        xopt[0] = 0.0
+        ks = np.array([0.0])
         
     R2 = 1 - (WRSS / SS)
     if warnflag == 1 or warnflag == 2:
