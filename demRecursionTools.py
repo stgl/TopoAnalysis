@@ -236,7 +236,8 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
     chi_ks_tribs = lambda theta: best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
     (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_mainstem, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
     print('xopt: ' + str(xopt[0]))
-    ((_, WRSS), SS) = chi_ks_mainstem([xopt[0]])
+    b = chi_ks_mainstem(np.array([xopt[0]]))
+    print(b)
     
     R2 = 1 - (WRSS / SS)
     if warnflag == 1 or warnflag == 2:
