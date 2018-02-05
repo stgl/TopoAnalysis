@@ -172,23 +172,19 @@ def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevatio
     
     for (this_area, this_elevation, this_de) in zip(area, elevation, de):
         this_return_elevation = []
-        for elevation_value in this_elevation:
-            this_return_elevation += [elevation_value - this_elevation[0]]
+        this_return_de = []
+        this_return_area = []
+        for (elevation_value, de_value, area_value) in zip(this_elevation, this_de, this_area):
+            if elevation_value is not None and de_value is not None and area_value is not None:
+                this_return_elevation += [elevation_value - this_elevation[0]]
+                this_return_de += [de_value]
+                this_return_area += [area_value]
+        
         if len(this_return_elevation) > 4:
             return_elevation.append(this_return_elevation)
-            
-        this_return_de = []
-        for de_value in this_de:
-            this_return_de += [de_value]
-        if len(this_return_de) > 4:
             return_de.append(this_return_de)
-            
-        this_return_area = []
-        for area_value in this_area:
-            this_return_area += [area_value]
-        if len(this_area) > 4:
-            return_area.append(this_return_area)    
-        
+            return_area.append(this_return_area)
+
     return (return_area, return_elevation, return_de)
     
 def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7):
