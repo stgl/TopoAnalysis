@@ -229,7 +229,9 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
             chi.append(chi_for_profile(area_profile, de_profile, theta))
         chi = [c for sublist in chi for c in sublist]
         elevation = [e for sublist in elevation for e in sublist]
-        return best_ks_with_wrss(chi, elevation)
+        mean_elevation = np.mean(elevation)
+        SS = np.sum(np.power(elevation - mean_elevation, 2))
+        return (best_ks_with_wrss(chi, elevation), SS)
         
     import scipy.optimize
     chi_ks_mainstem = lambda theta: best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
