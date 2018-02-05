@@ -129,33 +129,39 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
     
     area = [ld_list['area']]
     elevation = [ld_list['elevation']]
+    tributary_ld = []
     
-    def get_elevations_and_areas(ld_list, area, elevation, minimum_area_to_consider):
+    def get_elevations_and_areas(ld_list, area, elevation, tributary_ld, minimum_area_to_consider):
         maximum_area = 0.0
-        maximum_elevation = 0.0
         for next in ld_list['next']:
             if (next['area'] > minimum_area_to_consider) and (next['area'] > maximum_area):
                 maximum_area = next['area']
-                maximum_elevation = next['elevation']
         
         for next in ld_list['next']:
             if next['area'] == maximum_area:
                 area += [next['area']]
                 elevation += [next['elevation']]
-                (area, elevation) = get_elevations_and_areas(next, area, elevation, minimum_area_to_consider)
-            '''
+                (area, elevation, tributary_ld) = get_elevations_and_areas(next, area, elevation, minimum_area_to_consider)
             elif next['area'] > minimum_area_to_consider:
-                this_area = [next['area']]
-                this_elevation = [next['elevation']]
-                (this_area, this_elevation) = get_elevations_and_areas(next, this_area, this_elevation, minimum_area_to_consider)
-                area.append(this_area)
-                elevation.append(this_elevation)
-            '''    
-        return (area, elevation)
+                tributary_ld.append(next)   
+        return (area, elevation, tributary_ld)
     
-    return get_elevations_and_areas(ld_list, area, elevation, minimum_area)
+    (area, elevation, tributary_ld) = get_elevations_and_areas(ld_list, area, elevation, tributary_ld, minimum_area)
+    
+    
+    while len(tributary_ld) > 0:
+        next_tributary_ld = []
+        for trb_ld in tributary_ld:
+            this_area = [trb_ld['area']]
+            this_elevation = [trb_ld['elevation']]
+            
+            (this_area, this_elevation, next_tributary_ld) = get_elevations_and_areas(trb_ld, this_area, this_elevation, next_tributary_ld)
+            area.append(this_area)
+            elevation.append(this_elevation)
+        tributary_ld = next_tributary_ld
 
-                
+    return (area, elevation)
+    
                 
         
         
