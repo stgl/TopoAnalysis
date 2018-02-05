@@ -220,6 +220,7 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
         chi = chi_for_profile(area, de, theta)
         mean_elevation = np.mean(elevation)
         SS = np.sum(np.power(elevation - mean_elevation, 2))
+        print('theta: ' + str(theta))
         return (best_ks_with_wrss(chi, elevation), SS)
     
     def best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area):
