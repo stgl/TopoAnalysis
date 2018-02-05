@@ -148,6 +148,8 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
     
     (area, elevation, tributary_ld) = get_elevations_and_areas(ld_list, area, elevation, tributary_ld, minimum_area)
     
+    area = [area]
+    elevation = [elevation]
     
     while len(tributary_ld) > 0:
         next_tributary_ld = []
