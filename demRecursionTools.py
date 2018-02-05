@@ -183,11 +183,11 @@ def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevatio
         if len(this_return_de) > 4:
             return_de.append(this_return_de)
             
-        this_area = []
+        this_return_area = []
         for area_value in this_area:
-            this_area += [area_value]
+            this_return_area += [area_value]
         if len(this_area) > 4:
-            return_area.append(this_area)    
+            return_area.append(this_return_area)    
         
     return (return_area, return_elevation, return_de)
     
