@@ -257,10 +257,10 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
     ks_tribs = ks
     
     return{'mainstem': {'theta': theta_mainstem,
-                        'R2': R2_mainstem,
+                        'R2': R2_mainstem[0],
                         'ks': ks_mainstem},
            'tributaries': {'theta': theta_tribs,
-                           'R2': R2_tribs,
+                           'R2': R2_tribs[0],
                            'ks': ks_tribs}
            }
     
