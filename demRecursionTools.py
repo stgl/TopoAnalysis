@@ -168,6 +168,8 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
     return_chi = []
     return_elevation = []
     for (this_area, this_elevation, this_de) in zip(area, elevation, de):
+        print(this_area)
+        print(this_elevation)
         this_return_elevation = []
         for elevation_value in this_elevation:
             this_return_elevation += [elevation_value - this_elevation[0]]
@@ -180,7 +182,7 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
             else:
                 this_chi_value += (1 / area_value)**theta * de_value
                 this_chi += [this_chi_value]
-    return_chi.append(this_chi)    
+        return_chi.append(this_chi)    
         
     return (return_chi, elevation)
     
