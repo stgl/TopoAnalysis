@@ -117,7 +117,45 @@ def hi_list(ld_list):
     min_elevation = np.min(elevation) 
 
     return (mean_elevation - min_elevation) / (max_elevation - min_elevation) 
+
+def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area = 1.0E7):
     
+    import dem as d
+    mean_pixel_dimension = d.BaseSpatialGrid()
+    mean_pixel_dimension._copy_info_from_grid(area, True)
+    mean_pixel_dimension._griddata = area._mean_pixel_dimension()
     
+    ld_list = flow_direction.map_values_to_recursive_list(outlet, elevation = elevation, area = area, de = mean_pixel_dimension)
     
+    area = [ld_list['area']]
+    elevation = [ld_list['elevation']]
     
+    maximum_area = 0.0
+    maximum_elevation = 0.0
+    
+    def get_elevations_and_areas(ld_list, area, elevation, minimum_area_to_consider):
+        for next in ld_list['next']:
+            if (next['area'] > minimum_area_to_consider) and (next['area'] > maximum_area):
+                maximum_area = next['area']
+                maximum_elevation = next['elevation']
+        
+        for next in ld_list['next']:
+            if next['area'] == maximum_area:
+                area += [next['area']]
+                elevation += [next['elevation']]
+                (area, elevation) = get_elevations_and_areas(next, area, elevation, minimum_area_to_consider)
+            elif next['area'] > minimum_area_to_consider:
+                this_area = [next['area']]
+                this_elevation = [next['elevation']]
+                (this_area, this_elevation) = get_elevations_and_areas(next, this_area, this_elevation, minimum_area_to_consider)
+                area.append(this_area)
+                elevation.append(this_elevation)
+                
+        return (area, elevation)
+    
+    return get_elevations_and_areas(ld_list, area, elevation, minimum_area)
+
+                
+                
+        
+        
