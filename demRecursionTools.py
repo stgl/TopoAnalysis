@@ -130,10 +130,9 @@ def chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation
     area = [ld_list['area']]
     elevation = [ld_list['elevation']]
     
-    maximum_area = 0.0
-    maximum_elevation = 0.0
-    
     def get_elevations_and_areas(ld_list, area, elevation, minimum_area_to_consider):
+        maximum_area = 0.0
+        maximum_elevation = 0.0
         for next in ld_list['next']:
             if (next['area'] > minimum_area_to_consider) and (next['area'] > maximum_area):
                 maximum_area = next['area']
