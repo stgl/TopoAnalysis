@@ -172,8 +172,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
             chi_elevation = chi_map.get(i)
             if chi_elevation is not None:
                 (chi, elevation) = chi_elevation
-                if current_marker is not None:
-                    del(current_marker)
+                
                 plt.figure(fig2)
                 current_marker = plt.plot(chi, elevation, 'bo')
                 print('current marker: ', current_marker)
