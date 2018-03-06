@@ -143,7 +143,6 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     outlets = cPickle.load(open('outlets.p', 'rb'))
     outlet = outlets[prefix][code]
     
-    plt.figure(1)
     from demRecursionTools import map_chi_profiles
     
     chi_map = map_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta)
@@ -154,8 +153,8 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     hillshade.plot(cmap = plt.cm.gray)
     plt.scatter(coordinates[0], coordinates[1], c=chi)
     
-    plt.figure(2)
-    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area, theta)
+    fig2 = plt.figure(2)
+    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area, theta, figure=fig2)
     
     
     
