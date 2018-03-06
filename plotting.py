@@ -145,7 +145,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     
     from demRecursionTools import map_chi_profiles
     
-    chi_map = map_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta)
+    chi_map = map_chi_profiles(dem, fd, area, outlet, minimum_area = minimum_area, theta = theta)
     indexes = chi_map.keys()
     import operator
     (chi, _) = zip(*operator.itemgetter(indexes)(chi_map))
