@@ -173,7 +173,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
                 chi_elevation = chi_map.get(i)
                 if chi_elevation is not None:
                     (chi, elevation) = chi_elevation
-                    current_marker.set_data([chi], [elevation*np.power(Ao, theta)], 'bo')
+                    current_marker[0].set_data([chi], [elevation*np.power(Ao, theta)])
             
         return hoverwrapper
     
