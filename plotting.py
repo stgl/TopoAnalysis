@@ -136,5 +136,27 @@ def plot_chi_profiles_with_outlet_code(prefix, code, plot_code, dem, fd, area, m
     outlets = cPickle.load(open('outlets.p', 'rb'))
     outlet = outlets[prefix][code]
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area, theta)
-        
+
+def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area, hillshade, minimum_area = 1.0E7, theta = 0.5):
+    
+    import cPickle
+    outlets = cPickle.load(open('outlets.p', 'rb'))
+    outlet = outlets[prefix][code]
+    
+    plt.figure(1)
+    from demRecursionTools import map_chi_profiles
+    
+    chi_map = map_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta)
+    indexes = chi_map.keys()
+    import operator.itemgetter as itemgetter
+    (chi, _) = zip(*itemgetter(indexes)(chi_map))
+    coordinates = zip(*hillshade._rowscols_to_xy(indexes))
+    hillshade.plot(cmap = plt.cm.gray)
+    plt.scatter(coordinates[0], coordinates[1], c=chi)
+    
+    plt.figure(2)
+    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area, theta)
+    
+    
+    
         

@@ -276,4 +276,42 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
            }
     
         
+def map_chi_profiles(elevation, flow_direction, area, outlet, plot_code, minimum_area = 1.0E6, theta = 0.5, start_at = 0.0, downstream = True, Ao = 1.0E6):
+    
+    ((row, col),) = elevation._xy_to_rowscols((outlet,))
+    base_elevation = elevation[row,col]
+    
+    return_map = {}
+    
+    def map_ld_link(current_chi, ld_list, plot_code, downstream_sign, minimum_area):
+        (current_row, current_column) = ld_list['index']
         
+        if ld_list.get('next') is None:
+            return
+        for next_list in ld_list['next']:
+            
+            if next_list['area'] >= minimum_area:
+                
+                index = next_list['index']
+                (next_row, next_column) = index
+                if (current_row != next_row) & (current_column != next_column):
+                    next_chi = current_chi + (1 / np.array(next_list['area']))**theta * np.array(ld_list['de']*1.414*downstream_sign)
+                else:
+                    next_chi = current_chi + (1 / np.array(next_list['area']))**theta * np.array(ld_list['de']*downstream_sign)
+                next_elevation = next_list['elevation'] - base_elevation
+                return_map[index] = (next_chi, next_elevation)
+    
+    import dem as d                            
+    mean_pixel_dimension = d.BaseSpatialGrid()
+    mean_pixel_dimension._copy_info_from_grid(area, True)
+    mean_pixel_dimension._griddata = area._mean_pixel_dimension()
+                
+    ld_list = flow_direction.map_values_to_recursive_list(outlet, elevation = elevation, area = area, de = mean_pixel_dimension)
+    current_chi = start_at
+    if downstream:
+        downstream_sign = 1.0
+    else:
+        downstream_sign = -1.0
+    
+    return map_ld_link(current_chi, ld_list, plot_code, downstream_sign, minimum_area)
+
