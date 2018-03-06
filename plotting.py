@@ -137,7 +137,6 @@ def plot_chi_profiles_with_outlet_code(prefix, code, plot_code, dem, fd, area, m
     outlet = outlets[prefix][code]
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta)
 
-current_marker = ""
 
 def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area, hillshade, minimum_area = 1.0E7, theta = 0.5):
         
@@ -163,7 +162,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     fig2 = plt.figure(2)
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta, figure=fig2)
     
-    
+    current_marker = None
     
     def hover(event):
         if event.inaxes == ax:
@@ -177,6 +176,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
                     del(current_marker)
                 plt.figure(fig2)
                 current_marker = plt.plot(chi, elevation, 'bo')
+                print('current marker: ', current_marker)
             
                 
     
