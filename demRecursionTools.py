@@ -313,5 +313,7 @@ def map_chi_profiles(elevation, flow_direction, area, outlet, plot_code, minimum
     else:
         downstream_sign = -1.0
     
-    return map_ld_link(current_chi, ld_list, plot_code, downstream_sign, minimum_area)
+    map_ld_link(current_chi, ld_list, plot_code, downstream_sign, minimum_area)
+    
+    return return_map
 
