@@ -161,13 +161,14 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     fig2 = plt.figure(2)
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta, figure=fig2)
     
-    current_marker = None
+    current_marker = ""
+    
     def hover(event):
         if event.inaxes == ax:
             x = event.xdata
             y = event.ydata
-            (i, ) = hillshade._xy_to_rowscols((x, y), )
-            chi_elevation = chi_map[i]
+            (i, ) = hillshade._xy_to_rowscols(((x, y), ))
+            chi_elevation = chi_map.get(i)
             if chi_elevation is not None:
                 (chi, elevation) = chi_elevation
                 if current_marker is not None:
