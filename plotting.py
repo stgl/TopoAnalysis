@@ -162,7 +162,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     fig2 = plt.figure(2)
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta, figure=fig2, Ao = Ao)
     
-    current_marker = None
+    current_marker = plt.plot(0,0,'bo');
     
     def hover(current_marker, Ao, theta):
         def hoverwrapper(event):
@@ -173,9 +173,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
                 chi_elevation = chi_map.get(i)
                 if chi_elevation is not None:
                     (chi, elevation) = chi_elevation
-    
-                    plt.figure(fig2.number)
-                    current_marker = plt.plot(chi, elevation*np.power(Ao, theta), 'bo')
+                    current_marker.set_data([chi], [elevation*np.power(Ao, theta)], 'bo')
             
         return hoverwrapper
     
