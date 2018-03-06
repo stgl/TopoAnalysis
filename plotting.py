@@ -135,7 +135,7 @@ def plot_chi_profiles_with_outlet_code(prefix, code, plot_code, dem, fd, area, m
     import cPickle
     outlets = cPickle.load(open('outlets.p', 'rb'))
     outlet = outlets[prefix][code]
-    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area, theta)
+    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta)
 
 def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area, hillshade, minimum_area = 1.0E7, theta = 0.5):
     
