@@ -138,7 +138,7 @@ def plot_chi_profiles_with_outlet_code(prefix, code, plot_code, dem, fd, area, m
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta)
 
 
-def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area, hillshade, minimum_area = 1.0E7, theta = 0.5):
+def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area, hillshade, minimum_area = 1.0E7, theta = 0.5, Ao = 1.0E6):
         
     
     import cPickle
@@ -147,7 +147,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     
     from demRecursionTools import map_chi_profiles
     
-    chi_map = map_chi_profiles(dem, fd, area, outlet, minimum_area = minimum_area, theta = theta)
+    chi_map = map_chi_profiles(dem, fd, area, outlet, minimum_area = minimum_area, theta = theta, Ao = Ao)
     indexes = chi_map.keys()
     import operator
     (chi, _) = zip(*operator.itemgetter(*indexes)(chi_map))
@@ -160,25 +160,25 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     ax = plt.gca()
     
     fig2 = plt.figure(2)
-    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta, figure=fig2)
+    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta, figure=fig2, Ao = Ao)
     
     current_marker = None
     
-    def hover(event):
-        if event.inaxes == ax:
-            x = event.xdata
-            y = event.ydata
-            (i, ) = hillshade._xy_to_rowscols(((x, y), ))
-            chi_elevation = chi_map.get(i)
-            if chi_elevation is not None:
-                (chi, elevation) = chi_elevation
-                
-                plt.figure(fig2)
-                current_marker = plt.plot(chi, elevation, 'bo')
-                print('current marker: ', current_marker)
-            
-                
+    def hover(current_marker, Ao, theta):
+        def hoverwrapper(event):
+            if event.inaxes == ax:
+                x = event.xdata
+                y = event.ydata
+                (i, ) = hillshade._xy_to_rowscols(((x, y), ))
+                chi_elevation = chi_map.get(i)
+                if chi_elevation is not None:
+                    (chi, elevation) = chi_elevation
     
-    fig1.canvas.mpl_connect('motion_notify_event', hover)
+                    plt.figure(fig2.number)
+                    current_marker = plt.plot(chi, elevation*np.power(Ao, theta), 'bo')
+            
+        return hoverwrapper
+    
+    fig1.canvas.mpl_connect('motion_notify_event', hover(current_marker, Ao, theta))
     
         
