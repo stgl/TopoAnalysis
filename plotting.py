@@ -138,6 +138,7 @@ def plot_chi_profiles_with_outlet_code(prefix, code, plot_code, dem, fd, area, m
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta)
 
 def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area, hillshade, minimum_area = 1.0E7, theta = 0.5):
+        
     
     import cPickle
     outlets = cPickle.load(open('outlets.p', 'rb'))
@@ -150,12 +151,20 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     import operator
     (chi, _) = zip(*operator.itemgetter(*indexes)(chi_map))
     coordinates = zip(*hillshade._rowscols_to_xy(indexes))
+    
+    fig1 = plt.figure(1)
+    
     hillshade.plot(cmap = plt.cm.gray)
-    plt.scatter(coordinates[0], coordinates[1], c=chi)
+    plt.scatter(coordinates[0], coordinates[1], c=chi, s=0.5)
+    ax = plt.gca()
     
     fig2 = plt.figure(2)
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta, figure=fig2)
     
+    def hover(event):
+        if event.in_axes == ax:
+            print(event.__dict__)
     
+    fig1.canvas.mpl_connect('motion_notify_event', hover)
     
         
