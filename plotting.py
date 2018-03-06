@@ -148,13 +148,13 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     chi_map = map_chi_profiles(dem, fd, area, outlet, minimum_area = minimum_area, theta = theta)
     indexes = chi_map.keys()
     import operator
-    (chi, _) = zip(*operator.itemgetter(indexes)(chi_map))
+    (chi, _) = zip(*operator.itemgetter(*indexes)(chi_map))
     coordinates = zip(*hillshade._rowscols_to_xy(indexes))
     hillshade.plot(cmap = plt.cm.gray)
     plt.scatter(coordinates[0], coordinates[1], c=chi)
     
     fig2 = plt.figure(2)
-    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area, theta, figure=fig2)
+    plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta, figure=fig2)
     
     
     
