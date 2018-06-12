@@ -649,7 +649,7 @@ class BaseSpatialGrid(GDALMixin):
         return tuple(v)
     
     def _mean_pixel_dimension(self, *args, **kwargs):
-        return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
+        return self._georef_info.dx * np.ones_like(self._griddata, self.dtype)
     
     def location_in_grid(self, xo):
         index = self._xy_to_rowscols((xo,))[0]

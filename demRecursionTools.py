@@ -239,9 +239,10 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
     except:
         SS = 1.0
         WRSS = 0.0
-        xopt[0] = 0.0
+        xopt = [0.0]
         ks = 0.0
-    
+        warnflag = 1
+ 
     R2 = 1 - (WRSS / SS)
     if warnflag == 1 or warnflag == 2:
         R2 = 0.0
@@ -274,7 +275,56 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
                            'R2': R2_tribs,
                            'ks': ks_tribs}
            }
-    
+
+def best_ks_theta(outlet, flow_direction, elevation, area, minimum_area):
+    def chi_for_profile(area, de, theta):
+        chi = []
+        chi_value = 0.0
+        for (a, d) in zip(area, de):
+            chi += [chi_value]
+            chi_value += (1/a)**theta[0] * d
+        return chi
+
+    def best_ks_with_wrss(chi, elevation):
+        A = np.vstack([chi]).T
+        sol = np.linalg.lstsq(A, elevation)
+        m = sol[0]
+        WRSS = sol[1]        
+        return (m, WRSS)
+
+    def best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area):
+        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
+        area = area[0]
+        elevation = elevation[0]
+        de = de[0]
+        chi = chi_for_profile(area, de, theta)
+        mean_elevation = np.mean(elevation)
+        SS = np.sum(np.power(elevation - mean_elevation, 2))
+        return (best_ks_with_wrss(chi, elevation), SS)
+
+    import scipy.optimize
+    chi_ks_mainstem = lambda theta: best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
+    try:
+	seed = np.random.rand(1)
+        (xopt, _, _, _, warnflag, sols) = scipy.optimize.fmin(chi_ks_mainstem, seed, (), 1E-5, 1E-5, 100, 200, True, True, True, None)
+        ((ks, WRSS), SS) = best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, np.array([xopt[0]]), minimum_area)
+        ks = ks[0]
+        WRSS = WRSS[0]
+        print(sols)
+    except OSError:
+        SS = 1.0
+        WRSS = 0.0
+        xopt = [0.0]
+        ks = 0.0
+        warnflag = 1
+ 
+    R2 = 1 - (WRSS / SS)
+    if warnflag == 1 or warnflag == 2:
+        R2 = 0.0
+    theta = xopt[0]
+    return {'theta': theta,
+            'R2': R2,
+            'ks': ks }
         
 def map_chi_profiles(elevation, flow_direction, area, outlet, minimum_area = 1.0E6, theta = 0.5, start_at = 0.0, downstream = True, Ao = 1.0E6):
     
