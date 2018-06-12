@@ -8,7 +8,7 @@ def loadGrids(basePath):
     demExt = 'dem_15s'
     # accExt = 'Acc.tif'
     # fdExt = 'Direc.tif'
-    # demExt = 'DEM.tif'
+    # demExt = 'demMethods.tif'
 
     src = gdal.Open(basePath+accExt)
     acc = src.ReadAsArray().astype(np.float)

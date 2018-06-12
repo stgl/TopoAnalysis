@@ -3,7 +3,7 @@ import gdal as gd
 import numpy as np
 import os
 from time import strftime
-import demTools as dt
+import dem as dt
 from matplotlib import pyplot as plt
 
 #What is the base path for the file we need to run? This assumes that the extensions are specified as written
