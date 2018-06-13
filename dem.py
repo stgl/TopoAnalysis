@@ -1720,9 +1720,8 @@ class Area(BaseSpatialGrid):
         if has_evaluate_at:
             area[kwargs['evaluate_at']._griddata == 0] = 0
             
-        import itertools
         
-        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
+        for i, j in zip(ind_i, ind_j):  # Loop through all the data in sorted order    
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
             if is_good and not has_mask:
                 if not has_evaluate_at or (has_evaluate_at and (kwargs['evaluate_at'][i,j] == 1)):
@@ -1822,10 +1821,8 @@ class MainstemValleyArea(Area):
         
         if has_evaluate_at:
             dA[kwargs['evaluate_at']._griddata == 0] = 0
-            
-        import itertools
-        
-        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
+                    
+        for i, j in zip(ind_i, ind_j):  # Loop through all the data in sorted order    
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
             
             if is_good:
@@ -1939,8 +1936,7 @@ class FlowLength(BaseSpatialGrid):
         [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)            
         dx = self._mean_pixel_dimension(*args, **kwargs) * flow_dir.pixel_scale()
 
-        import itertools
-        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order  
+        for i, j in zip(ind_i, ind_j):  # Loop through all the data in sorted order  
               
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)
                 
@@ -1989,8 +1985,7 @@ class FlowLength(BaseSpatialGrid):
         
         indexes_of_locations = list()
         ind = np.where(np.logical_and((self._griddata >= min_length), (self._griddata <= max_length)))
-        import itertools
-        for (this_row,this_col) in itertools.izip(ind[0],ind[1]):
+        for (this_row,this_col) in zip(ind[0],ind[1]):
             (next_row, next_col, is_good) = fd.get_flow_to_cell(this_row, this_col)
             if next_row is not None and next_col is not None and is_good:
                 this_value = self[this_row, this_col]
@@ -2165,8 +2160,7 @@ class MaxFlowLengthTrackingMixin(object):
                 
         [ind_i, ind_j] = np.unravel_index(idcs, flow_dir._griddata.shape)
         
-        import itertools
-        for i, j in itertools.izip(ind_i, ind_j):  # Loop through all the data in sorted order    
+        for i, j in zip(ind_i, ind_j):  # Loop through all the data in sorted order    
             i_next, j_next, is_good = flow_dir.get_flow_to_cell(i,j)  
             if is_good and flow_length.is_along_flow_length((i,j), (i_next, j_next)):
                 self._calculate_grid_value((i,j), (i_next, j_next), *args, **kwargs)        

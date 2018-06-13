@@ -3,13 +3,13 @@ import numpy as np
 def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, xo = 500.0):
 
     if theta < -10.0:
-	theta = -10.0
+        theta = -10.0
 
     Ao = np.power(xo, 2.0)
     
     if ld_list['area'] >= Ao:
   
-	elevation_f = np.array(ld_list['elevation'] - base_elevation)
+        elevation_f = np.array(ld_list['elevation'] - base_elevation)
         elevation = np.append(elevation, np.array(elevation_f))
         index = ld_list['index']
         chi_f = chi_o + (1 / np.array(ld_list['area']))**theta[0] * np.array(ld_list['distance_scale']) * de[index[0], index[1]]
