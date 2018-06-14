@@ -186,6 +186,55 @@ def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevatio
             return_area.append(this_return_area)
 
     return (return_area, return_elevation, return_de)
+
+def indexes_for_mainstem_and_tributaries(outlet, flow_direction, area, minimum_area = 1.0E7):
+        
+    ld_list = flow_direction.map_values_to_recursive_list(outlet, area = area)
+    
+    area = [ld_list['area']]
+    indexes = [ld_list['index']]
+    tributary_ld = []
+    
+    def get_indexes(ld_list, indexes, area, tributary_ld, minimum_area_to_consider):
+        maximum_area = 0.0
+        for next_ld in ld_list['next']:
+            if (next_ld['area'] > minimum_area_to_consider) and (next_ld['area'] > maximum_area):
+                maximum_area = next_ld['area']
+        
+        for next_ld in ld_list['next']:
+            if next_ld['area'] == maximum_area:
+                indexes += [next_ld['index']]
+                (indexes, tributary_ld) = get_indexes(next_ld, indexes, area, tributary_ld, minimum_area_to_consider)
+            elif next_ld['area'] > minimum_area_to_consider:
+                tributary_ld.append(next_ld)   
+        return (indexes, tributary_ld)
+    
+    (indexes, tributary_ld) = get_indexes(ld_list, indexes, area, tributary_ld, minimum_area)
+    
+    indexes = [indexes]
+    
+    while len(tributary_ld) > 0:
+        next_tributary_ld = []
+        for trb_ld in tributary_ld:
+            this_index = [trb_ld['index']]
+            this_area = [trb_ld['area']]
+            (this_index, next_tributary_ld) = get_indexes(trb_ld, this_index, this_area, next_tributary_ld, minimum_area)
+            indexes.append(this_index)
+        tributary_ld = next_tributary_ld
+
+    return_index = []
+    
+    for index in indexes:
+        this_return_index = []
+        for index_value in index:
+            if index_value is not None:
+                this_return_index += [index_value]
+        
+        if len(this_return_index) > 4:
+            return_index.append(this_return_index)
+
+    return return_index
+
     
 def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7):
     

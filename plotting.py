@@ -195,22 +195,37 @@ def plot_chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elev
     
     chi_mainstem = chi_for_profile(return_area[0], return_de[0], [theta_mainstem])
     elevation_mainstem = return_elevation[0]
+    length_mainstem = np.cumsum(return_de[0])
     
     chi_tribs = []
     for (area_profile, de_profile) in zip(return_area[1:], return_de[1:]):
         chi_tribs.append(chi_for_profile(area_profile, de_profile, [theta_tribs]))
     elevation_tribs = return_elevation[1:]
-    import matplotlib.pylab as plt
     
-    plt.figure(1)
-    plt.plot(chi_mainstem, elevation_mainstem, 'k.')
+    plt.figure()
+    plt.plot(length_mainstem, elevation_mainstem, 'b-')
     
-    plt.figure(2)
+    plt.figure()
+    plt.plot(chi_mainstem, elevation_mainstem, 'b.')
+    
+    plt.figure()
     for (c, e) in zip(chi_tribs, elevation_tribs):
         
-        plt.plot(c, e, 'k.')
+        plt.plot(c, e, 'r.')
         plt.hold(True)
         
+def plot_mainstem_and_trib_locations(outlet, elevation, hillshade, flow_direction, area, minimum_area = 1.0E7):
+    from demRecursionTools import indexes_for_mainstem_and_tributaries
     
+    indexes = indexes_for_mainstem_and_tributaries(outlet, flow_direction, area, minimum_area)
+    plt.figure()
+    elevation.plot()
+    hillshade.plot(alpha = 0.5, cmap = plt.cm.gray)
     
-          
+    (mainstem_x, mainstem_y) = zip(*flow_direction._rowscols_to_xy(indexes[0]))
+    plt.plot(mainstem_x, mainstem_y, 'b-')
+    
+    for index in indexes[1:]:
+        (trib_x, trib_y) = zip(*flow_direction._rowscols_to_xy(index))
+        plt.plot(trib_x, trib_y, 'r-')
+    
