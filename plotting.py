@@ -178,5 +178,39 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
         return hoverwrapper
     
     fig1.canvas.mpl_connect('motion_notify_event', hover(current_marker, Ao, theta))
+ 
+def plot_chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta_mainstem = 0.5, theta_tribs = 0.5, minimum_area = 1.0E7):
     
+    def chi_for_profile(area, de, theta):
+        chi = []
+        chi_value = 0.0
+        for (a, d) in zip(area, de):
+            chi += [chi_value]
+            chi_value += (1/a)**theta[0] * d
+        return chi
+    
+    from demRecursionTools import area_elevation_for_mainstem_and_tributaries
+    
+    (return_area, return_elevation, return_de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area = minimum_area)
+    
+    chi_mainstem = chi_for_profile(return_area[0], return_de[0], [theta_mainstem])
+    elevation_mainstem = return_elevation[0]
+    
+    chi_tribs = []
+    for (area_profile, de_profile) in zip(return_area[1:], return_de[1:]):
+        chi_tribs.append(chi_for_profile(area_profile, de_profile, [theta_tribs]))
+    elevation_tribs = return_elevation[1:]
+    import matplotlib.pylab as plt
+    
+    plt.figure(1)
+    plt.plot(chi_mainstem, elevation_mainstem, 'k.')
+    
+    plt.figure(2)
+    for (c, e) in zip(chi_tribs, elevation_tribs):
         
+        plt.plot(c, e, 'k.')
+        plt.hold(True)
+        
+    
+    
+          

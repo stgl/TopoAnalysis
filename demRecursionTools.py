@@ -201,7 +201,8 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
         A = np.vstack([chi]).T
         sol = np.linalg.lstsq(A, elevation)
         m = sol[0]
-        WRSS = sol[1]        
+        WRSS = sol[1]
+        
         return (m, WRSS)
     
     def best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area):
@@ -305,7 +306,7 @@ def best_ks_theta(outlet, flow_direction, elevation, area, minimum_area):
     import scipy.optimize
     chi_ks_mainstem = lambda theta: best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
     try:
-	seed = np.random.rand(1)
+        seed = np.random.rand(1)
         (xopt, _, _, _, warnflag, sols) = scipy.optimize.fmin(chi_ks_mainstem, seed, (), 1E-5, 1E-5, 100, 200, True, True, True, None)
         ((ks, WRSS), SS) = best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, np.array([xopt[0]]), minimum_area)
         ks = ks[0]
