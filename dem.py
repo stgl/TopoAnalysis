@@ -648,8 +648,42 @@ class BaseSpatialGrid(GDALMixin):
             v.append((x,y))
         return tuple(v)
     
+    def _area_per_pixel(self, *args, **kwargs):
+        return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
+
     def _mean_pixel_dimension(self, *args, **kwargs):
-        return self._georef_info.dx * np.ones_like(self._griddata, self.dtype)
+        return self._georef_info.dx * np.ones_like(self._griddata, dtype = float64)
+    
+    def resample(self, de):
+        return_grid = self.__class__()
+        return_grid._copy_info_from_grid(self, set_zeros=True)
+        import copy
+        geoTransform = (self._georef_info.geoTransform[0], 
+                        np.sign(self._georef_info.geoTransform[1])*de, 
+                        self._georef_info.geoTransform[2], 
+                        self._georef_info.geoTransform[3], 
+                        self._georef_info.geoTransform[4], 
+                        np.sign(self._georef_info.geoTransform[5])*de)
+        
+        georef = copy.deepcopy(self._georef_info)
+        georef.geoTransform = geoTransform
+        georef.dx = de
+        georef.nx = int(np.round(self._georef_info.nx * self._georef_info.dx / de))
+        georef.ny = int(np.round(self._georef_info.ny * self._georef_info.dx / de))
+        return_grid._georef_info = georef
+        xo = np.linspace(self._georef_info.xllcenter,(self._georef_info.nx-1)*(self._georef_info.dx), num = self._georef_info.nx)
+        yo = np.linspace(self._georef_info.yllcenter,(self._georef_info.ny-1)*(self._georef_info.dx), num = self._georef_info.ny)
+        xf = np.linspace(georef.xllcenter,(georef.nx-1)*georef.dx, num = georef.nx)
+        yf = np.linspace(georef.yllcenter,(georef.ny-1)*georef.dx, num = georef.ny)
+        from scipy.interpolate import interp2d
+        interp_grid = copy.deepcopy(self._griddata)
+        if geoTransform[1] > 0:
+            interp_grid = np.fliplr(interp_grid)
+        if geoTransform[5] < 0:
+            interp_grid = np.flipud(interp_grid)
+        f = interp2d(xo, yo, interp_grid, kind='quintic')
+        return_grid._griddata = f(xf, yf)
+        return return_grid
     
     def location_in_grid(self, xo):
         index = self._xy_to_rowscols((xo,))[0]
@@ -822,6 +856,29 @@ class BaseSpatialGrid(GDALMixin):
                     if np.isnan(minimum_difference) or minimum_difference > value_difference:
                         minimum_difference = value_difference
                         nearest = (y,x)
+        (y,x) = nearest
+        return y, x
+    
+    def find_nearest_cell_with_value_greater_than(self, index, value, pixel_radius):
+
+        (i, j) = index
+        nearest = tuple()
+        minimum_difference = np.nan
+        for y in range(int(i-pixel_radius),int(i+pixel_radius)):
+            for x in range(int(j-pixel_radius),int(j+pixel_radius)):
+                if x is not None and y is not None and np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius and x < self._griddata.shape[1] and y < self._griddata.shape[0]:
+                    value_difference = self._griddata[y,x] - value
+                    if (np.isnan(minimum_difference) or (minimum_difference > value_difference)) and (value_difference >= 0):
+                        minimum_difference = value_difference
+                        nearest = (y,x)
+        if np.isnan(minimum_difference):
+            for y in range(int(i-pixel_radius),int(i+pixel_radius)):
+                for x in range(int(j-pixel_radius),int(j+pixel_radius)):
+                    if x is not None and y is not None and np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius and x < self._griddata.shape[1] and y < self._griddata.shape[0]:
+                        value_difference = value - self._griddata[y,x]
+                        if (np.isnan(minimum_difference) or (minimum_difference > value_difference)) :
+                            minimum_difference = value_difference
+                            nearest = (y,x)
         (y,x) = nearest
         return y, x
     
@@ -1731,12 +1788,6 @@ class Area(BaseSpatialGrid):
                     area[i_next, j_next] += area[i,j]
     
         self._griddata = area # Return non bc version of area
-
-    def _area_per_pixel(self, *args, **kwargs):
-        return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
-
-    def _mean_pixel_dimension(self, *args, **kwargs):
-        return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
     
     def areas_greater_than(self, min_area):
         ij_cols = np.where(self._griddata >= min_area)
