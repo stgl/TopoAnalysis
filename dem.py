@@ -118,7 +118,7 @@ class GDALMixin(object):
     
         return xcoordinates, ycoordinates
 
-    def _create_gdal_representation_from_array(self, georef_info, GDALDRIVERNAME, array_data, dtype, outfile_path='name', dst_options = []):
+    def _create_gdal_representation_from_array(self, georef_info, GDALDRIVERNAME, array_data, dtype, outfile_path='name', dst_options = [], multiple_bands = False):
         #A function to write the data in the numpy array arrayData into a georeferenced dataset of type
         #  specified by GDALDRIVERNAME, a string, options here: http://www.gdal.org/formats_list.html
         #  This is accomplished by copying the georeferencing information from an existing GDAL dataset,
@@ -126,7 +126,8 @@ class GDALMixin(object):
     
         #Initialize new data
         drvr = gdal.GetDriverByName(GDALDRIVERNAME)  #  Get the desired driver
-        outRaster = drvr.Create(outfile_path, georef_info.nx, georef_info.ny, 1 , self._get_gdal_type_for_numpy_type(dtype), dst_options)  # Open the file
+        bands = 1 if multiple_bands is False else len(array_data)
+        outRaster = drvr.Create(outfile_path, georef_info.nx, georef_info.ny, bands , self._get_gdal_type_for_numpy_type(dtype), dst_options)  # Open the file
     
         #Write geographic information
         outRaster.SetGeoTransform(georef_info.geoTransform)  # Steal the coordinate system from the old dataset
@@ -134,7 +135,13 @@ class GDALMixin(object):
             outRaster.SetProjection(georef_info.projection)   # Steal the Projections from the old dataset
     
         #Write the array
-        outRaster.GetRasterBand(1).WriteArray(array_data)   # Writes my array to the raster
+        if not multiple_bands:
+            outRaster.GetRasterBand(1).WriteArray(array_data)   # Writes my array to the raster
+        else:
+            for i in range(len(array_data)):
+                print('writing band ' + str(i) + "/" + str(bands))
+                outRaster.GetRasterBand(i+1).WriteArray(array_data[i])
+                
         return outRaster
    
     def _clipRasterToRaster(self, input_gdal_dataset, clipping_gdal_dataset, dtype):
@@ -542,7 +549,7 @@ class BaseSpatialGrid(GDALMixin):
             try:
                 return self._griddata[i, j]
             except:
-                print(i, j)
+                print('error: '+ str(i) + str(j))
         
         return None
         
@@ -1121,6 +1128,36 @@ class FlowDirectionD8(FlowDirection):
     
         return iOut, jOut, isGood
 
+    def get_upstream_cell_indexes(self, i, j):
+        
+        options = list()
+        
+        if self[i, j+1] == 16:
+            options += [(i, j+1)]
+        
+        if self[i+1, j+1] == 32:
+            options += [(i+1, j+1)]
+            
+        if self[i+1, j] == 64:
+            options += [(i+1, j)]
+                    
+        if self[i+1, j-1] == 128:
+            options += [(i+1, j-1)]
+                
+        if self[i, j-1] == 1:
+            options += [(i, j-1)]
+         
+        if self[i-1, j-1] == 2:
+            options += [(i-1, j-1)]
+            
+        if self[i-1, j] == 4:
+            options += [(i-1, j)]
+            
+        if self[i-1, j+1] == 8:
+            options += [(i-1, j+1)]
+
+        return options
+    
     def __get_flow_from_cell(self, i, j):
         
         i_source = [i]
@@ -1167,7 +1204,7 @@ class FlowDirectionD8(FlowDirection):
             j_source = j_source + j_append
                
         return i_source, j_source
-    
+
     def __map_flow_from_cell(self, index, **kwargs):
         
         i = index[0]
@@ -1236,6 +1273,60 @@ class FlowDirectionD8(FlowDirection):
         for (i,j) in zip(indexes[0],indexes[1]):
             flow_code = self.__flow_code_for_position(flooded_dem, i, j)
             self._griddata[i,j] = flow_code
+    
+    def divides_for_outlets(self, outlet1, outlet2):
+        basin1 = BaseSpatialGrid()
+        basin1._copy_info_from_grid(self, True)
+        
+        ind = self.get_indexes_of_upstream_cells_for_location(outlet1[0], outlet1[1])
+        i,j = zip(*ind)
+        basin1._griddata[i,j] = 1
+        
+        basin2 = BaseSpatialGrid()
+        basin2._copy_info_from_grid(self, True)
+        
+        ind = self.get_indexes_of_upstream_cells_for_location(outlet2[0], outlet2[1])
+        i,j = zip(*ind)
+        basin2._griddata[i,j] = 1
+        
+        from scipy.ndimage.morphology import binary_dilation as dilate
+        
+        basin3 = BaseSpatialGrid()
+        basin3._copy_info_from_grid(self, True)
+        basin3._griddata = basin1._griddata + dilate(basin2._griddata)
+        
+        basin4 = BaseSpatialGrid()
+        basin4._copy_info_from_grid(self, True)
+        basin4._griddata = basin2._griddata + dilate(basin1._griddata)
+        
+        (i, j) = np.where(basin3._griddata == 2)
+        ind1 = zip(i,j)
+        
+        (i,j) = np.where(basin4._griddata == 2)
+        ind2 = zip(i,j)
+        
+        return ind1, ind2
+    
+    def locations_of_paired_hollows(self, outlet1, outlet2, area, Ao=1E5):
+        
+        def map_down_to_hollow(ind, fd):
+            (i,j) = ind
+            (next_i, next_j, _) = fd.get_flow_to_cell(i,j)
+            if((area[i,j] < Ao) and (area[next_i, next_j] >= Ao)):
+                return next_i, next_j
+            else:
+                return map_down_to_hollow((next_i, next_j), fd)
+            
+        ind1, ind2 = self.divides_for_outlets(outlet1, outlet2)
+        h1 = set()
+        for ind in ind1:
+            h1.add(map_down_to_hollow(ind, self))
+        h2 = set()
+        for ind in ind2:
+            h2.add(map_down_to_hollow(ind, self))
+        
+        return tuple(h1), tuple(h2)
+        
         
     def get_indexes_of_upstream_cells(self, i, j):
         
@@ -1896,7 +1987,156 @@ class MainstemValleyArea(Area):
                             
 class GeographicMainstemValleyArea(GeographicGridMixin, MainstemValleyArea):
     pass
+
+class KsFromChiWithSmoothing(BaseSpatialGrid):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('elevation', 'area', 'flow_direction', 'theta', 'vertical_interval'), '_create_from_elevation_area_flow_direction'),
+                                   )
     
+    def __calc_ks(self, i,j,elevation,area,flow_direction,de,theta,vertical_interval):
+        
+        this_elevation = elevation[i,j]
+        def find_upstream_points_at_elevation(this_i, this_j):
+            ret = list()
+            (upstream_i, upstream_j) = (this_i, this_j)
+            while elevation[upstream_i, upstream_j] < (this_elevation + vertical_interval):
+                if (elevation[upstream_i, upstream_j] is None) or ((upstream_i, upstream_j) in ret):
+                    ret = None
+                    break
+                else:
+                    ret += [(upstream_i, upstream_j)]  
+                    upstream_options = flow_direction.get_upstream_cell_indexes(upstream_i,upstream_j)
+                    max_area = None
+                    upstream_i = None
+                    upstream_j = None
+                    for (option_i, option_j) in upstream_options:
+                        if area[option_i, option_j] is not None and ( (max_area is None) or (max_area < area[option_i, option_j]) ):
+                            (upstream_i, upstream_j) = (option_i, option_j)
+                            max_area = area[option_i, option_j]
+                    if max_area is None:
+                        ret = None
+                        break
+                         
+            return ret
+        
+        def find_downstream_points_at_elevation(this_i, this_j):
+            ret = list()
+            (downstream_i, downstream_j) = (this_i, this_j)
+            while elevation[downstream_i, downstream_j] > (this_elevation - vertical_interval):
+                if (elevation[downstream_i, downstream_j] is None) or (downstream_i, downstream_j) in ret:
+                    ret = None
+                    break
+                else:
+                    ret = [(downstream_i, downstream_j)] + ret
+                    downstream_i, downstream_j, _ = flow_direction.get_flow_to_cell(downstream_i, downstream_j)
+                    if downstream_i is None:
+                        ret = None
+                        break;
+            return ret
+            
+        upstream_points = find_upstream_points_at_elevation(i, j)
+        downstream_points = find_downstream_points_at_elevation(i, j)        
+        
+        if upstream_points is not None and downstream_points is not None and (len(upstream_points)+len(downstream_points) > 2):
+
+            downstream_points.pop()
+            area_profile = list()
+            elevation_profile = list()
+            de_profile = list()
+            
+            points = downstream_points + upstream_points
+            for point in points:
+                (prof_i, prof_j) = point
+                area_profile += [area[prof_i, prof_j]]
+                elevation_profile += [elevation[prof_i, prof_j]]
+                de_profile += [de[prof_i, prof_j]]
+            chi_profile = [0]
+            for index in range(len(area_profile) - 1):
+                adjustment = 1.0 if ( (points[index+1][0] == points[index][0]) or (points[index+1][1] == points[index][1])) else 1.414
+                chi_profile += [chi_profile[index] + 0.25*((1 / area_profile[index+1])**theta + (1 / area_profile[index])**theta) * (de_profile[index+1] + de_profile[index]) * adjustment]
+            A = np.vstack([np.array(chi_profile)]).T
+            el0 = np.array(elevation_profile) - elevation_profile[0]
+            sol = np.linalg.lstsq(A, el0)
+            SS = sol[1]
+            SS0 = np.sum(np.power(el0,2))
+            R2 = 1 - (SS / SS0)
+            self._griddata[i,j] = sol[0]
+            self._mse[i,j] = SS / float(len(chi_profile))
+            self._ss[i,j] = SS
+            self._r2[i,j] = R2
+            for point in points:
+                (p_i, p_j) = point
+                self._n[p_i, p_j] += 1
+            
+    def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
+        
+        elevation = kwargs['elevation']
+        area = kwargs['area']
+        flow_direction = kwargs['flow_direction']
+        theta = kwargs['theta']
+        vertical_interval = kwargs['vertical_interval']
+        de = area._mean_pixel_dimension()
+        
+        self._copy_info_from_grid(elevation)
+        self._griddata = np.zeros_like(elevation._griddata)
+        self._n = np.zeros_like(self._griddata)
+        self._mse = np.zeros_like(self._griddata)
+        self._ss = np.zeros_like(self._griddata)
+        self._r2 = np.zeros_like(self._griddata)
+        self._griddata[:] = np.nan
+                
+        for i in range(elevation._georef_info.ny):
+            for j in range(elevation._georef_info.nx):
+                if((area[i,j] != 0) & ~np.isnan(area[i,j]) & ~np.isnan(elevation[i,j])):
+                    self.__calc_ks(i,j,elevation,area,flow_direction,de,theta,vertical_interval)
+                    
+    def save(self, filename):
+        
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+            
+    @classmethod
+    def load(cls, filename):
+        
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                from numpy import uint8
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+        
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+        return_object._griddata = get_band(gdal_dataset, 1)
+        return_object._n = get_band(gdal_dataset, 2)
+        return_object._mse = get_band(gdal_dataset, 3)
+        return_object._ss = get_band(gdal_dataset, 4)
+        return_object._r2 = get_band(gdal_dataset, 5)
+        
+            
+        gdal_file = None
+        return return_object
+    
+class GeographicKsFromChiWithSmoothing(GeographicGridMixin, KsFromChiWithSmoothing):
+    pass
+
 class DiscreteFlowAccumulation(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
@@ -2825,7 +3065,6 @@ class ChannelSlope(BaseSpatialGrid):
     def __calc_D8_slope(self, fd, dem):
 
         dx = self._georef_info.dx
-        print(dx)
         idcs = fd.sort() # Get the sorted indices of the array in reverse order (e.g. largest first)
     
         for idx in idcs:  # Loop through all the data in sorted order
@@ -2834,8 +3073,6 @@ class ChannelSlope(BaseSpatialGrid):
             i_next, j_next, is_good = fd.get_flow_to_cell(i,j)
             if is_good:
                 dist = np.sqrt((i-i_next)**2 + (j-j_next)**2)*dx
-                print(dist)
-                print((dem[i,j] - dem[i_next, j_next]))
                 self._griddata[i,j] = (dem[i,j] - dem[i_next, j_next]) / dist
 
     
