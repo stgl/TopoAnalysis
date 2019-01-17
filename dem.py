@@ -2137,6 +2137,107 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
 class GeographicKsFromChiWithSmoothing(GeographicGridMixin, KsFromChiWithSmoothing):
     pass
 
+class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('elevation', 'area', 'area_cutoff', 'max_width'), '_create_from_inputs'),)
+    
+    def _create_from_inputs(self, *args, **kwargs):
+        
+        def _calc_inv_G_for_kernel(X, Y):
+            x4 = np.sum(np.power(X,4)[:])
+            x2y2 = np.sum((np.power(X,2)[:]*np.power(Y,2))[:])
+            x2 = np.sum(np.power(X,2)[:])
+            N = len(np.where(X != 0)[0])
+            G = np.asarray([[x4, x2y2, 0, 0, 0, x2],
+                            [x2y2, x4, 0, 0, 0, x2],
+                            [0, 0, x2y2, 0, 0, 0],
+                            [0, 0, 0, x2, 0, 0],
+                            [0, 0, 0, 0, x2, 0],
+                            [x2, x2, 0, 0, 0, N]])
+            from numpy.linalg import inv
+            
+            return inv(G)
+        
+        def _convolve(X, Y, Z):
+            
+            from numpy.fft import fft2 as fft2
+            from numpy.fft import ifft2 as ifft2
+            from numpy import flipud as flipud
+            from numpy import fliplr as fliplr
+            from numpy.fft import ifftshift
+            
+            Xt = fliplr(X)
+            Yt = flipud(Y)
+            
+            FZ = fft2(Z._griddata)
+            FX1 = fft2(np.power(Xt, 2))
+            FX2 = fft2(np.power(Yt, 2))
+            FX3 = fft2(Xt*Yt)
+            FX4 = fft2(Xt)
+            FX5 = fft2(Yt)
+            FX6 = fft2((Xt != 0.0).astype(float))
+            
+            g = ifftshift(ifft2(FZ*FX1))
+            h = ifftshift(ifft2(FZ*FX2))
+            i = ifftshift(ifft2(FZ*FX3))
+            j = ifftshift(ifft2(FZ*FX4))
+            k = ifftshift(ifft2(FZ*FX5))
+            l = ifftshift(ifft2(FZ*FX6))
+            
+            return g, h, i, j, k, l
+        
+        def _Cmin(H, g, h, i, j, k, l):
+            
+            a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
+            b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
+            c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
+            
+            from numpy import conj as conj
+            from numpy import real as real
+            
+            return real(-np.sqrt(a*conj(a))-np.sqrt(b*conj(b))-np.sqrt((a-b)*conj(a-b)+(c*conj(c))))
+        
+        def _create_kernel(Z, de):
+            
+            center = (Z._georef_info.xllcenter + (Z._georef_info.dx/2)*(Z._georef_info.nx-1), Z._georef_info.yllcenter + (Z._georef_info.dx/2)*(Z._georef_info.ny-1))
+            x = np.arange(Z._georef_info.nx)*Z._georef_info.dx + Z._georef_info.xllcenter - center[0]
+            y = np.arange(Z._georef_info.ny)*Z._georef_info.dx + Z._georef_info.yllcenter - center[1]
+            
+            X, Y = np.meshgrid(x,y)
+            K = ((np.abs(X) <= de) & (np.abs(Y) <= de)).astype(float)
+            return X*K, Y*K
+    
+        def _Cmin_for_scale(Z, de):
+            
+            X, Y = _create_kernel(Z, de)
+            H = _calc_inv_G_for_kernel(X,Y)
+            g, h, i, j, k, l= _convolve(X, Y, Z)
+            return _Cmin(H, g, h, i, j, k, l)
+        
+        (Z, A, area_cutoff, max_width) = (kwargs['elevation'], kwargs['area'], kwargs['area_cutoff'], kwargs['max_width'])
+        self._copy_info_from_grid(Z, set_zeros = True)
+        de = Z._georef_info.dx
+        numsteps = np.round((max_width - de*2) / de)
+        scales = np.linspace(de*2, max_width, numsteps)
+        self._minC = np.zeros_like(self._griddata)
+        ind = 1
+        for scale in scales:
+            print('scale ' + str(ind) + ' / ' + str(len(scales)))
+            import matplotlib.pylab as plt
+            
+            minC = _Cmin_for_scale(Z, scale)
+            plt.close()
+            plt.imshow(minC)
+            plt.colorbar()
+            plt.show()
+            plt.pause(1e-3) 
+            i = np.where(minC < self._minC)
+            self._griddata[i[0],i[1]] = scale
+            self._minC[i[0],i[1]] = minC[i[0],i[1]]
+            ind += 1
+                    
 class DiscreteFlowAccumulation(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
