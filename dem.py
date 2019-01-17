@@ -2237,6 +2237,46 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             self._griddata[i[0],i[1]] = scale
             self._minC[i[0],i[1]] = minC[i[0],i[1]]
             ind += 1
+        i = np.where(A._griddata < area_cutoff)
+        self._minC[i[0],i[1]] = np.nan
+        self._griddata[i[0],i[1]] = np.nan
+    
+    def save(self, filename):
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._minC], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+    
+    @classmethod
+    def load(cls, filename):
+        
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                from numpy import uint8
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+        
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+        return_object._griddata = get_band(gdal_dataset, 1)
+        return_object._minC = get_band(gdal_dataset, 2)        
+            
+        gdal_file = None
+        return return_object
                     
 class DiscreteFlowAccumulation(BaseSpatialGrid):
     
