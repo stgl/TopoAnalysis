@@ -849,7 +849,7 @@ class BaseSpatialGrid(GDALMixin):
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         plt.imshow(self._griddata, extent = extent, **kwargs)
         plt.ion()
-        plt.show()
+        plt.show(block = False)
     
     def find_nearest_cell_with_value(self, index, value, pixel_radius):
 
