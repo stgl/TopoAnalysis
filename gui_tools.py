@@ -6,7 +6,11 @@ import matplotlib.pylab as plt
 import numpy as np
 import pickle as p
 import matplotlib.cm as cm
+import sys
 
+if sys.version_info[0] >= 3:
+    raw_input = input
+    
 def plot_dem(dem, hs):
     plt.close('all')
 
