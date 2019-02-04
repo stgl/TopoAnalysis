@@ -720,6 +720,25 @@ class BaseSpatialGrid(GDALMixin):
         out_grid._griddata = moving_window.apply_moving_window(self._griddata, self._georef_info.dx, self.dtype)
         return out_grid
     
+    def average_over_distance(self, distance, grid = None):
+        (nx, ny) = (self._georef_info.nx, self._georef_info.ny)
+        (dx, dy) = (self._georef_info.dx, self._georef_info.dx)
+        (xmin, xmax) = (self._georef_info.xllcenter, nx*dx+self._georef_info.xllcenter)
+        (ymin, ymax) = (self._georef_info.yllcenter, ny*dy+self._georef_info.yllcenter)
+        (xcenter, ycenter) = ((xmin+xmax) / 2.0, (ymin+ymax) / 2.0)
+        [x,y] = np.meshgrid(np.arange(xmin, xmax, dx),np.arange(ymin, ymax, dy))
+        D = np.sqrt(np.power((x - xcenter),2) + np.power((y - ycenter), 2))
+        template = (D <= distance).astype(float)
+        template /= np.sum(template[:])
+        if grid is None:
+            grid = self._griddata
+        
+        from numpy.fft import fft2 as fft2
+        from numpy.fft import ifft2 as ifft2
+        from numpy.fft import ifftshift
+        
+        return np.real(ifftshift(ifft2(fft2(grid)*fft2(template))))
+        
     def clip_to_bounds(self, bounds):
         extent = (bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1])
         return self.clip_to_extent(extent)
@@ -1516,8 +1535,179 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
             l += (last_l, )
             this_xy = txy
         return xy, l, e
-        
 
+class Gradient(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('elevation',), '_create_from_elevation'))
+     
+    def _create_from_elevation(self, *args, **kwargs):
+        elevation = kwargs['elevation']
+        self._copy_info_from_grid(elevation,True)
+        dx = elevation._georef_info.dx
+        [self._gy, self._gx] = np.gradient(elevation._griddata,dx)
+    
+    def average_gradient(self, distance):
+        outgrid = Gradient()
+        outgrid._copy_info_from_grid(self, True)
+        outgrid._gy = self.average_over_distance(distance, grid = self._gy)
+        outgrid._gx = self.average_over_distance(distance, grid = self._gx)
+        return outgrid
+    
+    def save(self, filename):    
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._gx, self._gy], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+    
+    @classmethod
+    def load(cls, filename):
+        
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+        
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+        return_object._gx = get_band(gdal_dataset, 1)
+        return_object._gy = get_band(gdal_dataset, 2)        
+            
+        gdal_file = None
+        return return_object  
+    
+    def plot(self, **kwargs):
+        
+        extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
+        mag = np.sqrt(np.power(self._gx, 2) + np.power(self._gy, 2))
+        direction = np.arctan2(self._gy,self._gx)*180 / np.pi
+        if kwargs.get('azimuth'):
+            direction = 90.0 - direction
+            direction = (direction >= 180)*(direction - 360) + (direction < 180) * (direction)
+            kwargs.pop('azimuth')
+        if kwargs.get('reflect'):
+            direction = (direction > 90)*(direction - 180) + (direction < -90)*(direction + 180) + ((direction <= 90) & (direction >= -90))*direction
+            kwargs.pop('reflect')
+        plt.figure()
+        plt.imshow(mag, extent = extent, **kwargs)
+        plt.figure()
+        plt.imshow(direction, extent = extent, **kwargs)
+        plt.ion()
+        plt.show(block = False)
+
+class ScarpWavelet(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'))
+        
+    @classmethod
+    def load(cls, filename):
+        
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+        
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+        return_object._griddata = np.zeros((ny,nx))
+        return_object._A = get_band(gdal_dataset, 1)
+        return_object._kt = get_band(gdal_dataset, 2)
+        return_object._orientation = get_band(gdal_dataset, 3)
+        return_object._SNR = get_band(gdal_dataset, 4)    
+            
+        gdal_file = None
+        return return_object  
+    
+    def plot_orientations(self, *args, **kwargs):
+        
+        # pop inputs, create those that are needed:
+        
+        elevation = kwargs.pop('elevation', None)
+        distance = kwargs.pop('distance', None)
+        orientation = kwargs.pop('orientation', None)
+        hillshade = kwargs.pop('hillshade', None)
+        
+        adjust_orientations = False
+        
+        if elevation is not None and distance is not None:
+            gradient = Gradient(elevation = elevation)
+            average_gradient = gradient.average_gradient(distance)
+            orientation = BaseSpatialGrid()
+            orientation._copy_info_from_grid(self, True)
+            orientation._griddata = np.arctan2(average_gradient._gy,average_gradient._gx)*180 / np.pi
+            if hillshade is None:
+                hillshade = Hillshade(elevation = elevation, azimuth = 320, inclination = 20)
+            adjust_orientations = True
+        elif orientation is not None:
+            adjust_orientations = True
+        
+        adjusted_orientations = BaseSpatialGrid()
+        adjusted_orientations._copy_info_from_grid(self, True)
+        adjusted_orientations._griddata = self._orientation
+
+        if adjust_orientations:
+            # Align orientations:
+            orientation._griddata = -orientation._griddata
+            orientation._griddata = (orientation._griddata < -90.0).astype(float)*(orientation._griddata + 180.0) + (orientation._griddata >= 90.0).astype(float)*(orientation._griddata - 180.0) + ((orientation._griddata > -90.0) & (orientation._griddata < 90.0))*orientation._griddata
+            adjusted_orientations._griddata = adjusted_orientations._griddata - orientation._griddata
+
+        adjusted_orientations._griddata = (adjusted_orientations._griddata < -90.0).astype(float)*(adjusted_orientations._griddata + 180.0) + (adjusted_orientations._griddata >= 90.0).astype(float)*(adjusted_orientations._griddata - 180.0) + ((adjusted_orientations._griddata > -90.0) & (adjusted_orientations._griddata < 90.0)).astype(float)*adjusted_orientations._griddata
+
+        extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
+        plt.figure()
+        cmap = kwargs.pop('cmap', None)
+        vmin = kwargs.pop('vmin', -90)
+        vmax = kwargs.pop('vmax', 90)
+        if hillshade is not None:
+            from matplotlib import cm
+            plt.imshow(hillshade._griddata, extent = extent, cmap = cm.gray, **kwargs)
+        self._adjusted_orientations = adjusted_orientations._griddata
+        
+        from matplotlib import colors
+        norm = colors.Normalize(vmin = vmin, vmax = vmax, clip = True)
+        normalized_data = norm(adjusted_orientations._griddata)
+        adjusted_orientations_rgba = cm.ScalarMappable(cmap = cmap, norm = norm).to_rgba(adjusted_orientations._griddata)
+        norm = colors.LogNorm()
+        adjusted_orientations_rgba[:,:,3] = (~normalized_data.mask).astype(float)*norm(self._SNR)
+        plt.imshow(adjusted_orientations_rgba, extent = extent, **kwargs)
+        plt.ion()
+        plt.show(block = False)    
+                  
 class LocalRelief(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
