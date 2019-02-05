@@ -1709,6 +1709,10 @@ class ScarpWavelet(BaseSpatialGrid):
         adjusted_orientations_rgba[:,:,3] = (~normalized_data.mask).astype(float)*norm(self._SNR)
         plt.imshow(adjusted_orientations_rgba, extent = extent, **kwargs)
         plt.ion()
+
+        title = kwargs.pop('title', '')
+        plt.title(title)
+
         plt.show(block = False)    
                   
 class LocalRelief(BaseSpatialGrid):
