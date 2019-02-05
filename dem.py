@@ -1688,7 +1688,10 @@ class ScarpWavelet(BaseSpatialGrid):
 
         adjusted_orientations._griddata = (adjusted_orientations._griddata < -90.0).astype(float)*(adjusted_orientations._griddata + 180.0) + (adjusted_orientations._griddata >= 90.0).astype(float)*(adjusted_orientations._griddata - 180.0) + ((adjusted_orientations._griddata > -90.0) & (adjusted_orientations._griddata < 90.0)).astype(float)*adjusted_orientations._griddata
 
-        extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
+        extent = kwargs.pop('extent', None)
+        if extent is None:
+            extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
+
         plt.figure()
         cmap = kwargs.pop('cmap', None)
         vmin = kwargs.pop('vmin', -90)
