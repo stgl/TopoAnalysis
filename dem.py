@@ -1696,6 +1696,8 @@ class ScarpWavelet(BaseSpatialGrid):
         cmap = kwargs.pop('cmap', None)
         vmin = kwargs.pop('vmin', -90)
         vmax = kwargs.pop('vmax', 90)
+        title = kwargs.pop('title', '')
+
         if hillshade is not None:
             from matplotlib import cm
             plt.imshow(hillshade._griddata, extent = extent, cmap = cm.gray, **kwargs)
@@ -1710,7 +1712,6 @@ class ScarpWavelet(BaseSpatialGrid):
         plt.imshow(adjusted_orientations_rgba, extent = extent, **kwargs)
         plt.ion()
 
-        title = kwargs.pop('title', '')
         plt.title(title)
 
         plt.show(block = False)    
