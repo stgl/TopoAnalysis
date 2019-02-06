@@ -2188,10 +2188,10 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                                    )
     
     def _upstream_downstream_indexes(self, area, flow_direction):
-        upstream_i = np.ones_like(area._griddata)*-1.0
-        upstream_j = np.ones_like(area._griddata)*-1.0
-        downstream_i = np.ones_like(area._griddata)*-1.0
-        downstream_j = np.ones_like(area._griddata)*-1.0
+        upstream_i = (np.ones_like(area._griddata)*-1.0).astype(int)
+        upstream_j = (np.ones_like(area._griddata)*-1.0).astype(int)
+        downstream_i = (np.ones_like(area._griddata)*-1.0).astype(int)
+        downstream_j = (np.ones_like(area._griddata)*-1.0).astype(int)
         visited = np.zeros_like(area._griddata).astype(bool)
         shape = upstream_i.shape
         indexes = area.sort(reverse = False)
