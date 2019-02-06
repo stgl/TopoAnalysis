@@ -1652,7 +1652,7 @@ class ScarpWavelet(BaseSpatialGrid):
             
         gdal_file = None
         return return_object  
-    
+
     def plot_orientations(self, *args, **kwargs):
         
         # pop inputs, create those that are needed:
@@ -1714,7 +1714,22 @@ class ScarpWavelet(BaseSpatialGrid):
 
         plt.title(title)
 
-        plt.show(block = False)    
+        plt.show(block = False)
+
+
+    def template_window(self, window_size, age, orientation):
+        nx = self._georef_info.nx
+        ny = self._georef_info.ny
+        dx = self._georef_info.dx
+
+        from scarplet.WindowedTemplate import Scarp
+        template = Scarp(window_size, orientation, age, nx, ny, dx)
+
+        window = template.get_window_limits()
+        curvature_extent = template.get_mask()
+
+        return window * curvature_extent
+
                   
 class LocalRelief(BaseSpatialGrid):
     
