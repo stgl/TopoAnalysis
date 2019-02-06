@@ -2178,6 +2178,8 @@ class MainstemValleyArea(Area):
 class GeographicMainstemValleyArea(GeographicGridMixin, MainstemValleyArea):
     pass
 
+
+    
 class KsFromChiWithSmoothing(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
@@ -2185,80 +2187,23 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                                    (('elevation', 'area', 'flow_direction', 'theta', 'vertical_interval'), '_create_from_elevation_area_flow_direction'),
                                    )
     
-    def __calc_ks(self, i,j,elevation,area,flow_direction,de,theta,vertical_interval):
-        
-        this_elevation = elevation[i,j]
-        def find_upstream_points_at_elevation(this_i, this_j):
-            ret = list()
-            (upstream_i, upstream_j) = (this_i, this_j)
-            while elevation[upstream_i, upstream_j] < (this_elevation + vertical_interval):
-                if (elevation[upstream_i, upstream_j] is None) or ((upstream_i, upstream_j) in ret):
-                    ret = None
-                    break
-                else:
-                    ret += [(upstream_i, upstream_j)]  
-                    upstream_options = flow_direction.get_upstream_cell_indexes(upstream_i,upstream_j)
-                    max_area = None
-                    upstream_i = None
-                    upstream_j = None
-                    for (option_i, option_j) in upstream_options:
-                        if area[option_i, option_j] is not None and ( (max_area is None) or (max_area < area[option_i, option_j]) ):
-                            (upstream_i, upstream_j) = (option_i, option_j)
-                            max_area = area[option_i, option_j]
-                    if max_area is None:
-                        ret = None
-                        break
-                         
-            return ret
-        
-        def find_downstream_points_at_elevation(this_i, this_j):
-            ret = list()
-            (downstream_i, downstream_j) = (this_i, this_j)
-            while elevation[downstream_i, downstream_j] > (this_elevation - vertical_interval):
-                if (elevation[downstream_i, downstream_j] is None) or (downstream_i, downstream_j) in ret:
-                    ret = None
-                    break
-                else:
-                    ret = [(downstream_i, downstream_j)] + ret
-                    downstream_i, downstream_j, _ = flow_direction.get_flow_to_cell(downstream_i, downstream_j)
-                    if downstream_i is None:
-                        ret = None
-                        break;
-            return ret
+    def _upstream_downstream_indexes(self, area, flow_direction):
+        upstream_i = np.ones_like(area._griddata)*-1.0
+        upstream_j = np.ones_like(area._griddata)*-1.0
+        downstream_i = np.ones_like(area._griddata)*-1.0
+        downstream_j = np.ones_like(area._griddata)*-1.0
+        visited = np.zeros_like(area._griddata).astype(bool)
+        shape = upstream_i.shape
+        indexes = area.sort(reverse = False)
+        (i_s, j_s) = np.unravel_index(indexes, shape)
+        for (i,j) in zip(i_s, j_s):
+            ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
+            if good and not visited[ds_i,ds_j]:
+                visited[i,j] = True
+                (downstream_i[i, j], downstream_j[i,j]) = (ds_i, ds_j)
+                (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
             
-        upstream_points = find_upstream_points_at_elevation(i, j)
-        downstream_points = find_downstream_points_at_elevation(i, j)        
-        
-        if upstream_points is not None and downstream_points is not None and (len(upstream_points)+len(downstream_points) > 2):
-
-            downstream_points.pop()
-            area_profile = list()
-            elevation_profile = list()
-            de_profile = list()
-            
-            points = downstream_points + upstream_points
-            for point in points:
-                (prof_i, prof_j) = point
-                area_profile += [area[prof_i, prof_j]]
-                elevation_profile += [elevation[prof_i, prof_j]]
-                de_profile += [de[prof_i, prof_j]]
-            chi_profile = [0]
-            for index in range(len(area_profile) - 1):
-                adjustment = 1.0 if ( (points[index+1][0] == points[index][0]) or (points[index+1][1] == points[index][1])) else 1.414
-                chi_profile += [chi_profile[index] + 0.25*((1 / area_profile[index+1])**theta + (1 / area_profile[index])**theta) * (de_profile[index+1] + de_profile[index]) * adjustment]
-            A = np.vstack([np.array(chi_profile)]).T
-            el0 = np.array(elevation_profile) - elevation_profile[0]
-            sol = np.linalg.lstsq(A, el0)
-            SS = sol[1]
-            SS0 = np.sum(np.power(el0,2))
-            R2 = 1 - (SS / SS0)
-            self._griddata[i,j] = sol[0]
-            self._mse[i,j] = SS / float(len(chi_profile))
-            self._ss[i,j] = SS
-            self._r2[i,j] = R2
-            for point in points:
-                (p_i, p_j) = point
-                self._n[p_i, p_j] += 1
+        return upstream_i, upstream_j, downstream_i, downstream_j
             
     def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
         
@@ -2271,17 +2216,83 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         
         self._copy_info_from_grid(elevation)
         self._griddata = np.zeros_like(elevation._griddata)
-        self._n = np.zeros_like(self._griddata)
+        self._n = np.zeros_like(self._griddata).astype(int)
         self._mse = np.zeros_like(self._griddata)
         self._ss = np.zeros_like(self._griddata)
         self._r2 = np.zeros_like(self._griddata)
         self._griddata[:] = np.nan
-                
-        for i in range(elevation._georef_info.ny):
-            for j in range(elevation._georef_info.nx):
-                if((area[i,j] != 0) & ~np.isnan(area[i,j]) & ~np.isnan(elevation[i,j])):
-                    self.__calc_ks(i,j,elevation,area,flow_direction,de,theta,vertical_interval)
+        
+        import time
+        t1 = time.time()
+        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
+        t2 = time.time()
+        
+        print('completed flow graph in: ' + str(t2-t1) + " s")
+        
+        def find_points_at_elevation(this_i, this_j):
+            ret = list()
+            ret += [(this_i, this_j)]
+            (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
+            (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
+            if (ups_i < 0) or (ds_i < 0):
+                return None
+            ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+            delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+            while (delta_e < vertical_interval) & (ups_i >= 0):
+                (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
+                (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+                if (ups_i < 0) or (ds_i < 0):
+                    return None
+                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+            return ret
+        
+        def calc_ks(i,j):
+                        
+            points = find_points_at_elevation(i, j)     
+            if points is not None:
                     
+                pts = zip(*(points))
+                points = np.array(pts).astype(int)
+                adjustment = np.ones((len(points[0])))
+                i = np.where((points[0,1:-1] != points[0,2:]) & (points[1,1:-1] != points[1,2:]))
+                adjustment[i[0]+1] += 0.414
+                area_profile = area._griddata[points[0],points[1]]
+                elevation_profile = elevation._griddata[points[0], points[1]]
+                de_profile = de[points[0], points[1]]
+                chi_profile = np.zeros_like(elevation_profile)
+                chi_profile[1:] = np.cumsum(0.25*(np.power(area_profile[1:], -theta) + np.power(area_profile[0:-1], -theta)) * (de_profile[1:] + de_profile[0:-1])*adjustment[1:]) 
+                A = np.vstack([np.array(chi_profile)]).T
+                el0 = np.array(elevation_profile) - elevation_profile[0]
+                sol = np.linalg.lstsq(A, el0)
+                SS = sol[1]
+                SS0 = np.sum(np.power(el0,2))
+                R2 = 1 - (SS / SS0)
+                
+                return sol[0], SS / float(len(chi_profile)), SS, R2, points
+            
+            else:
+                
+                return np.nan, np.nan, np.nan, np.nan, [[],[]]
+        
+        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
+        ij = zip(i[0],i[1])
+        totalnumber = len(ij)
+        counter = 0.0
+        next_readout = 0.1
+        sys.stdout.write('Percent completion...')
+        sys.stdout.flush()
+        for (i,j) in ij:
+            self._griddata[i,j], self._mse[i,j], self._ss[i,j], self._r2[i,j], pts = calc_ks(i,j)
+            self._n[pts[0], pts[1]] += 1
+            counter += 1.0 / totalnumber
+            if counter > next_readout:
+                sys.stdout.write(str(int(next_readout*100)) + "...")
+                sys.stdout.flush()
+                next_readout += 0.1
+        sys.stdout.write('100')
+        sys.stdout.flush()
+                                            
     def save(self, filename):
         
         self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
