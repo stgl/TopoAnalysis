@@ -17,6 +17,7 @@ from numpy import uint8, int8, float64
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
+from scipy import stats
 
 sys.setrecursionlimit(1000000)
 
@@ -2220,6 +2221,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         self._mse = np.zeros_like(self._griddata)
         self._ss = np.zeros_like(self._griddata)
         self._r2 = np.zeros_like(self._griddata)
+        self._pval = np.zeros_like(self._griddata)
         self._griddata[:] = np.nan
         
         import time
@@ -2268,12 +2270,17 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 SS = sol[1]
                 SS0 = np.sum(np.power(el0,2))
                 R2 = 1 - (SS / SS0)
+                DF = len(chi_profile) - 1
+                mean_chi = np.mean(chi_profile)
+                SE = np.sqrt(SS/DF)/np.sqrt(np.sum(np.power(chi_profile - mean_chi, 2)))
+                t = sol[1] / SE
+                pval = stats.t.sf(np.abs(t), DF)*2
                 
-                return sol[0], SS / float(len(chi_profile)), SS, R2, points
+                return sol[0], SS / float(len(chi_profile)), SS, R2, points, pval
             
             else:
                 
-                return np.nan, np.nan, np.nan, np.nan, [[],[]]
+                return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan
         
         i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
         ij = zip(i[0],i[1])
@@ -2283,7 +2290,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
         for (i,j) in ij:
-            self._griddata[i,j], self._mse[i,j], self._ss[i,j], self._r2[i,j], pts = calc_ks(i,j)
+            self._griddata[i,j], self._mse[i,j], self._ss[i,j], self._r2[i,j], pts, self._pval[i,j] = calc_ks(i,j)
             self._n[pts[0], pts[1]] += 1
             counter += 1.0 / totalnumber
             if counter > next_readout:
@@ -2295,7 +2302,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                                             
     def save(self, filename):
         
-        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2, self._pval], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
             
     @classmethod
     def load(cls, filename):
@@ -2330,6 +2337,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         return_object._mse = get_band(gdal_dataset, 3)
         return_object._ss = get_band(gdal_dataset, 4)
         return_object._r2 = get_band(gdal_dataset, 5)
+        return_object._pval = get_band(gdal_dataset, 6)
         
             
         gdal_file = None
