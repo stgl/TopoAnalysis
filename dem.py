@@ -2433,15 +2433,8 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         self._minC = np.zeros_like(self._griddata)
         ind = 1
         for scale in scales:
-            print('scale ' + str(ind) + ' / ' + str(len(scales)))
-            import matplotlib.pylab as plt
-            
+            print('scale ' + str(ind) + ' / ' + str(len(scales)))            
             minC = _Cmin_for_scale(Z, scale)
-            plt.close()
-            plt.imshow(minC)
-            plt.colorbar()
-            plt.show()
-            plt.pause(1e-3) 
             i = np.where(minC < self._minC)
             self._griddata[i[0],i[1]] = scale
             self._minC[i[0],i[1]] = minC[i[0],i[1]]
