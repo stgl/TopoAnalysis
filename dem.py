@@ -2354,22 +2354,30 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
     
     def _create_from_inputs(self, *args, **kwargs):
         
-        def _calc_inv_G_for_kernel(X, Y):
+        def _calc_inv_G_for_kernel(X, Y, N):
             x4 = np.sum(np.power(X,4)[:])
             x2y2 = np.sum((np.power(X,2)[:]*np.power(Y,2))[:])
             x2 = np.sum(np.power(X,2)[:])
-            N = len(np.where(X != 0)[0])
+            
+            
             G = np.asarray([[x4, x2y2, 0, 0, 0, x2],
                             [x2y2, x4, 0, 0, 0, x2],
                             [0, 0, x2y2, 0, 0, 0],
                             [0, 0, 0, x2, 0, 0],
                             [0, 0, 0, 0, x2, 0],
                             [x2, x2, 0, 0, 0, N]])
+            '''
+            G = np.asarray([[x4, x2y2, 0, 0, 0],
+                            [x2y2, x4, 0, 0, 0],
+                            [0, 0, x2y2, 0, 0],
+                            [0, 0, 0, x2, 0],
+                            [0, 0, 0, 0, x2]])
+            '''
             from numpy.linalg import inv
             
             return inv(G)
         
-        def _convolve(X, Y, Z):
+        def _convolve(X, Y, Z, K):
             
             from numpy.fft import fft2 as fft2
             from numpy.fft import ifft2 as ifft2
@@ -2386,14 +2394,14 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             FX3 = fft2(Xt*Yt)
             FX4 = fft2(Xt)
             FX5 = fft2(Yt)
-            FX6 = fft2((Xt != 0.0).astype(float))
+            FX6 = fft2(K)
             
-            g = ifftshift(ifft2(FZ*FX1))
-            h = ifftshift(ifft2(FZ*FX2))
-            i = ifftshift(ifft2(FZ*FX3))
-            j = ifftshift(ifft2(FZ*FX4))
-            k = ifftshift(ifft2(FZ*FX5))
-            l = ifftshift(ifft2(FZ*FX6))
+            g = np.real(ifftshift(ifft2(FZ*FX1))) - np.sum(np.power(Xt,2))*Z._griddata
+            h = np.real(ifftshift(ifft2(FZ*FX2))) - np.sum(np.power(Yt,2))*Z._griddata
+            i = np.real(ifftshift(ifft2(FZ*FX3))) - np.sum(Xt*Yt)*Z._griddata
+            j = np.real(ifftshift(ifft2(FZ*FX4))) - np.sum(Xt)*Z._griddata
+            k = np.real(ifftshift(ifft2(FZ*FX5))) - np.sum(Yt)*Z._griddata
+            l = np.real(ifftshift(ifft2(FZ*FX6))) - np.sum(K)*Z._griddata
             
             return g, h, i, j, k, l
         
@@ -2402,11 +2410,8 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
             b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
             c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
-            
-            from numpy import conj as conj
-            from numpy import real as real
-            
-            return real(-np.sqrt(a*conj(a))-np.sqrt(b*conj(b))-np.sqrt((a-b)*conj(a-b)+(c*conj(c))))
+                        
+            return -a-b-np.sqrt(np.power((a-b),2)+np.power(c,2))
         
         def _create_kernel(Z, de):
             
@@ -2415,33 +2420,59 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             y = np.arange(Z._georef_info.ny)*Z._georef_info.dx + Z._georef_info.yllcenter - center[1]
             
             X, Y = np.meshgrid(x,y)
-            K = ((np.abs(X) <= de) & (np.abs(Y) <= de)).astype(float)
-            return X*K, Y*K
+            K = ((np.abs(X) <= (de)) & (np.abs(Y) <= (de))).astype(float)
+            
+            N = np.sum(K[:])
+            return X*K, Y*K, N, K
     
         def _Cmin_for_scale(Z, de):
             
-            X, Y = _create_kernel(Z, de)
-            H = _calc_inv_G_for_kernel(X,Y)
-            g, h, i, j, k, l= _convolve(X, Y, Z)
+            X, Y, N, K = _create_kernel(Z, de)
+            H = _calc_inv_G_for_kernel(X,Y,N)
+            g, h, i, j, k, l= _convolve(X, Y, Z, K)
             return _Cmin(H, g, h, i, j, k, l)
         
+        # Condition inputs to ensure that grids produce square convolution matrices:
+        
         (Z, A, area_cutoff, max_width) = (kwargs['elevation'], kwargs['area'], kwargs['area_cutoff'], kwargs['max_width'])
-        self._copy_info_from_grid(Z, set_zeros = True)
+        needs_reshaping = (Z._georef_info.nx % 2) != (Z._georef_info.ny % 2)
+        
+        if needs_reshaping:
+            nx = Z._georef_info.nx + 1
+            xllcenter = Z._georef_info.xllcenter - Z._georef_info.dx
+            Z = Elevation()
+            A = Area()
+            Z._copy_info_from_grid(kwargs['elevation'], set_zeros = False)
+            A._copy_info_from_grid(kwargs['area'], set_zeros = False)
+            Z._georef_info.nx = nx
+            Z._georef_info.xllcenter = xllcenter
+            print(np.zeros((Z._georef_info.ny, 1)).shape, Z._griddata.shape)
+            Z._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), Z._griddata), axis=1)
+            A._georef_info.nx = nx
+            A._georef_info.xllcenter = xllcenter
+            A._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), A._griddata), axis=1)
+        self._copy_info_from_grid(kwargs['elevation'], set_zeros = True)
         de = Z._georef_info.dx
-        numsteps = np.round((max_width - de*2) / de)
-        scales = np.linspace(de*2, max_width, numsteps)
-        self._minC = np.zeros_like(self._griddata)
+        scales = np.arange(de*2, max_width, de)
+        g_minC = np.zeros_like(Z._griddata)
+        g_w = np.zeros_like(Z._griddata)
         ind = 1
         for scale in scales:
-            print('scale ' + str(ind) + ' / ' + str(len(scales)))            
+            print('scale ' + str(ind) + ' / ' + str(len(scales)), scale)            
             minC = _Cmin_for_scale(Z, scale)
-            i = np.where(minC < self._minC)
-            self._griddata[i[0],i[1]] = scale
-            self._minC[i[0],i[1]] = minC[i[0],i[1]]
+            i = np.where(minC < g_minC)
+            g_w[i] = np.ones(i[0].shape)*scale
+            g_minC[i] = minC[i]
             ind += 1
         i = np.where(A._griddata < area_cutoff)
-        self._minC[i[0],i[1]] = np.nan
-        self._griddata[i[0],i[1]] = np.nan
+        g_minC[i] = np.nan
+        g_w[i] = np.nan
+        if needs_reshaping:
+            self._griddata = g_w[:,1:]
+            self._minC = g_minC[:,1:]
+        else:
+            self._griddata = g_w
+            self._minC = g_minC
     
     def save(self, filename):
         self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._minC], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
