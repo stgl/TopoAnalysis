@@ -2350,7 +2350,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
-                                   (('elevation', 'area', 'area_cutoff', 'max_width'), '_create_from_inputs'),)
+                                   (('elevation', 'area', 'area_cutoff', 'max_width', 'min_width'), '_create_from_inputs'),)
     
     def _create_from_inputs(self, *args, **kwargs):
         
@@ -2434,7 +2434,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         
         # Condition inputs to ensure that grids produce square convolution matrices:
         
-        (Z, A, area_cutoff, max_width) = (kwargs['elevation'], kwargs['area'], kwargs['area_cutoff'], kwargs['max_width'])
+        (Z, A, area_cutoff, max_width, min_width) = (kwargs['elevation'], kwargs['area'], kwargs['area_cutoff'], kwargs['max_width'], kwargs['min_width'])
         needs_reshaping = (Z._georef_info.nx % 2) != (Z._georef_info.ny % 2)
         
         if needs_reshaping:
@@ -2446,14 +2446,13 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             A._copy_info_from_grid(kwargs['area'], set_zeros = False)
             Z._georef_info.nx = nx
             Z._georef_info.xllcenter = xllcenter
-            print(np.zeros((Z._georef_info.ny, 1)).shape, Z._griddata.shape)
             Z._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), Z._griddata), axis=1)
             A._georef_info.nx = nx
             A._georef_info.xllcenter = xllcenter
             A._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), A._griddata), axis=1)
         self._copy_info_from_grid(kwargs['elevation'], set_zeros = True)
         de = Z._georef_info.dx
-        scales = np.arange(de*2, max_width, de)
+        scales = np.arange(min_width, max_width, de)
         g_minC = np.zeros_like(Z._griddata)
         g_w = np.zeros_like(Z._griddata)
         ind = 1
