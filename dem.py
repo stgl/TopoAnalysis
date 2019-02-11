@@ -1717,18 +1717,19 @@ class ScarpWavelet(BaseSpatialGrid):
         plt.show(block = False)
 
 
-    def template_window(self, window_size, age, orientation):
+    def template_window(self, window_size, age, orientation, use_pixels=False):
         nx = self._georef_info.nx
         ny = self._georef_info.ny
-        dx = self._georef_info.dx
+        if use_pixels:
+            dx = 1
+        else:
+            dx = self._georef_info.dx
 
         from scarplet.WindowedTemplate import Scarp
-        template = Scarp(window_size, orientation, age, nx, ny, dx)
+        template = Scarp(window_size, age, orientation, nx, ny, dx)
+        window = template.get_mask()
 
-        window = template.get_window_limits()
-        curvature_extent = template.get_mask()
-
-        return window * curvature_extent
+        return window
 
                   
 class LocalRelief(BaseSpatialGrid):
