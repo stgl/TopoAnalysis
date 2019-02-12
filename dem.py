@@ -2271,6 +2271,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 R2 = 1 - (SS / SS0)
                 DF = len(chi_profile) - 1
                 SE = np.sqrt(SS / (DF*(A*A.T)))
+                print(DF, SE)
                 t = sol[0] / SE
                 pval = stats.t.sf(np.abs(t), DF)*2
                 
