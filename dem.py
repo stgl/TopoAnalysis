@@ -2253,7 +2253,6 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                         
             points = find_points_at_elevation(i, j)     
             if points is not None:
-                    
                 pts = zip(*(points))
                 points = np.array(pts).astype(int)
                 adjustment = np.ones((len(points[0])))
@@ -2270,10 +2269,9 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 SS = sol[1]
                 SS0 = np.sum(np.power(el0,2))
                 R2 = 1 - (SS / SS0)
+                SE = np.linalg.inv(A*A.T)*np.mean(SS)
                 DF = len(chi_profile) - 1
-                mean_chi = np.mean(chi_profile)
-                SE = np.sqrt(SS/DF)/np.sqrt(np.sum(np.power(chi_profile - mean_chi, 2)))
-                t = sol[1] / SE
+                t = sol[0] / SE
                 pval = stats.t.sf(np.abs(t), DF)*2
                 
                 return sol[0], SS / float(len(chi_profile)), SS, R2, points, pval
