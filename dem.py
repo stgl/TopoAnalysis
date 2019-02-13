@@ -2219,6 +2219,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         self._copy_info_from_grid(elevation)
         self._griddata = np.zeros_like(elevation._griddata)
         self._n = np.zeros_like(self._griddata).astype(int)
+        self._n_regression = np.zeros_like(self._griddata).astype(int)
         self._mse = np.zeros_like(self._griddata)
         self._ss = np.zeros_like(self._griddata)
         self._r2 = np.zeros_like(self._griddata)
@@ -2282,11 +2283,11 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 ks = res.params[0]
                 pval = res.pvalues[0]
                 R2 = res.rsquared
-                return ks, SS / float(len(chi_profile)), SS, R2, points, pval
+                return ks, SS / float(len(chi_profile)), SS, R2, points, pval, len(chi_profile)
             
             else:
                 
-                return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan
+                return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, np.nan
         
         i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
         ij = zip(i[0],i[1])
@@ -2296,7 +2297,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
         for (i,j) in ij:
-            self._griddata[i,j], self._mse[i,j], self._ss[i,j], self._r2[i,j], pts, self._pval[i,j] = calc_ks(i,j)
+            self._griddata[i,j], self._mse[i,j], self._ss[i,j], self._r2[i,j], pts, self._pval[i,j], self._n_regression[i,j] = calc_ks(i,j)
             self._n[pts[0], pts[1]] += 1
             counter += 1.0 / totalnumber
             if counter > next_readout:
@@ -2308,7 +2309,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                                             
     def save(self, filename):
         
-        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2, self._pval], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2, self._pval, self._n_regression], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
             
     @classmethod
     def load(cls, filename):
@@ -2344,6 +2345,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         return_object._ss = get_band(gdal_dataset, 4)
         return_object._r2 = get_band(gdal_dataset, 5)
         return_object._pval = get_band(gdal_dataset, 6)
+        return_object._n_regression = get_band(gdal_dataset, 7)
         
             
         gdal_file = None
