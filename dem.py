@@ -18,6 +18,7 @@ from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
 from scipy import stats
+import statsmodels.api as sm
 
 sys.setrecursionlimit(1000000)
 
@@ -2273,20 +2274,15 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 de_profile = de[points[0], points[1]]
                 chi_profile = np.zeros_like(elevation_profile)
                 chi_profile[1:] = np.cumsum(0.25*(np.power(area_profile[1:], -theta) + np.power(area_profile[0:-1], -theta)) * (de_profile[1:] + de_profile[0:-1])*adjustment[1:]) 
-                A = np.vstack([np.array(chi_profile)]).T
-                el0 = np.array(elevation_profile) - elevation_profile[0]
-                sol = np.linalg.lstsq(A, el0)
-                SS = sol[1]
-                SS0 = np.sum(np.power(el0,2))
-                R2 = 1 - (SS / SS0)
-                DF = len(chi_profile) - 1
-                SE = np.sqrt(SS / (DF*(np.matmul(A,A.T))))
-                t = sol[0] / SE[0,0]
-                print(t[0], SE[0,0])
-                pval = (1.0 - stats.t(DF).cdf(t))*2.0
-                print(pval)
-                
-                return sol[0], SS / float(len(chi_profile)), SS, R2, points, pval
+                X = np.array(chi_profile)
+                y = np.array(elevation_profile) - elevation_profile[0]
+                model = sm.OLS(y, X)
+                res = model.fit()
+                SS = res.ssr
+                ks = res.params[0]
+                pval = res.pvalues[0]
+                R2 = res.rsquared
+                return ks, SS / float(len(chi_profile)), SS, R2, points, pval
             
             else:
                 
