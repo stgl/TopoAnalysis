@@ -2226,8 +2226,18 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         
         import time
         t1 = time.time()
-        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
-        t2 = time.time()
+        try:
+            upstream_i = np.load('tmp_upstream_i')
+            upstream_j = np.load('tmp_upstream_j')
+            downstream_i = np.load('tmp_downstream_i')
+            downstream_j = np.load('tmp_downstream_j')
+        except:
+            upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
+            t2 = time.time()
+            np.save('tmp_upstream_i', upstream_i)
+            np.save('tmp_upstream_j', upstream_j)
+            np.save('tmp_downstream_i', downstream_i)
+            np.save('tmp_downstream_j', downstream_j)
         
         print('completed flow graph in: ' + str(t2-t1) + " s")
         
@@ -2272,6 +2282,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 DF = len(chi_profile) - 1
                 SE = np.sqrt(SS / (DF*(np.matmul(A,A.T))))
                 t = sol[0] / SE[0,0]
+                print(t[0], SE[0,0])
                 pval = (1.0 - stats.t(DF).cdf(t))*2.0
                 print(pval)
                 
