@@ -2287,7 +2287,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
             
             else:
                 
-                return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, np.nan
+                return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0
         
         i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
         ij = zip(i[0],i[1])
