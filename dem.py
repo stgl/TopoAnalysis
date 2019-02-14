@@ -2352,30 +2352,31 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
     
     def _create_from_inputs(self, *args, **kwargs):
         
-        def _calc_inv_G_for_kernel(X, Y, N):
+        def _calc_inv_G_for_kernel(X, Y, N, fix_center = False):
             x4 = np.sum(np.power(X,4)[:])
             x2y2 = np.sum((np.power(X,2)[:]*np.power(Y,2))[:])
             x2 = np.sum(np.power(X,2)[:])
             
-            
-            G = np.asarray([[x4, x2y2, 0, 0, 0, x2],
+            if fix_center:
+                G = np.asarray([[x4, x2y2, 0, 0, 0],
+                            [x2y2, x4, 0, 0, 0],
+                            [0, 0, x2y2, 0, 0],
+                            [0, 0, 0, x2, 0],
+                            [0, 0, 0, 0, x2]])
+            else:
+                G = np.asarray([[x4, x2y2, 0, 0, 0, x2],
                             [x2y2, x4, 0, 0, 0, x2],
                             [0, 0, x2y2, 0, 0, 0],
                             [0, 0, 0, x2, 0, 0],
                             [0, 0, 0, 0, x2, 0],
                             [x2, x2, 0, 0, 0, N]])
-            '''
-            G = np.asarray([[x4, x2y2, 0, 0, 0],
-                            [x2y2, x4, 0, 0, 0],
-                            [0, 0, x2y2, 0, 0],
-                            [0, 0, 0, x2, 0],
-                            [0, 0, 0, 0, x2]])
-            '''
+            
+            
             from numpy.linalg import inv
             
             return inv(G)
         
-        def _convolve(X, Y, Z, K):
+        def _convolve(X, Y, Z, K, fix_center = False):
             
             from numpy.fft import fft2 as fft2
             from numpy.fft import ifft2 as ifft2
@@ -2399,16 +2400,24 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             i = np.real(ifftshift(ifft2(FZ*FX3))) - np.sum(Xt*Yt)*Z._griddata
             j = np.real(ifftshift(ifft2(FZ*FX4))) - np.sum(Xt)*Z._griddata
             k = np.real(ifftshift(ifft2(FZ*FX5))) - np.sum(Yt)*Z._griddata
-            l = np.real(ifftshift(ifft2(FZ*FX6))) - np.sum(K)*Z._griddata
+            if not fix_center:
+                l = np.real(ifftshift(ifft2(FZ*FX6))) - np.sum(K)*Z._griddata
+            else:
+                l = None
             
             return g, h, i, j, k, l
         
-        def _Cmin(H, g, h, i, j, k, l):
+        def _Cmin(H, g, h, i, j, k, l, fix_center = False):
             
-            a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
-            b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
-            c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
-                        
+            if fix_center:
+                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k
+                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k
+                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k
+            else:
+                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
+                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
+                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
+
             return -a-b-np.sqrt(np.power((a-b),2)+np.power(c,2))
         
         def _create_kernel(Z, de):
@@ -2423,12 +2432,12 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             N = np.sum(K[:])
             return X*K, Y*K, N, K
     
-        def _Cmin_for_scale(Z, de):
+        def _Cmin_for_scale(Z, de, fix_center = False):
             
             X, Y, N, K = _create_kernel(Z, de)
-            H = _calc_inv_G_for_kernel(X,Y,N)
-            g, h, i, j, k, l= _convolve(X, Y, Z, K)
-            return _Cmin(H, g, h, i, j, k, l)
+            H = _calc_inv_G_for_kernel(X,Y,N. kwargs, fix_center)
+            g, h, i, j, k, l= _convolve(X, Y, Z, K, fix_center)
+            return _Cmin(H, g, h, i, j, k, l, fix_center)
         
         # Condition inputs to ensure that grids produce square convolution matrices:
         
@@ -2454,10 +2463,12 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         g_minC = np.zeros_like(Z._griddata)
         g_w = np.zeros_like(Z._griddata)
         ind = 1
+        fix_center = kwargs.get('fix_center', False)
         for scale in scales:
             print('scale ' + str(ind) + ' / ' + str(len(scales)), scale)            
-            minC = _Cmin_for_scale(Z, scale)
+            minC = _Cmin_for_scale(Z, scale, fix_center)
             if normalize is not None:
+                print('Normalizing')
                 minC *= scale
             i = np.where(minC < g_minC)
             g_w[i] = np.ones(i[0].shape)*scale
