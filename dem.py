@@ -2228,18 +2228,8 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         
         import time
         t1 = time.time()
-        try:
-            upstream_i = np.load('tmp_upstream_i')
-            upstream_j = np.load('tmp_upstream_j')
-            downstream_i = np.load('tmp_downstream_i')
-            downstream_j = np.load('tmp_downstream_j')
-        except:
-            upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
-            t2 = time.time()
-            np.save('tmp_upstream_i', upstream_i)
-            np.save('tmp_upstream_j', upstream_j)
-            np.save('tmp_downstream_i', downstream_i)
-            np.save('tmp_downstream_j', downstream_j)
+        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
+        t2 = time.time()
         
         print('completed flow graph in: ' + str(t2-t1) + " s")
         
