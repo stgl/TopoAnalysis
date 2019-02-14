@@ -2458,7 +2458,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             print('scale ' + str(ind) + ' / ' + str(len(scales)), scale)            
             minC = _Cmin_for_scale(Z, scale)
             if normalize is not None:
-                minC /= scale
+                minC *= scale
             i = np.where(minC < g_minC)
             g_w[i] = np.ones(i[0].shape)*scale
             g_minC[i] = minC[i]
