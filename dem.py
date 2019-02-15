@@ -2198,12 +2198,13 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         shape = upstream_i.shape
         indexes = area.sort(reverse = False)
         (i_s, j_s) = np.unravel_index(indexes, shape)
-        for (i,j) in zip(i_s, j_s):
+        def set_usdsindexes(i, j):
             ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
             if good and not visited[ds_i,ds_j]:
                 visited[i,j] = True
                 (downstream_i[i, j], downstream_j[i,j]) = (ds_i, ds_j)
                 (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
+        map(set_usdsindexes, zip(i_s, j_s))
             
         return upstream_i, upstream_j, downstream_i, downstream_j
             
