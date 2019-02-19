@@ -1690,11 +1690,16 @@ class ScarpWavelet(BaseSpatialGrid):
 
         adjusted_orientations._griddata = (adjusted_orientations._griddata < -90.0).astype(float)*(adjusted_orientations._griddata + 180.0) + (adjusted_orientations._griddata >= 90.0).astype(float)*(adjusted_orientations._griddata - 180.0) + ((adjusted_orientations._griddata > -90.0) & (adjusted_orientations._griddata < 90.0)).astype(float)*adjusted_orientations._griddata
 
-        extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
+        extent = kwargs.pop('extent', None)
+        if extent is None:
+            extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
+
         plt.figure()
         cmap = kwargs.pop('cmap', None)
         vmin = kwargs.pop('vmin', -90)
         vmax = kwargs.pop('vmax', 90)
+        title = kwargs.pop('title', '')
+
         if hillshade is not None:
             from matplotlib import cm
             plt.imshow(hillshade._griddata, extent = extent, cmap = cm.gray, **kwargs)
@@ -1708,6 +1713,9 @@ class ScarpWavelet(BaseSpatialGrid):
         adjusted_orientations_rgba[:,:,3] = (~normalized_data.mask).astype(float)*norm(self._SNR)
         plt.imshow(adjusted_orientations_rgba, extent = extent, **kwargs)
         plt.ion()
+
+        plt.title(title)
+
         plt.show(block = False)    
                   
 class LocalRelief(BaseSpatialGrid):
