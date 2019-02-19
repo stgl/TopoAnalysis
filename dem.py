@@ -17,6 +17,8 @@ from numpy import uint8, int8, float64
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
+from scipy import stats
+import statsmodels.api as sm
 
 sys.setrecursionlimit(1000000)
 
@@ -2202,6 +2204,8 @@ class MainstemValleyArea(Area):
 class GeographicMainstemValleyArea(GeographicGridMixin, MainstemValleyArea):
     pass
 
+
+    
 class KsFromChiWithSmoothing(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
@@ -2209,80 +2213,24 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                                    (('elevation', 'area', 'flow_direction', 'theta', 'vertical_interval'), '_create_from_elevation_area_flow_direction'),
                                    )
     
-    def __calc_ks(self, i,j,elevation,area,flow_direction,de,theta,vertical_interval):
-        
-        this_elevation = elevation[i,j]
-        def find_upstream_points_at_elevation(this_i, this_j):
-            ret = list()
-            (upstream_i, upstream_j) = (this_i, this_j)
-            while elevation[upstream_i, upstream_j] < (this_elevation + vertical_interval):
-                if (elevation[upstream_i, upstream_j] is None) or ((upstream_i, upstream_j) in ret):
-                    ret = None
-                    break
-                else:
-                    ret += [(upstream_i, upstream_j)]  
-                    upstream_options = flow_direction.get_upstream_cell_indexes(upstream_i,upstream_j)
-                    max_area = None
-                    upstream_i = None
-                    upstream_j = None
-                    for (option_i, option_j) in upstream_options:
-                        if area[option_i, option_j] is not None and ( (max_area is None) or (max_area < area[option_i, option_j]) ):
-                            (upstream_i, upstream_j) = (option_i, option_j)
-                            max_area = area[option_i, option_j]
-                    if max_area is None:
-                        ret = None
-                        break
-                         
-            return ret
-        
-        def find_downstream_points_at_elevation(this_i, this_j):
-            ret = list()
-            (downstream_i, downstream_j) = (this_i, this_j)
-            while elevation[downstream_i, downstream_j] > (this_elevation - vertical_interval):
-                if (elevation[downstream_i, downstream_j] is None) or (downstream_i, downstream_j) in ret:
-                    ret = None
-                    break
-                else:
-                    ret = [(downstream_i, downstream_j)] + ret
-                    downstream_i, downstream_j, _ = flow_direction.get_flow_to_cell(downstream_i, downstream_j)
-                    if downstream_i is None:
-                        ret = None
-                        break;
-            return ret
+    def _upstream_downstream_indexes(self, area, flow_direction):
+        upstream_i = (np.ones_like(area._griddata)*-1.0).astype(int)
+        upstream_j = (np.ones_like(area._griddata)*-1.0).astype(int)
+        downstream_i = (np.ones_like(area._griddata)*-1.0).astype(int)
+        downstream_j = (np.ones_like(area._griddata)*-1.0).astype(int)
+        visited = np.zeros_like(area._griddata).astype(bool)
+        shape = upstream_i.shape
+        indexes = area.sort(reverse = False)
+        (i_s, j_s) = np.unravel_index(indexes, shape)
+        def set_usdsindexes((i, j)):
+            ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
+            if good and not visited[ds_i,ds_j]:
+                visited[i,j] = True
+                (downstream_i[i, j], downstream_j[i,j]) = (ds_i, ds_j)
+                (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
+        map(set_usdsindexes, zip(i_s, j_s))
             
-        upstream_points = find_upstream_points_at_elevation(i, j)
-        downstream_points = find_downstream_points_at_elevation(i, j)        
-        
-        if upstream_points is not None and downstream_points is not None and (len(upstream_points)+len(downstream_points) > 2):
-
-            downstream_points.pop()
-            area_profile = list()
-            elevation_profile = list()
-            de_profile = list()
-            
-            points = downstream_points + upstream_points
-            for point in points:
-                (prof_i, prof_j) = point
-                area_profile += [area[prof_i, prof_j]]
-                elevation_profile += [elevation[prof_i, prof_j]]
-                de_profile += [de[prof_i, prof_j]]
-            chi_profile = [0]
-            for index in range(len(area_profile) - 1):
-                adjustment = 1.0 if ( (points[index+1][0] == points[index][0]) or (points[index+1][1] == points[index][1])) else 1.414
-                chi_profile += [chi_profile[index] + 0.25*((1 / area_profile[index+1])**theta + (1 / area_profile[index])**theta) * (de_profile[index+1] + de_profile[index]) * adjustment]
-            A = np.vstack([np.array(chi_profile)]).T
-            el0 = np.array(elevation_profile) - elevation_profile[0]
-            sol = np.linalg.lstsq(A, el0)
-            SS = sol[1]
-            SS0 = np.sum(np.power(el0,2))
-            R2 = 1 - (SS / SS0)
-            self._griddata[i,j] = sol[0]
-            self._mse[i,j] = SS / float(len(chi_profile))
-            self._ss[i,j] = SS
-            self._r2[i,j] = R2
-            for point in points:
-                (p_i, p_j) = point
-                self._n[p_i, p_j] += 1
+        return upstream_i, upstream_j, downstream_i, downstream_j
             
     def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
         
@@ -2295,20 +2243,94 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         
         self._copy_info_from_grid(elevation)
         self._griddata = np.zeros_like(elevation._griddata)
-        self._n = np.zeros_like(self._griddata)
+        self._n = np.zeros_like(self._griddata).astype(int)
+        self._n_regression = np.zeros_like(self._griddata).astype(int)
         self._mse = np.zeros_like(self._griddata)
         self._ss = np.zeros_like(self._griddata)
         self._r2 = np.zeros_like(self._griddata)
+        self._pval = np.zeros_like(self._griddata)
         self._griddata[:] = np.nan
-                
-        for i in range(elevation._georef_info.ny):
-            for j in range(elevation._georef_info.nx):
-                if((area[i,j] != 0) & ~np.isnan(area[i,j]) & ~np.isnan(elevation[i,j])):
-                    self.__calc_ks(i,j,elevation,area,flow_direction,de,theta,vertical_interval)
-                    
+        
+        import time
+        t1 = time.time()
+        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
+        t2 = time.time()
+        
+        print('completed flow graph in: ' + str(t2-t1) + " s")
+        
+        counter = 0
+        next_readout = 0.1
+        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
+        ij = zip(i[0],i[1])
+        totalnumber = len(ij)
+        increment = 1.0 / totalnumber
+        
+        def find_points_at_elevation(this_i, this_j):
+            ret = list()
+            ret += [(this_i, this_j)]
+            (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
+            (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
+            if (ups_i < 0) or (ds_i < 0):
+                return None
+            ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+            delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+            while (delta_e < vertical_interval) & (ups_i >= 0):
+                (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
+                (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+                if (ups_i < 0) or (ds_i < 0):
+                    return None
+                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+            return ret
+        
+        def calc_ks((i,j)):
+                        
+            points = find_points_at_elevation(i, j)     
+            if points is not None:
+                pts = zip(*(points))
+                points = np.array(pts).astype(int)
+                adjustment = np.ones((len(points[0])))
+                i = np.where((points[0,1:-1] != points[0,2:]) & (points[1,1:-1] != points[1,2:]))
+                adjustment[i[0]+1] += 0.414
+                area_profile = area._griddata[points[0],points[1]]
+                elevation_profile = elevation._griddata[points[0], points[1]]
+                de_profile = de[points[0], points[1]]
+                chi_profile = np.zeros_like(elevation_profile)
+                chi_profile[1:] = np.cumsum(0.25*(np.power(area_profile[1:], -theta) + np.power(area_profile[0:-1], -theta)) * (de_profile[1:] + de_profile[0:-1])*adjustment[1:]) 
+                X = np.array(chi_profile)
+                y = np.array(elevation_profile) - elevation_profile[0]
+                model = sm.OLS(y, X)
+                res = model.fit()
+                SS = res.ssr
+                self._griddata[i,j] = res.params[0]
+                self._mse[i,j] = SS / float(len(chi_profile))
+                self._ss[i,j] = SS
+                self._r2[i,j] = res.rsquared
+                self._pval[i,j] = res.pvalues[0]
+                self._n_regression[i,j] = len(chi_profile)
+                self._n[pts[0], pts[1]] += 1
+            else:
+                self._griddata[i,j] = np.nan
+                self._mse[i,j] = np.nan
+                self._ss[i,j] = np.nan
+                self._r2[i,j] = np.nan
+                self._pval[i,j] = np.nan
+            counter += increment
+            if counter > next_readout:
+                sys.stdout.write(str(int(next_readout*100)) + "...")
+                sys.stdout.flush()
+                next_readout += 0.1
+        
+        sys.stdout.write('Percent completion...')
+        sys.stdout.flush()
+        map(calc_ks, ij)
+            
+        sys.stdout.write('100')
+        sys.stdout.flush()
+                                            
     def save(self, filename):
         
-        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2, self._pval, self._n_regression], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
             
     @classmethod
     def load(cls, filename):
@@ -2343,6 +2365,8 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         return_object._mse = get_band(gdal_dataset, 3)
         return_object._ss = get_band(gdal_dataset, 4)
         return_object._r2 = get_band(gdal_dataset, 5)
+        return_object._pval = get_band(gdal_dataset, 6)
+        return_object._n_regression = get_band(gdal_dataset, 7)
         
             
         gdal_file = None
@@ -2355,26 +2379,35 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
-                                   (('elevation', 'area', 'area_cutoff', 'max_width'), '_create_from_inputs'),)
+                                   (('elevation', 'area', 'area_cutoff', 'max_width', 'min_width'), '_create_from_inputs'),)
     
     def _create_from_inputs(self, *args, **kwargs):
         
-        def _calc_inv_G_for_kernel(X, Y):
+        def _calc_inv_G_for_kernel(X, Y, N, fix_center = False):
             x4 = np.sum(np.power(X,4)[:])
             x2y2 = np.sum((np.power(X,2)[:]*np.power(Y,2))[:])
             x2 = np.sum(np.power(X,2)[:])
-            N = len(np.where(X != 0)[0])
-            G = np.asarray([[x4, x2y2, 0, 0, 0, x2],
+            
+            if fix_center:
+                G = np.asarray([[x4, x2y2, 0, 0, 0],
+                            [x2y2, x4, 0, 0, 0],
+                            [0, 0, x2y2, 0, 0],
+                            [0, 0, 0, x2, 0],
+                            [0, 0, 0, 0, x2]])
+            else:
+                G = np.asarray([[x4, x2y2, 0, 0, 0, x2],
                             [x2y2, x4, 0, 0, 0, x2],
                             [0, 0, x2y2, 0, 0, 0],
                             [0, 0, 0, x2, 0, 0],
                             [0, 0, 0, 0, x2, 0],
                             [x2, x2, 0, 0, 0, N]])
+            
+            
             from numpy.linalg import inv
             
             return inv(G)
         
-        def _convolve(X, Y, Z):
+        def _convolve(X, Y, Z, K, fix_center = False):
             
             from numpy.fft import fft2 as fft2
             from numpy.fft import ifft2 as ifft2
@@ -2391,27 +2424,32 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             FX3 = fft2(Xt*Yt)
             FX4 = fft2(Xt)
             FX5 = fft2(Yt)
-            FX6 = fft2((Xt != 0.0).astype(float))
+            FX6 = fft2(K)
             
-            g = ifftshift(ifft2(FZ*FX1))
-            h = ifftshift(ifft2(FZ*FX2))
-            i = ifftshift(ifft2(FZ*FX3))
-            j = ifftshift(ifft2(FZ*FX4))
-            k = ifftshift(ifft2(FZ*FX5))
-            l = ifftshift(ifft2(FZ*FX6))
+            g = np.real(ifftshift(ifft2(FZ*FX1))) - np.sum(np.power(Xt,2))*Z._griddata
+            h = np.real(ifftshift(ifft2(FZ*FX2))) - np.sum(np.power(Yt,2))*Z._griddata
+            i = np.real(ifftshift(ifft2(FZ*FX3))) - np.sum(Xt*Yt)*Z._griddata
+            j = np.real(ifftshift(ifft2(FZ*FX4))) - np.sum(Xt)*Z._griddata
+            k = np.real(ifftshift(ifft2(FZ*FX5))) - np.sum(Yt)*Z._griddata
+            if not fix_center:
+                l = np.real(ifftshift(ifft2(FZ*FX6))) - np.sum(K)*Z._griddata
+            else:
+                l = None
             
             return g, h, i, j, k, l
         
-        def _Cmin(H, g, h, i, j, k, l):
+        def _Cmin(H, g, h, i, j, k, l, fix_center = False):
             
-            a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
-            b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
-            c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
-            
-            from numpy import conj as conj
-            from numpy import real as real
-            
-            return real(-np.sqrt(a*conj(a))-np.sqrt(b*conj(b))-np.sqrt((a-b)*conj(a-b)+(c*conj(c))))
+            if fix_center:
+                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k
+                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k
+                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k
+            else:
+                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
+                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
+                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
+
+            return -a-b-np.sqrt(np.power((a-b),2)+np.power(c,2))
         
         def _create_kernel(Z, de):
             
@@ -2420,40 +2458,60 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             y = np.arange(Z._georef_info.ny)*Z._georef_info.dx + Z._georef_info.yllcenter - center[1]
             
             X, Y = np.meshgrid(x,y)
-            K = ((np.abs(X) <= de) & (np.abs(Y) <= de)).astype(float)
-            return X*K, Y*K
-    
-        def _Cmin_for_scale(Z, de):
+            K = ((np.abs(X) <= (de)) & (np.abs(Y) <= (de))).astype(float)
             
-            X, Y = _create_kernel(Z, de)
-            H = _calc_inv_G_for_kernel(X,Y)
-            g, h, i, j, k, l= _convolve(X, Y, Z)
-            return _Cmin(H, g, h, i, j, k, l)
+            N = np.sum(K[:])
+            return X*K, Y*K, N, K
+    
+        def _Cmin_for_scale(Z, de, fix_center = False):
+            
+            X, Y, N, K = _create_kernel(Z, de)
+            H = _calc_inv_G_for_kernel(X,Y,N, fix_center)
+            g, h, i, j, k, l= _convolve(X, Y, Z, K, fix_center)
+            return _Cmin(H, g, h, i, j, k, l, fix_center)
         
-        (Z, A, area_cutoff, max_width) = (kwargs['elevation'], kwargs['area'], kwargs['area_cutoff'], kwargs['max_width'])
-        self._copy_info_from_grid(Z, set_zeros = True)
+        # Condition inputs to ensure that grids produce square convolution matrices:
+        
+        (Z, A, area_cutoff, max_width, min_width, normalize, fix_center) = (kwargs['elevation'], kwargs['area'], kwargs['area_cutoff'], kwargs['max_width'], kwargs['min_width'], kwargs.get('normalize', False), kwargs.get('fix_center', False))
+        needs_reshaping = (Z._georef_info.nx % 2) != (Z._georef_info.ny % 2)
+        
+        if needs_reshaping:
+            nx = Z._georef_info.nx + 1
+            xllcenter = Z._georef_info.xllcenter - Z._georef_info.dx
+            Z = Elevation()
+            A = Area()
+            Z._copy_info_from_grid(kwargs['elevation'], set_zeros = False)
+            A._copy_info_from_grid(kwargs['area'], set_zeros = False)
+            Z._georef_info.nx = nx
+            Z._georef_info.xllcenter = xllcenter
+            Z._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), Z._griddata), axis=1)
+            A._georef_info.nx = nx
+            A._georef_info.xllcenter = xllcenter
+            A._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), A._griddata), axis=1)
+        self._copy_info_from_grid(kwargs['elevation'], set_zeros = True)
         de = Z._georef_info.dx
-        numsteps = np.round((max_width - de*2) / de)
-        scales = np.linspace(de*2, max_width, numsteps)
-        self._minC = np.zeros_like(self._griddata)
+        scales = np.arange(min_width, max_width, de)
+        g_minC = np.zeros_like(Z._griddata)
+        g_w = np.zeros_like(Z._griddata)
         ind = 1
         for scale in scales:
-            print('scale ' + str(ind) + ' / ' + str(len(scales)))
-            import matplotlib.pylab as plt
-            
-            minC = _Cmin_for_scale(Z, scale)
-            plt.close()
-            plt.imshow(minC)
-            plt.colorbar()
-            plt.show()
-            plt.pause(1e-3) 
-            i = np.where(minC < self._minC)
-            self._griddata[i[0],i[1]] = scale
-            self._minC[i[0],i[1]] = minC[i[0],i[1]]
+            print('scale ' + str(ind) + ' / ' + str(len(scales)), scale)            
+            minC = _Cmin_for_scale(Z, scale, fix_center)
+            if normalize:
+                minC *= scale
+            i = np.where(minC < g_minC)
+            g_w[i] = np.ones(i[0].shape)*scale
+            g_minC[i] = minC[i]
             ind += 1
         i = np.where(A._griddata < area_cutoff)
-        self._minC[i[0],i[1]] = np.nan
-        self._griddata[i[0],i[1]] = np.nan
+        g_minC[i] = np.nan
+        g_w[i] = np.nan
+        if needs_reshaping:
+            self._griddata = g_w[:,1:]
+            self._minC = g_minC[:,1:]
+        else:
+            self._griddata = g_w
+            self._minC = g_minC
     
     def save(self, filename):
         self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._minC], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
