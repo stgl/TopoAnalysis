@@ -2222,7 +2222,8 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         shape = upstream_i.shape
         indexes = area.sort(reverse = False)
         (i_s, j_s) = np.unravel_index(indexes, shape)
-        def set_usdsindexes((i, j)):
+        def set_usdsindexes(ij):
+            i, j = ij
             ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
             if good and not visited[ds_i,ds_j]:
                 visited[i,j] = True
@@ -2283,8 +2284,8 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
             return ret
         
-        def calc_ks((i,j)):
-                        
+        def calc_ks(ij):
+            i, j = ij  
             points = find_points_at_elevation(i, j)     
             if points is not None:
                 pts = zip(*(points))
