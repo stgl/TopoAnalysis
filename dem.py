@@ -1653,7 +1653,10 @@ class ScarpWavelet(BaseSpatialGrid):
         return_object._SNR = get_band(gdal_dataset, 4)    
             
         gdal_file = None
-        return return_object  
+        return return_object
+
+    def load_elevation(self, filename):
+        self.elevation = Elevation.load(filename)
 
     def plot_orientations(self, *args, **kwargs):
         
@@ -1718,7 +1721,6 @@ class ScarpWavelet(BaseSpatialGrid):
 
         plt.show(block = False)
 
-
     def template_window(self, window_size, age, orientation, use_pixels=False):
         nx = self._georef_info.nx
         ny = self._georef_info.ny
@@ -1733,7 +1735,6 @@ class ScarpWavelet(BaseSpatialGrid):
 
         return window
 
-                  
 class LocalRelief(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
