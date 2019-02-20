@@ -1735,11 +1735,6 @@ class ScarpWavelet(BaseSpatialGrid):
         min[np.isinf(min)] = np.nan
         return max, min
 
-    def valid_data(self):
-        if self.elevation is None:
-            raise AttributeError('No elevation data! Use load_elevation')
-        return self.elevation._griddata >= 0
-
     def template_window(self, window_size, age, orientation, use_pixels=False):
         nx = self._georef_info.nx
         ny = self._georef_info.ny
@@ -1753,6 +1748,11 @@ class ScarpWavelet(BaseSpatialGrid):
         window = template.get_mask()
 
         return window
+
+    def valid_data(self):
+        if self.elevation is None:
+            raise AttributeError('No elevation data! Use load_elevation')
+        return self.elevation._griddata >= 0
 
 class LocalRelief(BaseSpatialGrid):
     
