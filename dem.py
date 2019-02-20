@@ -1721,6 +1721,11 @@ class ScarpWavelet(BaseSpatialGrid):
 
         plt.show(block = False)
 
+    def valid_data(self):
+        if self.elevation is None:
+            raise AttributeError('No elevation data! Use load_elevation')
+        return self.elevation._griddata >= 0
+
     def template_window(self, window_size, age, orientation, use_pixels=False):
         nx = self._georef_info.nx
         ny = self._georef_info.ny
