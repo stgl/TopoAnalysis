@@ -1722,11 +1722,12 @@ class ScarpWavelet(BaseSpatialGrid):
         plt.show(block = False)
 
     def calculate_valid_orientations(self, window_size, age, num=46):
+        data = self.valid_data()
         max = -np.inf * np.ones_like(data)
         min = np.inf * np.ones_like(data)
         orientations = np.linspace(-np.pi / 2, np.pi / 2, num=num)
         for orientation in orientations:
-            this = convolve_mask(data, window_size, age, orientation)
+            this = self._convolve_mask(data, window_size, age, orientation)
             mask = (this != this.max()) * (max < orientation)
             max[mask] = orientation
             mask = (this != this.max()) * (min > orientation)
@@ -1734,7 +1735,21 @@ class ScarpWavelet(BaseSpatialGrid):
 
         max[np.isinf(max)] = np.nan
         min[np.isinf(min)] = np.nan
+
         return max, min
+
+    def _convolve_mask(self, data, window_size, age, orientation):
+        """
+        Returns the number of valid pixels in specified window at each pixel
+        """
+        from numpy.fft import fft2, ifft2, fftshift
+        mask = ~np.isnan(data)
+        window = self.template_window(window_size,
+                                      age,
+                                      orientation,
+                                      use_pixels=True)
+        count = np.round(np.real(fftshift(ifft2(fft2(window) * fft2(mask)))))
+        return count
 
     def template_window(self, window_size, age, orientation, use_pixels=False):
         nx = self._georef_info.nx
@@ -1752,8 +1767,10 @@ class ScarpWavelet(BaseSpatialGrid):
 
     def valid_data(self):
         if self.elevation is None:
-            raise AttributeError('No elevation data! Use load_elevation')
-        return self.elevation._griddata >= 0
+            raise AttributeError('No elevation data! Use load_elevation first')
+        valid = np.ones_like(self.elevation._griddata)
+        valid[np.isnan(self.elevation._griddata)] = np.nan
+        return valid
 
 class LocalRelief(BaseSpatialGrid):
     
