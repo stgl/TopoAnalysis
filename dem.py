@@ -1732,9 +1732,9 @@ class ScarpWavelet(BaseSpatialGrid):
 
         orientations = np.linspace(-np.pi / 2, np.pi / 2, num=num)
         for orientation in orientations:
-            # XXX: This uses -orientation to conform to N-E coordinates
-            # i.e. N = 0, E = +90, W = -90
-            this = self._convolve_mask(data, window_size, age, -orientation)
+            # XXX: This uses orientation to conform to N-E coordinates
+            # i.e. N = 0, E = -90, W = +90
+            this = self._convolve_mask(data, window_size, age, orientation)
             mask = (this != this.max()) * (max < orientation)
             max[mask] = orientation
             mask = (this != this.max()) * (min > orientation)
