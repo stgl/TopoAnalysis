@@ -1770,6 +1770,7 @@ class ScarpWavelet(BaseSpatialGrid):
             raise AttributeError('No elevation data! Use load_elevation first')
         valid = np.ones_like(self.elevation._griddata)
         valid[np.isnan(self.elevation._griddata)] = np.nan
+        valid[self.elevation._griddata <= 0] = np.nan
         return valid
 
 class LocalRelief(BaseSpatialGrid):
