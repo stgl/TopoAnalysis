@@ -1721,16 +1721,17 @@ class ScarpWavelet(BaseSpatialGrid):
 
         plt.show(block = False)
 
-    def calculate_valid_orientations(self, window_size, age):
+    def calculate_valid_orientations(self, window_size, age, num=46):
         max = -np.inf * np.ones_like(data)
         min = np.inf * np.ones_like(data)
-        orientations = np.linspace(-np.pi / 2, np.pi / 2, num=181)
+        orientations = np.linspace(-np.pi / 2, np.pi / 2, num=num)
         for orientation in orientations:
             this = convolve_mask(data, window_size, age, orientation)
             mask = (this != this.max()) * (max < orientation)
             max[mask] = orientation
             mask = (this != this.max()) * (min > orientation)
             min[mask] = orientation
+
         max[np.isinf(max)] = np.nan
         min[np.isinf(min)] = np.nan
         return max, min
