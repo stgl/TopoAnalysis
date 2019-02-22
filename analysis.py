@@ -64,3 +64,18 @@ class Quadrats(object):
         plt.ylim([0, ny])
         plt.gca().invert_yaxis()
 
+
+    def quiver_quadrats(self, u, v, **kwargs):
+        ny, nx = self.data.shape
+        dy, dx = self.quadrats[0].shape
+        rows = np.arange(0, ny-dy+1, step=dy) + dy / 2
+        cols = np.arange(0, nx-dx+1, step=dx) + dx / 2
+        y = [p[0] for p in product(rows, cols)]
+        x = [p[1] for p in product(rows, cols)]
+
+        plt.figure()
+        plt.quiver(x, y, u, v, **kwargs)
+        plt.axis('scaled')
+        plt.xlim([0, nx])
+        plt.ylim([0, ny])
+        plt.gca().invert_yaxis()
