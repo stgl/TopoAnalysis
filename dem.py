@@ -2243,9 +2243,6 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         
         print('completed flow graph in: ' + str(t2-t1) + " s")
         
-        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
-        ij = zip(i[0],i[1])
-        
         def find_points_at_elevation(this_i, this_j):
             ret = list()
             ret += [(this_i, this_j)]
@@ -2264,7 +2261,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
             return ret
         
-        def calc_ks(self, (i,j)):
+        def calc_ks(i,j):
 
             points = find_points_at_elevation(i, j)     
             if points is not None:
@@ -2283,24 +2280,30 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 model = sm.OLS(y, X)
                 res = model.fit()
                 SS = res.ssr
-                self._griddata[i,j] = res.params[0]
-                self._mse[i,j] = SS / float(len(chi_profile))
-                self._ss[i,j] = SS
-                self._r2[i,j] = res.rsquared
-                self._pval[i,j] = res.pvalues[0]
-                self._n_regression[i,j] = len(chi_profile)
-                self._n[pts[0], pts[1]] += 1
-            else:
-                self._griddata[i,j] = np.nan
-                self._mse[i,j] = np.nan
-                self._ss[i,j] = np.nan
-                self._r2[i,j] = np.nan
-                self._pval[i,j] = np.nan
-        
-        sys.stdout.write('Percent completion...')
-        sys.stdout.flush()
-        map(lambda inp: calc_ks(self, inp), ij)
+                return res.params[0], SS / float(len(chi_profile)), SS, res.rsquared, points, res.pvalues[0], len(chi_profile)
             
+            else:
+                
+                return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0 
+        
+        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
+        ij = zip(i[0],i[1])
+        totalnumber = len(ij)
+        counter = 0.0    
+        next_readout = 0.1    
+        sys.stdout.write('Percent completion...')    
+        sys.stdout.flush()    
+        for (i,j) in ij:    
+            self._griddata[i,j], self._mse[i,j], self._ss[i,j], self._r2[i,j], pts, self._pval[i,j], self._n_regression[i,j] = calc_ks(i,j)    
+            self._n[pts[0], pts[1]] += 1    
+            counter += 1.0 / totalnumber    
+            if counter > next_readout:
+                sys.stdout.write(str(int(next_readout*100)) + "...")
+                sys.stdout.flush()
+                next_readout += 0.1
+                
+        sys.stdout.write('Percent completion...')
+        sys.stdout.flush()            
         sys.stdout.write('100')
         sys.stdout.flush()
                                             
