@@ -1653,8 +1653,11 @@ class ScarpWavelet(BaseSpatialGrid):
         return_object._SNR = get_band(gdal_dataset, 4)    
             
         gdal_file = None
-        return return_object  
-    
+        return return_object
+
+    def load_elevation(self, filename):
+        self.elevation = Elevation.load(filename)
+
     def plot_orientations(self, *args, **kwargs):
         
         # pop inputs, create those that are needed:
@@ -1716,8 +1719,82 @@ class ScarpWavelet(BaseSpatialGrid):
 
         plt.title(title)
 
-        plt.show(block = False)    
-                  
+        plt.show(block = False)
+
+    def calculate_valid_orientations(self,
+                                     window_size,
+                                     age,
+                                     num=46, 
+                                     discard_max_min=True):
+        data = self.valid_data()
+        max = -np.inf * np.ones_like(data)
+        min = np.inf * np.ones_like(data)
+
+        orientations = np.linspace(-np.pi / 2, np.pi / 2, num=num)
+        for orientation in orientations:
+            # XXX: This uses orientation to conform to N-E coordinates
+            # i.e. N = 0, E = -90, W = +90
+            this = self._convolve_mask(data, window_size, age, orientation)
+            mask = (this != this.max()) * (max < orientation)
+            max[mask] = orientation
+            mask = (this != this.max()) * (min > orientation)
+            min[mask] = orientation
+
+        max[np.isinf(max)] = np.nan
+        min[np.isinf(min)] = np.nan
+        max[np.isnan(data)] = np.nan
+        min[np.isnan(data)] = np.nan
+
+        max[0:window_size, :] = np.nan
+        max[-window_size:, :] = np.nan
+        max[:, 0:window_size] = np.nan
+        max[:, -window_size:] = np.nan
+        min[0:window_size, :] = np.nan
+        min[-window_size:, :] = np.nan
+        min[:, 0:window_size] = np.nan
+        min[:, -window_size:] = np.nan
+
+        if discard_max_min:
+            max[max == orientations.max()] = np.nan
+            min[min == orientations.min()] = np.nan
+
+        return max, min
+
+    def _convolve_mask(self, data, window_size, age, orientation):
+        """
+        Returns the number of valid pixels in specified window at each pixel
+        """
+        from numpy.fft import fft2, ifft2, fftshift
+        mask = ~np.isnan(data)
+        window = self.template_window(window_size,
+                                      age,
+                                      orientation,
+                                      use_pixels=True)
+        count = np.round(np.real(fftshift(ifft2(fft2(window) * fft2(mask)))))
+        return count
+
+    def template_window(self, window_size, age, orientation, use_pixels=False):
+        nx = self._georef_info.nx
+        ny = self._georef_info.ny
+        if use_pixels:
+            dx = 1
+        else:
+            dx = self._georef_info.dx
+
+        from scarplet.WindowedTemplate import Scarp
+        template = Scarp(window_size, age, orientation, nx, ny, dx)
+        window = template.get_mask()
+
+        return window
+
+    def valid_data(self):
+        if self.elevation is None:
+            raise AttributeError('No elevation data! Use load_elevation first')
+        valid = np.ones_like(self.elevation._griddata)
+        valid[np.isnan(self.elevation._griddata)] = np.nan
+        valid[self.elevation._griddata <= 0] = np.nan
+        return valid
+
 class LocalRelief(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
