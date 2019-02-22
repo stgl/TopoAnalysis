@@ -42,7 +42,7 @@ class Quadrats(object):
         #rows = rows[rows <= ny]
         #cols = cols[cols <= nx]
 
-        self.quadrats = [data[r:r+dy, c:c+dx] for r in rows for c in cols]
+        self.quadrats = [self.data[r:r+dy, c:c+dx] for r in rows for c in cols]
 
 
     def map_quadrats(self, func, **kwargs):
@@ -60,4 +60,9 @@ class Quadrats(object):
         values = self.map_quadrats(func)
 
         plt.figure()
-        plt.scatter(x, y, s=5, c=values, **kwargs)
+        plt.scatter(x, y, c=values, **kwargs)
+        plt.axis('scaled')
+        plt.xlim([0, nx])
+        plt.ylim([0, ny])
+        plt.gca().invert_yaxis()
+
