@@ -49,7 +49,7 @@ class Quadrats(object):
         return [func(q, **kwargs) for q in self.quadrats]
 
 
-    def plot_quadrats(self, values, **kwargs):
+    def plot(self, values, **kwargs):
         ny, nx = self.data.shape
         dy, dx = self.quadrats[0].shape
         rows = np.arange(0, ny-dy+1, step=dy) + dy / 2
@@ -65,7 +65,7 @@ class Quadrats(object):
         plt.gca().invert_yaxis()
 
 
-    def quiver_quadrats(self, u, v, **kwargs):
+    def quiver(self, u, v, **kwargs):
         ny, nx = self.data.shape
         dy, dx = self.quadrats[0].shape
         rows = np.arange(0, ny-dy+1, step=dy) + dy / 2
