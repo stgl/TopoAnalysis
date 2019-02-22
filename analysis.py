@@ -35,11 +35,11 @@ class Quadrats(object):
         rows = np.arange(0, ny-dy+1, step=dy)
         cols = np.arange(0, nx-dx+1, step=dx)
         
-        rows += row_oofset
-        cols += col_offset
-        rows = rows[rows <= ny]
-        cols = cols[cols <= nx]
-        
+        #rows += row_offset
+        #cols += col_offset
+        #rows = rows[rows <= ny]
+        #cols = cols[cols <= nx]
+
         self.quadrats = [data[r:r+dy, c:c+dx] for r in rows for c in cols]
 
 
