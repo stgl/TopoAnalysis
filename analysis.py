@@ -49,15 +49,13 @@ class Quadrats(object):
         return [func(q, **kwargs) for q in self.quadrats]
 
 
-    def plot_map(self, func, **kwargs):
+    def plot_quadrats(self, values, **kwargs):
         ny, nx = self.data.shape
         dy, dx = self.quadrats[0].shape
         rows = np.arange(0, ny-dy+1, step=dy) + dy / 2
         cols = np.arange(0, nx-dx+1, step=dx) + dx / 2
         y = [p[0] for p in product(rows, cols)]
         x = [p[1] for p in product(rows, cols)]
-
-        values = self.map_quadrats(func)
 
         plt.figure()
         plt.scatter(x, y, c=values, **kwargs)
