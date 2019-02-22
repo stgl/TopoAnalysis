@@ -64,7 +64,6 @@ class Quadrats(object):
             ax = plt.gca()
 
         ax.scatter(x, y, c=values, **kwargs)
-        plt.axis('scaled')
         ax.set_xlim([0, nx])
         ax.set_ylim([0, ny])
         ax.invert_yaxis()
@@ -83,7 +82,6 @@ class Quadrats(object):
             ax = plt.gca()
 
         ax.quiver(x, y, u, v, **kwargs)
-        plt.axis('scaled')
         ax.set_xlim([0, nx])
         ax.set_ylim([0, ny])
         ax.invert_yaxis()
