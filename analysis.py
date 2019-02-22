@@ -32,6 +32,7 @@ class Quadrats(object):
         rows = np.arange(0, ny-dy+1, step=dy)
         cols = np.arange(0, nx-dx+1, step=dx)
 
+        # TODO: Implement offset quadrats
         # rows += row_offset
         # cols += col_offset
         # rows = rows[rows <= ny]
