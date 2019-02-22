@@ -49,7 +49,7 @@ class Quadrats(object):
         return [func(q, **kwargs) for q in self.quadrats]
 
 
-    def plot(self, values, **kwargs):
+    def plot(self, values, ax=None, **kwargs):
         ny, nx = self.data.shape
         dy, dx = self.quadrats[0].shape
         rows = np.arange(0, ny-dy+1, step=dy) + dy / 2
@@ -57,15 +57,18 @@ class Quadrats(object):
         y = [p[0] for p in product(rows, cols)]
         x = [p[1] for p in product(rows, cols)]
 
-        plt.figure()
-        plt.scatter(x, y, c=values, **kwargs)
+        if ax is None:
+            plt.figure()
+            ax = plt.gca()
+
+        ax.scatter(x, y, c=values, **kwargs)
         plt.axis('scaled')
-        plt.xlim([0, nx])
-        plt.ylim([0, ny])
-        plt.gca().invert_yaxis()
+        ax.set_xlim([0, nx])
+        ax.set_ylim([0, ny])
+        ax.invert_yaxis()
 
 
-    def quiver(self, u, v, **kwargs):
+    def quiver(self, u, v, ax=None, **kwargs):
         ny, nx = self.data.shape
         dy, dx = self.quadrats[0].shape
         rows = np.arange(0, ny-dy+1, step=dy) + dy / 2
@@ -73,9 +76,12 @@ class Quadrats(object):
         y = [p[0] for p in product(rows, cols)]
         x = [p[1] for p in product(rows, cols)]
 
-        plt.figure()
-        plt.quiver(x, y, u, v, **kwargs)
+        if ax is None:
+            plt.figure()
+            ax = plt.gca()
+
+        ax.quiver(x, y, u, v, **kwargs)
         plt.axis('scaled')
-        plt.xlim([0, nx])
-        plt.ylim([0, ny])
-        plt.gca().invert_yaxis()
+        ax.set_xlim([0, nx])
+        ax.set_ylim([0, ny])
+        ax.invert_yaxis()
