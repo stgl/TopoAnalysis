@@ -2234,12 +2234,8 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         
         print('completed flow graph in: ' + str(t2-t1) + " s")
         
-        counter = 0
-        next_readout = 0.1
         i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
         ij = zip(i[0],i[1])
-        totalnumber = len(ij)
-        increment = 1.0 / totalnumber
         
         def find_points_at_elevation(this_i, this_j):
             ret = list()
@@ -2259,7 +2255,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
             return ret
         
-        def calc_ks((i,j)):
+        def calc_ks(self, (i,j)):
                         
             points = find_points_at_elevation(i, j)     
             if points is not None:
@@ -2291,15 +2287,10 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 self._ss[i,j] = np.nan
                 self._r2[i,j] = np.nan
                 self._pval[i,j] = np.nan
-            counter += increment
-            if counter > next_readout:
-                sys.stdout.write(str(int(next_readout*100)) + "...")
-                sys.stdout.flush()
-                next_readout += 0.1
         
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
-        map(calc_ks, ij)
+        map(lambda inp: calc_ks(self, inp), ij)
             
         sys.stdout.write('100')
         sys.stdout.flush()
