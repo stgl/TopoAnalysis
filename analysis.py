@@ -13,9 +13,11 @@ from dem import BaseSpatialGrid, ScarpWavelet
 class Quadrats(object):
 
 
-    def __init__(self, filename=None, band=1, dx=None, dy=None):
+    def __init__(self, filename=None, data=None, band=1, dx=None, dy=None):
         if filename is not None:
             self.load_data(filename, band=band)
+        elif data is not None:
+            self.data = data
         else:
             self.data = None
         
