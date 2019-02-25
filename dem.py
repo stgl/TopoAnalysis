@@ -2309,7 +2309,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                                             
     def save(self, filename):
         
-        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2, self._pval, self._n_regression], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2, self._pval, self._n_regression], self.dtype, filename, ['COMPRESS=LZW', 'BIGTIFF=YES'], multiple_bands=True)
             
     @classmethod
     def load(cls, filename):
