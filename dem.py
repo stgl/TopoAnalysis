@@ -2357,8 +2357,8 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                     (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
                     if (ups_i < 0) or (ds_i < 0):
                         return None
+                    horizontal_distance += (1.0 if ((ds_i == ret[0][0]) or (ds_j == ret[0][1])) else 1.414)*de[ds_i, ds_j] + (1.0 if ((ups_i == ret[-1][0]) or (ups_j == ret[-1][1])) else 1.414)*de[ups_i, ups_j]
                     ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                    horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414))*de[this_i, this_j]
                 return ret
         
         def calc_ks(i,j):
