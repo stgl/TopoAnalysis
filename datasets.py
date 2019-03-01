@@ -13,7 +13,7 @@ from dem import Elevation
 
 def save_synthetic(data, filename, profile=None):
     ny, nx = data.shape
-    
+
     if profile is None:
         new_transform = rasterio.Affine(1., 0, 10, 0, -1., 10,)
         profile = {'driver': 'GTiff',
@@ -23,15 +23,16 @@ def save_synthetic(data, filename, profile=None):
                    'dtype': np.float64,
                    'transform': new_transform,
                    'crs': CRS({'init': 'epsg:26911'})
-                  }
+                   }
 
     with rasterio.open(filename, 'w', **profile) as dest:
         dest.write(data, 1)
 
+
 def triangle_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
     """
     Returns a synthetic landscape with triangular ridges and valleys
-    
+
     Grid spacing is 1.
 
     Parameters
@@ -66,15 +67,16 @@ def triangle_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
         X = np.tile(y, (1, nx))
         tilt = slope_y * X
         triangle *= tilt
-    
+
     save_synthetic(triangle, 'triangle.tif')
     out_obj = Elevation.load('triangle.tif')
     return out_obj
 
+
 def sinusoid_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
     """
     Returns a synthetic landscape with sinusoidal ridges and valleys
-    
+
     Grid spacing is 1.
 
     Parameters
