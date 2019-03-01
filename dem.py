@@ -2272,6 +2272,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
                                    (('elevation', 'area', 'flow_direction', 'theta', 'vertical_interval'), '_create_from_elevation_area_flow_direction'),
+                                   (('elevation', 'area', 'flow_direction', 'theta', 'horizontal_interval'), '_create_from_elevation_area_flow_direction'),
                                    )
     
     def _upstream_downstream_indexes(self, area, flow_direction):
@@ -2300,7 +2301,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         area = kwargs['area']
         flow_direction = kwargs['flow_direction']
         theta = kwargs['theta']
-        vertical_interval = kwargs['vertical_interval']
+        vertical_interval = kwargs.get('vertical_interval', None)
         de = area._mean_pixel_dimension()
         
         self._copy_info_from_grid(elevation)
@@ -2320,27 +2321,49 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         
         print('completed flow graph in: ' + str(t2-t1) + " s")
         
-        def find_points_at_elevation(this_i, this_j):
-            ret = list()
-            ret += [(this_i, this_j)]
-            (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
-            (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
-            if (ups_i < 0) or (ds_i < 0):
-                return None
-            ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-            delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
-            while (delta_e < vertical_interval) & (ups_i >= 0):
-                (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
-                (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+        if vertical_interval is not None:
+            def find_points_along_path(this_i, this_j):
+                ret = list()
+                ret += [(this_i, this_j)]
+                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
+                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
                 if (ups_i < 0) or (ds_i < 0):
                     return None
                 ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
                 delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
-            return ret
+                while (delta_e < vertical_interval) & (ups_i >= 0):
+                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
+                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+                    if (ups_i < 0) or (ds_i < 0):
+                        return None
+                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                    delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+                return ret
+        else:
+            horizontal_interval = kwargs['horizontal_interval']
+            
+            def find_points_along_path(this_i, this_j):
+                horizontal_distance = 0
+                ret = list()
+                ret += [(this_i, this_j)]
+                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
+                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
+                if (ups_i < 0) or (ds_i < 0):
+                    return None
+                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414))*de[this_i, this_j]
+                while (horizontal_distance < horizontal_interval) & (ups_i >= 0):
+                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
+                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+                    if (ups_i < 0) or (ds_i < 0):
+                        return None
+                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                    horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414))*de[this_i, this_j]
+                return ret
         
         def calc_ks(i,j):
 
-            points = find_points_at_elevation(i, j)     
+            points = find_points_along_path(i, j)     
             if points is not None:
                 pts = zip(*(points))
                 points = np.array(pts).astype(int)
