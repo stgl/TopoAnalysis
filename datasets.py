@@ -15,7 +15,7 @@ def save_synthetic(data, filename, profile=None):
     ny, nx = data.shape
     
     if profile is None:
-        new_transform = rasterio.Affine(1., 0, 0, 0, -1., 0,)
+        new_transform = rasterio.Affine(1., 0, 10, 0, -1., 10,)
         profile = {'driver': 'GTiff',
                    'count': 1,
                    'width': nx,
