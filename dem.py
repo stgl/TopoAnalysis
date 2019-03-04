@@ -18,7 +18,11 @@ from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
 from scipy import stats
-import statsmodels.api as sm
+
+try:
+    import statsmodels.api as sm
+except:
+    print('Warning: no statsmodels present.  If you want to compute steepness, you will need to install this.')
 
 sys.setrecursionlimit(1000000)
 
