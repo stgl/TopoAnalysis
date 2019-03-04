@@ -3,30 +3,10 @@ Utilities for generating synthetic data and loading examples
 """
 
 import numpy as np
-import rasterio
 
-from rasterio.crs import CRS
 from scipy.signal import sawtooth
 
 from dem import Elevation
-
-
-def save_synthetic(data, filename, profile=None):
-    ny, nx = data.shape
-
-    if profile is None:
-        new_transform = rasterio.Affine(1., 0, 10, 0, -1., 10,)
-        profile = {'driver': 'GTiff',
-                   'count': 1,
-                   'width': nx,
-                   'height': ny,
-                   'dtype': np.float64,
-                   'transform': new_transform,
-                   'crs': CRS({'init': 'epsg:26911'})
-                   }
-
-    with rasterio.open(filename, 'w', **profile) as dest:
-        dest.write(data, 1)
 
 
 def triangle_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
@@ -68,8 +48,8 @@ def triangle_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
         tilt = slope_y * X
         triangle *= tilt
 
-    save_synthetic(triangle, 'triangle.tif')
-    out_obj = Elevation.load('triangle.tif')
+    out_obj = Elevation(nx = nx, ny = ny, dx = 1.0)
+    out_obj._griddata = triangle
     return out_obj
 
 
@@ -112,6 +92,6 @@ def sinusoid_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
         tilt = slope_y * X
         sinusoid *= tilt
 
-    save_synthetic(sinusoid, 'sinusoid.tif')
-    out_obj = Elevation.load('sinusoid.tif')
+    out_obj = Elevation(nx = nx, ny = ny, dx = 1.0)
+    out_obj._griddata = sinusoid
     return out_obj
