@@ -2556,13 +2556,15 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         # Condition inputs to ensure that grids produce square convolution matrices:
         
         (area_cutoff, max_width, min_width, normalize, fix_center) = (kwargs['area_cutoff'], kwargs['max_width'], kwargs['min_width'], kwargs.get('normalize', False), kwargs.get('fix_center', False))
-        needs_reshaping_x = ((Z._georef_info.nx % 2) != 1) 
-        needs_reshaping_y = ((Z._georef_info.ny % 2) != 1)
+        
         
         Z = Elevation()
         A = Area()
         Z._copy_info_from_grid(kwargs['elevation'], set_zeros = False)
         A._copy_info_from_grid(kwargs['area'], set_zeros = False)
+        
+        needs_reshaping_x = ((Z._georef_info.nx % 2) != 1) 
+        needs_reshaping_y = ((Z._georef_info.ny % 2) != 1)
             
         if needs_reshaping_x:
             nx = Z._georef_info.nx + 1
