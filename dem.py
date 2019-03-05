@@ -2556,9 +2556,10 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         # Condition inputs to ensure that grids produce square convolution matrices:
         
         (Z, A, area_cutoff, max_width, min_width, normalize, fix_center) = (kwargs['elevation'], kwargs['area'], kwargs['area_cutoff'], kwargs['max_width'], kwargs['min_width'], kwargs.get('normalize', False), kwargs.get('fix_center', False))
-        needs_reshaping = (Z._georef_info.nx % 2) != (Z._georef_info.ny % 2)
+        needs_reshaping_x = ((Z._georef_info.nx % 2) != 1) 
+        needs_reshaping_y = ((Z._georef_info.ny % 2) != 1)
         
-        if needs_reshaping:
+        if needs_reshaping_x:
             nx = Z._georef_info.nx + 1
             xllcenter = Z._georef_info.xllcenter - Z._georef_info.dx
             Z = Elevation()
@@ -2571,6 +2572,19 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             A._georef_info.nx = nx
             A._georef_info.xllcenter = xllcenter
             A._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), A._griddata), axis=1)
+        if needs_reshaping_y:
+            ny = Z._georef_info.ny + 1
+            yllcenter = Z._georef_info.yllcenter - Z._georef_info.dx
+            Z = Elevation()
+            A = Area()
+            Z._copy_info_from_grid(kwargs['elevation'], set_zeros = False)
+            A._copy_info_from_grid(kwargs['area'], set_zeros = False)
+            Z._georef_info.ny = ny
+            Z._georef_info.yllcenter = yllcenter
+            Z._griddata = np.concatenate((np.zeros((1, Z._georef_info.nx)), Z._griddata), axis=0)
+            A._georef_info.ny = ny
+            A._georef_info.yllcenter = yllcenter
+            A._griddata = np.concatenate((np.zeros((1, Z._georef_info.ny)), A._griddata), axis=0)
         self._copy_info_from_grid(kwargs['elevation'], set_zeros = True)
         de = Z._georef_info.dx
         scales = np.arange(min_width, max_width, de)
@@ -2589,12 +2603,10 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         i = np.where(A._griddata < area_cutoff)
         g_minC[i] = np.nan
         g_w[i] = np.nan
-        if needs_reshaping:
-            self._griddata = g_w[:,1:]
-            self._minC = g_minC[:,1:]
-        else:
-            self._griddata = g_w
-            self._minC = g_minC
+        start_x_index = 1 if needs_reshaping_x else 0
+        start_y_index = 1 if needs_reshaping_y else 0
+        self._griddata = g_w[start_y_index:,start_x_index:]
+        self._minC = g_minC[start_y_index:, start_x_index:]
     
     def save(self, filename):
         self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._minC], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
