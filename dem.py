@@ -2571,7 +2571,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             xllcenter = Z._georef_info.xllcenter - Z._georef_info.dx
             Z._georef_info.nx = nx
             Z._georef_info.xllcenter = xllcenter
-            Z._griddata = np.concatenate(((Z._griddata[:,0], Z._griddata)), axis=1)
+            Z._griddata = np.concatenate(((np.reshape(Z._griddata[:,0],(Z._georef_info.nx, 1)), Z._griddata)), axis=1)
             A._georef_info.nx = nx
             A._georef_info.xllcenter = xllcenter
             A._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), A._griddata), axis=1)
