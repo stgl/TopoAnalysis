@@ -473,6 +473,15 @@ class Georef_info(object):
         self.yllcenter = 0
         self.nx = 0
         self.ny = 0
+        
+    def __deepcopy__(self, memo):
+        import copy
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
             
     
 class BaseSpatialShape(object):
@@ -501,17 +510,12 @@ class BaseSpatialShape(object):
 
     
 class BaseSpatialGrid(GDALMixin):
-    
-    from numpy import float64
-    
+        
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
                                    (('nx', 'ny', 'dx'), '_create_random_grid'),)
     dtype = float64
-    
-
-    _georef_info = Georef_info()
     
     def __deepcopy__(self, memo):
         import copy
@@ -524,9 +528,8 @@ class BaseSpatialGrid(GDALMixin):
         
     def __init__(self, *args, **kwargs):
         
-        from numpy import zeros
         super(BaseSpatialGrid,self).__init__()
-
+        self._georef_info = Georef_info()
         self._sorted = False
         
         if len(kwargs.keys()) == 0:
@@ -653,7 +656,6 @@ class BaseSpatialGrid(GDALMixin):
         return tuple(l)
     
     def _rowscols_to_xy(self, l):
-        from numpy import float64
         v = list()
         for(row,col) in l:
             x = float64(col)*self._georef_info.dx + self._georef_info.xllcenter
@@ -702,6 +704,51 @@ class BaseSpatialGrid(GDALMixin):
         index = self._xy_to_rowscols((xo,))[0]
         return index[0] is not None and index[1] is not None and self[index[0], index[1]] is not None and self[index[0], index[1]] != 0 and not np.isnan(self[index[0], index[1]])
     
+    def tile(self, tile_xdim = 400, tile_ydim=400, tile_xpadding = 10, tile_ypadding = 10):
+        
+        num_xtiles = int(np.ceil(float(self._georef_info.nx) / float(tile_xdim)))
+        num_ytiles = int(np.ceil(float(self._georef_info.ny) / float(tile_ydim)))
+        
+        tiles = []
+        import copy
+        
+        for x_left in range(num_xtiles):
+            for y_top in range(num_ytiles):
+                
+                left = x_left*tile_xdim-tile_xpadding if (x_left*tile_xdim-tile_xpadding) >= 0 else 0
+                right = (x_left+1)*tile_xdim+tile_xpadding if ((x_left+1)*tile_xdim+tile_xpadding) <= (self._georef_info.nx-1) else self._georef_info.nx
+                top = y_top*tile_ydim-tile_ypadding if (y_top*tile_ydim-tile_ypadding) >= 0 else 0
+                bottom = (y_top+1)*tile_ydim+tile_ypadding if ((y_top+1)*tile_ydim+tile_ypadding) <= (self._georef_info.ny-1) else self._georef_info.ny
+                
+                xllcenter = self._georef_info.xllcenter + left*self._georef_info.dx
+                yllcenter = self._georef_info.yllcenter + (self._georef_info.ny - bottom)*self._georef_info.dx
+                
+                new_tile = self.__class__()
+                new_tile._griddata = self._griddata[top:bottom,left:right]
+                new_tile._georef_info.geoTransform = (xllcenter - 0.5*self._georef_info.dx, self._georef_info.dx, 0, yllcenter + top + 0.5*self._georef_info.dx, 0, -self._georef_info.dx)
+                new_tile._georef_info.xllcenter = xllcenter
+                new_tile._georef_info.yllcenter = yllcenter
+                new_tile._georef_info.dx = self._georef_info.dx
+                new_tile._georef_info.nx = right-left 
+                new_tile._georef_info.ny = bottom-top
+                
+                tiles += [copy.deepcopy(new_tile)]
+        
+        return tiles
+    
+    def remove_padding(self, xpadding = 10, ypadding = 10):
+        
+        import copy
+        unpadded = copy.deepcopy(self)
+        unpadded._griddata =  unpadded._griddata[ypadding:-ypadding,xpadding:-xpadding]
+        unpadded._georef_info.xllcenter += xpadding*unpadded._georef_info.dx
+        unpadded._georef_info.yllcenter += ypadding*unpadded._georef_info.dx
+        unpadded._georef_info.nx -= 2*xpadding
+        unpadded._georef_info.ny -= 2*ypadding
+        unpadded._georef_info.geoTransform = (unpadded._georef_info.xllcenter - 0.5*unpadded._georef_info.dx, unpadded._georef_info.dx, 0, unpadded._georef_info.yllcenter + (float(unpadded._georef_info.ny-0.5))*self._georef_info.dx, 0, -self._georef_info.dx)
+        
+        return unpadded
+        
     def sort(self, reverse=True, force = False, mask = None):
         if force:
             self._sorted = False
@@ -981,6 +1028,7 @@ class BaseSpatialGrid(GDALMixin):
     def load(cls, filename):
         
         return_object = cls()
+        
         gdal_dataset = gdal.Open(filename)
         band = gdal_dataset.GetRasterBand(1)
         nodata = band.GetNoDataValue()
@@ -1007,6 +1055,44 @@ class BaseSpatialGrid(GDALMixin):
         gdal_file = None
         return return_object
 
+    @classmethod
+    def mosaic(cls, tiles):
+        
+        xmin = np.nan
+        xmax = np.nan
+        ymin = np.nan
+        ymax = np.nan
+        
+        for tile in tiles:
+            
+            xmin = tile._georef_info.xllcenter if (np.isnan(xmin) or (xmin > tile._georef_info.xllcenter)) else xmin
+            ymin = tile._georef_info.yllcenter if (np.isnan(ymin) or (ymin > tile._georef_info.yllcenter)) else ymin
+            xmax = tile._georef_info.xllcenter+(tile._georef_info.nx-1)*tile._georef_info.dx if (np.isnan(xmax) or (xmax < tile._georef_info.xllcenter+(tile._georef_info.nx-1)*tile._georef_info.dx)) else xmax
+            ymax = tile._georef_info.yllcenter+(tile._georef_info.ny-1)*tile._georef_info.dx if (np.isnan(ymax) or (ymax < tile._georef_info.yllcenter+(tile._georef_info.ny-1)*tile._georef_info.dx)) else ymax
+        
+        ny = int(round((ymax - ymin) / tiles[0]._georef_info.dx)) + 1
+        nx = int(round((xmax - xmin) / tiles[0]._georef_info.dx)) + 1
+        
+        return_object = cls()
+        return_object._griddata = np.zeros((ny, nx))
+        return_object._griddata[:] = np.nan
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        return_object._georef_info.dx = tiles[0]._georef_info.dx
+        return_object._georef_info.xllcenter = xmin
+        return_object._georef_info.yllcenter = ymin
+        return_object._georef_info.geoTransform = (return_object._georef_info.xllcenter - 0.5*return_object._georef_info.dx, return_object._georef_info.dx, 0, return_object._georef_info.yllcenter + (float(return_object._georef_info.ny-0.5))*return_object._georef_info.dx, 0, -return_object._georef_info.dx)
+        
+        for tile in tiles:
+            j_min = int(round((tile._georef_info.xllcenter - return_object._georef_info.xllcenter) / return_object._georef_info.dx))
+            j_max = j_min + tile._georef_info.nx
+            i_min = int(round((return_object._georef_info.yllcenter + (return_object._georef_info.ny-1)*return_object._georef_info.dx - tile._georef_info.yllcenter - (tile._georef_info.ny-1)*tile._georef_info.dx) / return_object._georef_info.dx))
+            i_max = i_min + tile._georef_info.ny
+                        
+            return_object._griddata[i_min:i_max, j_min:j_max] = tile._griddata
+            
+        return return_object
+    
 class ValueGrid(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
