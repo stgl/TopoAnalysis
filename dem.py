@@ -2677,7 +2677,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         g_w = np.zeros_like(Z._griddata)
         ind = 1
         for scale in scales:
-            sys.stdout.write('scale ' + str(ind) + ' / ' + str(len(scales)), scale)   
+            sys.stdout.write('scale ' + str(ind) + ' / ' + str(len(scales)))   
             sys.stdout.flush()         
             minC = _Cmin_for_scale(Z, scale, fix_center)
             if normalize:
