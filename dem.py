@@ -18,6 +18,7 @@ from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
 from scipy import stats
+from boto.manage.task import Task
 
 try:
     import statsmodels.api as sm
@@ -2637,12 +2638,17 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             X, Y, N, K = _create_kernel(Z, de)
             H = _calc_inv_G_for_kernel(X,Y,N, fix_center)
             g, h, i, j, k, l= _convolve(X, Y, Z, K, fix_center)
-            return _Cmin(H, g, h, i, j, k, l, fix_center)
+            Cmin = _Cmin(H, g, h, i, j, k, l, fix_center)
+            sys.stdout.write('scale ' + str(ind) + ' / ' + str(len(scales)) + '\n')   
+            sys.stdout.flush() 
+            return Cmin, de)
         
         # Condition inputs to ensure that grids produce square convolution matrices:
         
-        (area_cutoff, max_width, min_width, normalize, fix_center) = (kwargs['area_cutoff'], kwargs['max_width'], kwargs['min_width'], kwargs.get('normalize', False), kwargs.get('fix_center', False))
+        (area_cutoff, max_width, min_width, normalize, fix_center, use_dask) = (kwargs['area_cutoff'], kwargs['max_width'], kwargs['min_width'], kwargs.get('normalize', False), kwargs.get('fix_center', False), kwargs.get('use_dask', False))
         
+        if use_dask:
+            from dask import compute, delayed
         
         Z = Elevation()
         A = Area()
@@ -2676,16 +2682,30 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         g_minC = np.zeros_like(Z._griddata)
         g_w = np.zeros_like(Z._griddata)
         ind = 1
-        for scale in scales:
-            sys.stdout.write('scale ' + str(ind) + ' / ' + str(len(scales)))   
-            sys.stdout.flush()         
-            minC = _Cmin_for_scale(Z, scale, fix_center)
-            if normalize:
+        
+        if use_dask:
+            from functools import partial
+            wrapper = partial(_Cmin_for_scale(elev_obj, fix_center = fix_center))
+            tasks = [delayed(wrapper)(s) for s in scales]
+            results = compute(*tasks)
+            for result in results:
+                minC, scale = result
+                if normalize:
                 minC *= scale
-            i = np.where(minC < g_minC)
-            g_w[i] = np.ones(i[0].shape)*scale
-            g_minC[i] = minC[i]
-            ind += 1
+                i = np.where(minC < g_minC)
+                g_w[i] = np.ones(i[0].shape)*scale
+                g_minC[i] = minC[i]
+                ind += 1
+        else:
+            for scale in scales:   
+                minC = _Cmin_for_scale(Z, scale, fix_center)
+                if normalize:
+                    minC *= scale
+                i = np.where(minC < g_minC)
+                g_w[i] = np.ones(i[0].shape)*scale
+                g_minC[i] = minC[i]
+                ind += 1
+                
         i = np.where(A._griddata < area_cutoff)
         g_minC[i] = np.nan
         g_w[i] = np.nan
