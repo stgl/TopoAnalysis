@@ -2730,7 +2730,48 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             
         gdal_file = None
         return return_object
-                    
+    
+    @classmethod
+    def mosaic(cls, tiles):
+        
+        xmin = np.nan
+        xmax = np.nan
+        ymin = np.nan
+        ymax = np.nan
+        
+        for tile in tiles:
+            
+            xmin = tile._georef_info.xllcenter if (np.isnan(xmin) or (xmin > tile._georef_info.xllcenter)) else xmin
+            ymin = tile._georef_info.yllcenter if (np.isnan(ymin) or (ymin > tile._georef_info.yllcenter)) else ymin
+            xmax = tile._georef_info.xllcenter+(tile._georef_info.nx-1)*tile._georef_info.dx if (np.isnan(xmax) or (xmax < tile._georef_info.xllcenter+(tile._georef_info.nx-1)*tile._georef_info.dx)) else xmax
+            ymax = tile._georef_info.yllcenter+(tile._georef_info.ny-1)*tile._georef_info.dx if (np.isnan(ymax) or (ymax < tile._georef_info.yllcenter+(tile._georef_info.ny-1)*tile._georef_info.dx)) else ymax
+        
+        ny = int(round((ymax - ymin) / tiles[0]._georef_info.dx)) + 1
+        nx = int(round((xmax - xmin) / tiles[0]._georef_info.dx)) + 1
+        
+        return_object = cls()
+        return_object._griddata = np.zeros((ny, nx))
+        return_object._griddata[:] = np.nan
+        return_object._minC = np.zeros((ny, nx))
+        return_object._minC[:] = np.nan
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        return_object._georef_info.dx = tiles[0]._georef_info.dx
+        return_object._georef_info.xllcenter = xmin
+        return_object._georef_info.yllcenter = ymin
+        return_object._georef_info.geoTransform = (return_object._georef_info.xllcenter - 0.5*return_object._georef_info.dx, return_object._georef_info.dx, 0, return_object._georef_info.yllcenter + (float(return_object._georef_info.ny-0.5))*return_object._georef_info.dx, 0, -return_object._georef_info.dx)
+        
+        for tile in tiles:
+            j_min = int(round((tile._georef_info.xllcenter - return_object._georef_info.xllcenter) / return_object._georef_info.dx))
+            j_max = j_min + tile._georef_info.nx
+            i_min = int(round((return_object._georef_info.yllcenter + (return_object._georef_info.ny-1)*return_object._georef_info.dx - tile._georef_info.yllcenter - (tile._georef_info.ny-1)*tile._georef_info.dx) / return_object._georef_info.dx))
+            i_max = i_min + tile._georef_info.ny
+                        
+            return_object._griddata[i_min:i_max, j_min:j_max] = tile._griddata
+            return_object._minC[i_min:i_max, j_min:j_max] = tile._minC
+            
+        return return_object                   
+     
 class DiscreteFlowAccumulation(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
