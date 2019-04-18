@@ -2694,6 +2694,20 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         self._griddata = g_w[start_y_index:,start_x_index:]
         self._minC = g_minC[start_y_index:, start_x_index:]
     
+    def remove_padding(self, xpadding = 10, ypadding = 10):
+        
+        import copy
+        unpadded = copy.deepcopy(self)
+        unpadded._griddata =  unpadded._griddata[ypadding:-ypadding,xpadding:-xpadding]
+        unpadded._minC = unpadded._minC[ypadding:-ypadding,xpadding:-xpadding]
+        unpadded._georef_info.xllcenter += xpadding*unpadded._georef_info.dx
+        unpadded._georef_info.yllcenter += ypadding*unpadded._georef_info.dx
+        unpadded._georef_info.nx -= 2*xpadding
+        unpadded._georef_info.ny -= 2*ypadding
+        unpadded._georef_info.geoTransform = (unpadded._georef_info.xllcenter - 0.5*unpadded._georef_info.dx, unpadded._georef_info.dx, 0, unpadded._georef_info.yllcenter + (float(unpadded._georef_info.ny-0.5))*self._georef_info.dx, 0, -self._georef_info.dx)
+        
+        return unpadded
+    
     def save(self, filename):
         self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._minC], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
     
