@@ -2641,7 +2641,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             Cmin = _Cmin(H, g, h, i, j, k, l, fix_center)
             sys.stdout.write('scale ' + str(ind) + ' / ' + str(len(scales)) + '\n')   
             sys.stdout.flush() 
-            return Cmin, de)
+            return Cmin, de
         
         # Condition inputs to ensure that grids produce square convolution matrices:
         
@@ -2698,7 +2698,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
                 ind += 1
         else:
             for scale in scales:   
-                minC = _Cmin_for_scale(Z, scale, fix_center)
+                minC, _ = _Cmin_for_scale(Z, scale, fix_center)
                 if normalize:
                     minC *= scale
                 i = np.where(minC < g_minC)
