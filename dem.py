@@ -18,7 +18,6 @@ from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
 from scipy import stats
-from boto.manage.task import Task
 
 try:
     import statsmodels.api as sm
