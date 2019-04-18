@@ -2638,7 +2638,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             H = _calc_inv_G_for_kernel(X,Y,N, fix_center)
             g, h, i, j, k, l= _convolve(X, Y, Z, K, fix_center)
             Cmin = _Cmin(H, g, h, i, j, k, l, fix_center)
-            sys.stdout.write('scale ' + str(ind) + ' / ' + str(len(scales)) + '\n')   
+            sys.stdout.write('scale ' + str(de) + '\n')   
             sys.stdout.flush() 
             return Cmin, de
         
