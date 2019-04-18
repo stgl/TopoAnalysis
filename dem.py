@@ -2684,8 +2684,8 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         
         if use_dask:
             from functools import partial
-            wrapper = partial(_Cmin_for_scale(Z))
-            tasks = [delayed(wrapper)(s, fix_center = fix_center) for s in scales]
+            wrapper = partial(_Cmin_for_scale, Z, fix_center = fix_center)
+            tasks = [delayed(wrapper)(s) for s in scales]
             results = compute(*tasks)
             for result in results:
                 minC, scale = result
