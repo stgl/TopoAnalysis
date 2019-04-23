@@ -736,21 +736,21 @@ class BaseSpatialGrid(GDALMixin):
                 ny = bottom - top
                 
                 if needs_left_padding:
-                    griddata = np.concatenate((np.fliplr(griddata[:,0:tile_xpadding]), griddata))
+                    griddata = np.concatenate((np.fliplr(griddata[:,0:tile_xpadding]), griddata), axis = 1)
                     xllcenter -= tile_xpadding*self._georef_info.dx
                     nx += tile_xpadding
                     
                 if needs_right_padding:
-                    griddata = np.concatenate((griddata, np.fliplr(griddata[:,-tile_xpadding:])))
+                    griddata = np.concatenate((griddata, np.fliplr(griddata[:,-tile_xpadding:])), axis = 1)
                     nx += tile_xpadding
                 
                 if needs_top_padding:
-                    griddata = np.concatenate((np.flipud(griddata[0:tile_ypadding,:]), griddata))
+                    griddata = np.concatenate((np.flipud(griddata[0:tile_ypadding,:]), griddata), axis = 0)
                     yllcenter -= tile_ypadding*self._georef_info.dx
                     ny += tile_xpadding
                 
                 if needs_bottom_padding:
-                    griddata = np.concatenate((griddata, np.flipud(griddata[-tile_ypadding:,:])))
+                    griddata = np.concatenate((griddata, np.flipud(griddata[-tile_ypadding:,:])), axis = 0)
                     ny += tile_xpadding
                         
                 new_tile._georef_info.geoTransform = (xllcenter - 0.5*self._georef_info.dx, self._georef_info.dx, 0, yllcenter + (ny + 0.5)*self._georef_info.dx, 0, -self._georef_info.dx)
