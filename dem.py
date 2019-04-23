@@ -759,6 +759,7 @@ class BaseSpatialGrid(GDALMixin):
                 new_tile._georef_info.dx = self._georef_info.dx
                 new_tile._georef_info.nx = nx
                 new_tile._georef_info.ny = ny
+                new_tile._griddata = griddata
                 
                 tiles += [copy.deepcopy(new_tile)]
         
