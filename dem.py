@@ -2281,6 +2281,20 @@ class Area(BaseSpatialGrid):
         ij = zip(ij_cols[0].tolist(), ij_cols[1].tolist())
         return self._rowscols_to_xy(ij)
     
+    def areas_between(self, fd, min_area, max_area):
+        ij_out = []
+        ij_cols = np.where((self._griddata >= min_area) & (self._griddata <= max_area))
+        for (i,j) in zip(ij_cols[0].tolist(), ij_cols[1].tolist()):
+            options = fd.get_upstream_cell_indexes(i,j)
+            max_a = None
+            for (i_p, j_p) in options:
+                if max_a is None or (self._griddata[i_p, j_p] > max_a):
+                    max_a = self._griddata[i_p, j_p]
+            if max_a < min_area:
+                ij_out += [(i,j)]
+        return self._rowscols_to_xy(ij_out)
+        
+    
 class GeographicArea(GeographicGridMixin, Area):
     pass
 
