@@ -7,8 +7,8 @@ def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downst
     
     rc = flow_direction.search_down_flow_direction(outlet)
     
-    rows = np.array(zip(*rc)[0], dtype = np.int)
-    cols = np.array(zip(*rc)[1], dtype = np.int)
+    rows = np.array(list(zip(*rc))[0], dtype = np.int)
+    cols = np.array(list(zip(*rc))[1], dtype = np.int)
     
     if downstream:
         direction = 1.0
@@ -85,10 +85,11 @@ def plot_profiles(elevation, flow_direction, area, outlet, plot_code, minimum_ar
     
 def plot_profiles_with_outlet_code(prefix, code, plot_code, dem, fd, area, minimum_area = 1.0E7):
     
-    import cPickle
-    outlets = cPickle.load(open('outlets.p', 'rb'))
-    outlet = outlets[prefix][code]
-    plot_profiles(dem, fd, area, outlet, plot_code, minimum_area)
+    import pickle as p
+    with open('outlets.p', 'rb') as f:
+        outlets = p.load(f, encoding='latin1') 
+        
+    plot_profiles(dem, fd, area, outlets[prefix][code], plot_code, minimum_area)
     
 def plot_chi_profiles(elevation, flow_direction, area, outlet, plot_code, minimum_area = 1.0E6, figure = None, theta = 0.5, start_at = 0.0, downstream = True, Ao = 1.0E6):
     
@@ -132,8 +133,9 @@ def plot_chi_profiles(elevation, flow_direction, area, outlet, plot_code, minimu
 
 def plot_chi_profiles_with_outlet_code(prefix, code, plot_code, dem, fd, area, minimum_area = 1.0E7, theta = 0.5):
     
-    import cPickle
-    outlets = cPickle.load(open('outlets.p', 'rb'))
+    import pickle as p
+    with open('outlets.p', 'rb') as f:
+        outlets = p.load(f, encoding='latin1')
     outlet = outlets[prefix][code]
     plot_chi_profiles(dem, fd, area, outlet, plot_code, minimum_area = minimum_area, theta = theta)
 
@@ -141,8 +143,9 @@ def plot_chi_profiles_with_outlet_code(prefix, code, plot_code, dem, fd, area, m
 def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area, hillshade, minimum_area = 1.0E7, theta = 0.5, Ao = 1.0E6):
         
     
-    import cPickle
-    outlets = cPickle.load(open('outlets.p', 'rb'))
+    import pickle as p
+    with open('outlets.p', 'rb') as f:
+        outlets = p.load(f, encoding='latin1') 
     outlet = outlets[prefix][code]
     
     from demRecursionTools import map_chi_profiles
@@ -151,7 +154,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     indexes = chi_map.keys()
     import operator
     (chi, _) = zip(*operator.itemgetter(*indexes)(chi_map))
-    coordinates = zip(*hillshade._rowscols_to_xy(indexes))
+    coordinates = list(zip(*hillshade._rowscols_to_xy(indexes)))
     
     fig1 = plt.figure(1)
     

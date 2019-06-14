@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib
 
 def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, xo = 500.0):
 
@@ -118,7 +119,7 @@ def hi_list(ld_list):
 
     return (mean_elevation - min_elevation) / (max_elevation - min_elevation) 
 
-def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta = 0.5, minimum_area = 1.0E7):
+def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area = 1.0E7):
     
     import dem as d
     mean_pixel_dimension = d.BaseSpatialGrid()
@@ -131,25 +132,26 @@ def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevatio
     elevation = [ld_list['elevation']]
     de = [ld_list['de']*ld_list['distance_scale']]
     tributary_ld = []
-    
+    #first we gather information of area, elevation, and de from our flow direction, which should map out our mainstem and tributary
     def get_elevations_and_areas(ld_list, area, elevation, de, tributary_ld, minimum_area_to_consider):
         maximum_area = 0.0
-        for next in ld_list['next']:
-            if (next['area'] > minimum_area_to_consider) and (next['area'] > maximum_area):
-                maximum_area = next['area']
-        
-        for next in ld_list['next']:
-            if next['area'] == maximum_area:
-                area += [next['area']]
-                elevation += [next['elevation']]
-                de += [next['de'] * next['distance_scale']]
-                (area, elevation, de, tributary_ld) = get_elevations_and_areas(next, area, elevation, de, tributary_ld, minimum_area_to_consider)
-            elif next['area'] > minimum_area_to_consider:
-                tributary_ld.append(next)   
+        if ld_list.get('next', None) is not None:
+            for next in ld_list['next']:
+                if (next['area'] > minimum_area_to_consider) and (next['area'] > maximum_area):
+                    maximum_area = next['area'] #for loop that iteratively adds to the area if the next area from ld list is greater than the previous
+            
+            for next in ld_list['next']:
+                if next['area'] == maximum_area:
+                    area += [next['area']]
+                    elevation += [next['elevation']]
+                    de += [next['de'] * next['distance_scale']]
+                    (area, elevation, de, tributary_ld) = get_elevations_and_areas(next, area, elevation, de, tributary_ld, minimum_area_to_consider)
+                elif next['area'] > minimum_area_to_consider:
+                    tributary_ld.append(next)   # if your area is equal to the max area, then you must be the mainstem, and add up all those values. else if, add those values to a tributary list 
         return (area, elevation, de, tributary_ld)
     
     (area, elevation, de, tributary_ld) = get_elevations_and_areas(ld_list, area, elevation, de, tributary_ld, minimum_area)
-    
+    # get elevations and areas gets the elevation and area for the mainstem
     area = [area]
     elevation = [elevation]
     de = [de]
@@ -237,7 +239,7 @@ def indexes_for_mainstem_and_tributaries(outlet, flow_direction, area, minimum_a
 
     
 def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7):
-    
+
     def chi_for_profile(area, de, theta):
         chi = []
         chi_value = 0.0
@@ -254,79 +256,50 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
         
         return (m, WRSS)
     
-    def best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area):
-        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
-        area = area[0]
-        elevation = elevation[0]
-        de = de[0]
-        chi = chi_for_profile(area, de, theta)
-        mean_elevation = np.mean(elevation)
-        SS = np.sum(np.power(elevation - mean_elevation, 2))
-        return (best_ks_with_wrss(chi, elevation), SS)
-    
-    def best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area):
-        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
-        area = area[1:]
-        elevation = elevation[1:]
-        de = de[1:]
-        chi = []
-        for (area_profile, de_profile) in zip(area, de):
-            chi.append(chi_for_profile(area_profile, de_profile, theta))
-        chi = [c for sublist in chi for c in sublist]
-        elevation = [e for sublist in elevation for e in sublist]
-        mean_elevation = np.mean(elevation)
-        SS = np.sum(np.power(elevation - mean_elevation, 2))
-        return (best_ks_with_wrss(chi, elevation), SS)
+    def steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=1E7):
+        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area=minimum_area)
         
-    import scipy.optimize
-    chi_ks_mainstem = lambda theta: best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
-    chi_ks_tribs = lambda theta: best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
-    try:
-        (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_mainstem, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
-        ((ks, WRSS), SS) = best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, np.array([xopt[0]]), minimum_area)
-        ks = ks[0]
-        WRSS = WRSS[0]
-    except:
-        SS = 1.0
-        WRSS = 0.0
-        xopt = [0.0]
-        ks = 0.0
-        warnflag = 1
- 
-    R2 = 1 - (WRSS / SS)
-    if warnflag == 1 or warnflag == 2:
-        R2 = 0.0
-    theta_mainstem = xopt[0]
-    R2_mainstem = R2
-    ks_mainstem = ks
-    
-    try:
-        (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_tribs, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
-        ((ks, WRSS), SS) = best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, np.array([xopt[0]]), minimum_area)
-        ks = ks[0]
-        WRSS = WRSS[0]
-    except:
-        SS = 1.0
-        WRSS = 0.0
-        xopt[0] = 0.0
-        ks = 0.0
-        
-    R2 = 1 - (WRSS / SS)
-    if warnflag == 1 or warnflag == 2:
-        R2 = 0.0
-    theta_tribs = xopt[0]
-    R2_tribs = R2
-    ks_tribs = ks
-    
-    return{'mainstem': {'theta': theta_mainstem,
-                        'R2': R2_mainstem,
-                        'ks': ks_mainstem},
-           'tributaries': {'theta': theta_tribs,
-                           'R2': R2_tribs,
-                           'ks': ks_tribs}
-           }
+        def fit_by_making_chi(area, elevation, de, theta):
+            chi = chi_for_profile(area ,de , theta)
+            mean_elevation = np.mean(elevation)
+            SS = np.sum(np.power(elevation - mean_elevation, 2))
+            # find best fit ks and WRSS
+            ks_wrss = (best_ks_with_wrss(chi, elevation), SS)
+            # return these values for this tributary
+            return ks_wrss
+            # This is my lists of lists
+        rez = []
+        rez_list=[]
+        import scipy.optimize
+        for (area_all, elevation_all, de_all) in zip(area, elevation, de):    
+            chi_ks_all = lambda theta: fit_by_making_chi(area_all, elevation_all, de_all, theta)[0][1]
+            try:
+                (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_all, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
+                ((ks, WRSS), SS) = fit_by_making_chi(area_all, elevation_all, de_all, np.array([xopt[0]]))
+                ks = ks[0]
+                WRSS = WRSS[0] 
+            except:
+                SS = 1.0
+                WRSS = 0.0
+                xopt = [0.0]
+                ks = 0.0
+                warnflag = 1
+            R2 = 1 - (WRSS / SS) #calculate R2 value
+            if warnflag == 1 or warnflag == 2:
+                R2 = 0.0
+                            
+            theta_all = xopt[0]
+            rez.append({'theta': theta_all,
+                            'R2': R2,
+                            'ks': ks,
+                            'area': np.max(area_all)}) #LIST OF DICTIONARIES GOES HERE
+            rez_list.append([theta_all,R2,ks,np.max(area_all)])
 
-def best_ks_theta(outlet, flow_direction, elevation, area, minimum_area):
+        return rez
+    return steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=minimum_area)
+
+def best_ks_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7, theta = 0.4):
+
     def chi_for_profile(area, de, theta):
         chi = []
         chi_value = 0.0
@@ -334,21 +307,155 @@ def best_ks_theta(outlet, flow_direction, elevation, area, minimum_area):
             chi += [chi_value]
             chi_value += (1/a)**theta[0] * d
         return chi
-
+    
     def best_ks_with_wrss(chi, elevation):
         A = np.vstack([chi]).T
         sol = np.linalg.lstsq(A, elevation)
         m = sol[0]
-        WRSS = sol[1]        
+        WRSS = sol[1]
+        
+        return (m, WRSS)
+    
+    def steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=1E7):
+        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area=minimum_area)
+        
+        def fit_by_making_chi(area, elevation, de, theta):
+            chi = chi_for_profile(area ,de , theta)
+            mean_elevation = np.mean(elevation)
+            SS = np.sum(np.power(elevation - mean_elevation, 2))
+            # find best fit ks and WRSS
+            ks_wrss = (best_ks_with_wrss(chi, elevation), SS)
+            # return these values for this tributary
+            return ks_wrss
+            # This is my lists of lists
+        rez = []
+        rez_list=[]
+        for (area_all, elevation_all, de_all) in zip(area, elevation, de):    
+            try:
+                ((ks, WRSS), SS) = fit_by_making_chi(area_all, elevation_all, de_all, np.array([theta]))
+                ks = ks[0]
+                WRSS = WRSS[0] 
+            except:
+                SS = 1.0
+                WRSS = 0.0
+                ks = 0.0
+            
+            R2 = 1 - (WRSS / SS) #calculate R2 value
+                            
+            rez.append({'R2': R2,
+                        'ks': ks,
+                        'area': np.max(area_all)}) #LIST OF DICTIONARIES GOES HERE
+            rez_list.append([R2,ks,np.max(area_all)])
+
+        return rez
+    return steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=minimum_area)
+
+def best_ks_theta(outlet, flow_direction, elevation, area, minimum_area):
+ #def best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area):
+#         (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
+#         area = area[0]
+#         elevation = elevation[0]
+#         de = de[0]
+#         chi = chi_for_profile(area, de, theta)
+#         mean_elevation = np.mean(elevation)
+#         SS = np.sum(np.power(elevation - mean_elevation, 2))
+#         return (best_ks_with_wrss(chi, elevation), SS)
+    
+#     def best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area):
+#         (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
+#         area = area[1:] #assumes that all the rest of the list 
+#         # are the tributaries and thus puts all the areas, eleveations, and de into a list
+#         elevation = elevation[1:]
+#         de = de[1:]
+#         chi = []
+#         for (area_profile, de_profile) in zip(area, de): #PLEASE EXPLAIN
+#             chi.append(chi_for_profile(area_profile, de_profile, theta))
+#         #chi = [c for sublist in chi for c in sublist] # puts together all the separate lists into one list for chi
+#         #elevation = [e for sublist in elevation for e in sublist] # puts together all the separate lists into one list for elevation
+#         mean_elevation = np.mean(elevation)
+#         SS = np.sum(np.power(elevation - mean_elevation, 2))
+#         dobbs = (best_ks_with_wrss(chi, elevation), SS)
+#         return dobbs  # calculates the best ks for the tributaries
+    # Currently, the chi and elevation data are put into the same list, and then theta and ks values are
+    # approximated from there. I need to figure out how to keep these values separated so that I can calculate
+    # individual ks and theta values for each tributary. 
+    # WILLS IDEA: instead of running dobbs, loop each set of chis for each tributary, run dobbs and store it in a list and return that set of lists. loop through that list 
+    # using the optimizatyion and store in a new dictionary
+    
+     #import scipy.optimize
+#     chi_ks_mainstem = lambda theta: best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
+#     chi_ks_tribs = lambda theta: best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, theta, minimum_area)[0][1]
+#     # we use lambda when we require a nameless function for a short period of time
+#     try:
+#         (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_mainstem, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
+#         ((ks, WRSS), SS) = best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, np.array([xopt[0]]), minimum_area)
+#         ks = ks[0]
+#         WRSS = WRSS[0]
+#         # fmin minimizes a function using the downhill simplex algorithm 
+#     except:
+#         SS = 1.0
+#         WRSS = 0.0
+#         xopt = [0.0]
+#         ks = 0.0
+#         warnflag = 1
+#  
+#     R2 = 1 - (WRSS / SS) #calculate R2 value
+#     if warnflag == 1 or warnflag == 2:
+#         R2 = 0.0
+#     theta_mainstem = xopt[0]
+#     R2_mainstem = R2
+#     ks_mainstem = ks
+#     
+#     try:
+#         (xopt, _, _, _, warnflag) = scipy.optimize.fmin(chi_ks_tribs, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
+#         ((ks, WRSS), SS) = best_ks_theta_wrss_for_tribs(outlet, flow_direction, elevation, area, np.array([xopt[0]]), minimum_area)
+#         ks = ks[0]
+#         WRSS = WRSS[0]
+#     except:
+#         SS = 1.0
+#         WRSS = 0.0
+#         xopt[0] = 0.0
+#         ks = 0.0
+#         
+#     R2 = 1 - (WRSS / SS)
+#     if warnflag == 1 or warnflag == 2:
+#         R2 = 0.0
+#     theta_tribs = xopt[0]
+#     R2_tribs = R2
+#     ks_tribs = ks
+#     
+#     return{'mainstem': {'theta': theta_mainstem,
+#                         'R2': R2_mainstem,
+#                         'ks': ks_mainstem},
+#            'tributaries': {'theta': theta_tribs,
+#                            'R2': R2_tribs,
+#                            'ks': ks_tribs}
+#            }
+
+    def chi_for_profile(area, de, theta):
+        # area, de,defined from area_elevation_for_mainstem_and_tributaries
+        chi = [] # chi initially defined as an empty list
+        chi_value = 0.0
+        for (a, d) in zip(area, de):
+            chi += [chi_value]
+            chi_value += (1/a)**theta[0] * d #calculates chi for every area and de value previously calculated
+        return chi
+
+    def best_ks_with_wrss(chi, elevation):
+        A = np.vstack([chi]).T # stacks the array of the chi list vertically
+        sol = np.linalg.lstsq(A, elevation) # returns the least-squares solution to a linear matrix equation of A and elevation
+        m = sol[0] # m is the solution for the mainstem
+        WRSS = sol[1]  # not sure what WRSS is...      
         return (m, WRSS)
 
     def best_ks_theta_wrss_for_mainstem(outlet, flow_direction, elevation, area, theta, minimum_area):
         (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta, minimum_area)
-        area = area[0]
+        # finds area, elevation, and de using area_elevation_for_mainstem_and_tributaries
+        area = area[0] # the mainstem values will be the first values of the list so it defines area, elevation, and de as [0] 
         elevation = elevation[0]
         de = de[0]
-        chi = chi_for_profile(area, de, theta)
-        mean_elevation = np.mean(elevation)
+        chi = chi_for_profile(area, de, theta) # calculates chi values for the mainstem
+        mean_elevation = np.mean(elevation) 
         SS = np.sum(np.power(elevation - mean_elevation, 2))
         return (best_ks_with_wrss(chi, elevation), SS)
 
