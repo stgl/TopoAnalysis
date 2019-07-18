@@ -119,7 +119,7 @@ def hi_list(ld_list):
 
     return (mean_elevation - min_elevation) / (max_elevation - min_elevation) 
 
-def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area = 1.0E7):
+def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area = 1.0E7, min_pathlength_in_cells=100):
     
     import dem as d
     mean_pixel_dimension = d.BaseSpatialGrid()
@@ -163,9 +163,10 @@ def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevatio
             this_elevation = [trb_ld['elevation']]
             this_de = [trb_ld['de']+trb_ld['distance_scale']]
             (this_area, this_elevation, this_de, next_tributary_ld) = get_elevations_and_areas(trb_ld, this_area, this_elevation, this_de, next_tributary_ld, minimum_area)
-            area.append(this_area)
-            elevation.append(this_elevation)
-            de.append(this_de)
+            if(len(this_area) >= min_pathlength_in_cells):
+                area.append(this_area)
+                elevation.append(this_elevation)
+                de.append(this_de)
         tributary_ld = next_tributary_ld
 
     return_area = []
