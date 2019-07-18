@@ -239,7 +239,7 @@ def indexes_for_mainstem_and_tributaries(outlet, flow_direction, area, minimum_a
     return return_index
 
     
-def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7):
+def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7, min_pathlength_in_cells = 100):
 
     def chi_for_profile(area, de, theta):
         chi = []
@@ -257,8 +257,8 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
         
         return (m, WRSS)
     
-    def steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=1E7):
-        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area=minimum_area)
+    def steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=1E7, min_pathlength_in_cells = min_pathlength_in_cells):
+        (area, elevation, de) = area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, minimum_area=minimum_area, min_pathlength_in_cells = min_pathlength_in_cells)
         
         def fit_by_making_chi(area, elevation, de, theta):
             chi = chi_for_profile(area ,de , theta)
@@ -297,7 +297,7 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
             rez_list.append([theta_all,R2,ks,np.max(area_all)])
 
         return rez
-    return steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=minimum_area)
+    return steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=minimum_area, min_pathlength_in_cells=min_pathlength_in_cells)
 
 def best_ks_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7, theta = 0.4):
 
