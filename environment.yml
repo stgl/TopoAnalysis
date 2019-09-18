@@ -1,0 +1,9 @@
+name: TopoAnalysis
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - numpy
+  - matplotlib
+  - gdal
+  - scipy

@@ -1,23 +1,27 @@
 import numpy as np
 import matplotlib
 
-def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, xo = 500.0):
+def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, A_mdx = None, xo = 500.0):
 
-    if theta < -10.0:
-        theta = -10.0
 
     Ao = np.power(xo, 2.0)
     
     if ld_list['area'] >= Ao:
   
-        elevation_f = np.array(ld_list['elevation'] - base_elevation)
-        elevation = np.append(elevation, np.array(elevation_f))
-        index = ld_list['index']
-        chi_f = chi_o + (1 / np.array(ld_list['area']))**theta[0] * np.array(ld_list['distance_scale']) * de[index[0], index[1]]
-        chi = chi + [chi_f]
+        if A_mdx is None:
+            elevation = np.append(elevation, np.array(0.0))
+            chi = chi + [chi_o]
+            chi_f = chi_o
+        else:
+            elevation_f = np.array(ld_list['elevation'] - base_elevation)
+            elevation = np.append(elevation, np.array(elevation_f))
+            index = ld_list['index']
+            chi_f = chi_o + 0.50*((1 / np.array(ld_list['area']))**theta[0] + (1 / A_mdx)**theta[0]) * np.array(ld_list['distance_scale']) * de[index[0], index[1]]
+            chi = chi + [chi_f]
+        A_mdx = ld_list['area']
         if ld_list.get('next') is not None:
             for next_list in ld_list['next']:
-                elevation, chi = extract_chi_elevation_values(next_list, de, theta, chi_f, elevation, chi, base_elevation, xo = xo)
+                elevation, chi = extract_chi_elevation_values(next_list, de, theta, chi_f, elevation, chi, base_elevation, A_mdx = A_mdx, xo = xo)
     
     return elevation, chi    
 
@@ -63,9 +67,9 @@ def best_ks_with_wrss_list(ld_list, de, theta, xo = 500):
     
     e, c = chi_elevation(ld_list, de, theta, xo=xo)
     A = np.vstack([c]).T
-    sol = np.linalg.lstsq(A, e)
+    sol = np.linalg.lstsq(A, e, rcond=None)
     m = sol[0]
-    WRSS = sol[1]    
+    WRSS = sol[1]
     
     return (m, WRSS)
 

@@ -17,6 +17,12 @@ from numpy import uint8, int8, float64
 from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
+from scipy import stats
+
+try:
+    import statsmodels.api as sm
+except:
+    print('Warning: no statsmodels present.  If you want to compute steepness, you will need to install this.')
 
 sys.setrecursionlimit(1000000)
 
@@ -118,7 +124,7 @@ class GDALMixin(object):
     
         return xcoordinates, ycoordinates
 
-    def _create_gdal_representation_from_array(self, georef_info, GDALDRIVERNAME, array_data, dtype, outfile_path='name', dst_options = []):
+    def _create_gdal_representation_from_array(self, georef_info, GDALDRIVERNAME, array_data, dtype, outfile_path='name', dst_options = [], multiple_bands = False):
         #A function to write the data in the numpy array arrayData into a georeferenced dataset of type
         #  specified by GDALDRIVERNAME, a string, options here: http://www.gdal.org/formats_list.html
         #  This is accomplished by copying the georeferencing information from an existing GDAL dataset,
@@ -126,7 +132,8 @@ class GDALMixin(object):
     
         #Initialize new data
         drvr = gdal.GetDriverByName(GDALDRIVERNAME)  #  Get the desired driver
-        outRaster = drvr.Create(outfile_path, georef_info.nx, georef_info.ny, 1 , self._get_gdal_type_for_numpy_type(dtype), dst_options)  # Open the file
+        bands = 1 if multiple_bands is False else len(array_data)
+        outRaster = drvr.Create(outfile_path, georef_info.nx, georef_info.ny, bands , self._get_gdal_type_for_numpy_type(dtype), dst_options)  # Open the file
     
         #Write geographic information
         outRaster.SetGeoTransform(georef_info.geoTransform)  # Steal the coordinate system from the old dataset
@@ -134,7 +141,13 @@ class GDALMixin(object):
             outRaster.SetProjection(georef_info.projection)   # Steal the Projections from the old dataset
     
         #Write the array
-        outRaster.GetRasterBand(1).WriteArray(array_data)   # Writes my array to the raster
+        if not multiple_bands:
+            outRaster.GetRasterBand(1).WriteArray(array_data)   # Writes my array to the raster
+        else:
+            for i in range(len(array_data)):
+                print('writing band ' + str(i) + "/" + str(bands))
+                outRaster.GetRasterBand(i+1).WriteArray(array_data[i])
+                
         return outRaster
    
     def _clipRasterToRaster(self, input_gdal_dataset, clipping_gdal_dataset, dtype):
@@ -460,6 +473,15 @@ class Georef_info(object):
         self.yllcenter = 0
         self.nx = 0
         self.ny = 0
+        
+    def __deepcopy__(self, memo):
+        import copy
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
             
     
 class BaseSpatialShape(object):
@@ -488,17 +510,12 @@ class BaseSpatialShape(object):
 
     
 class BaseSpatialGrid(GDALMixin):
-    
-    from numpy import float64
-    
+        
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
                                    (('nx', 'ny', 'dx'), '_create_random_grid'),)
     dtype = float64
-    
-
-    _georef_info = Georef_info()
     
     def __deepcopy__(self, memo):
         import copy
@@ -511,9 +528,8 @@ class BaseSpatialGrid(GDALMixin):
         
     def __init__(self, *args, **kwargs):
         
-        from numpy import zeros
         super(BaseSpatialGrid,self).__init__()
-
+        self._georef_info = Georef_info()
         self._sorted = False
         
         if len(kwargs.keys()) == 0:
@@ -542,7 +558,7 @@ class BaseSpatialGrid(GDALMixin):
             try:
                 return self._griddata[i, j]
             except:
-                print(i, j)
+                print('error: '+ str(i) + str(j))
         
         return None
         
@@ -640,7 +656,6 @@ class BaseSpatialGrid(GDALMixin):
         return tuple(l)
     
     def _rowscols_to_xy(self, l):
-        from numpy import float64
         v = list()
         for(row,col) in l:
             x = float64(col)*self._georef_info.dx + self._georef_info.xllcenter
@@ -648,13 +663,121 @@ class BaseSpatialGrid(GDALMixin):
             v.append((x,y))
         return tuple(v)
     
+    def _area_per_pixel(self, *args, **kwargs):
+        return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
+
     def _mean_pixel_dimension(self, *args, **kwargs):
-        return self._georef_info.dx * np.ones_like(self._griddata, self.dtype)
+        return self._georef_info.dx * np.ones_like(self._griddata, dtype = float64)
+    
+    def resample(self, de):
+        return_grid = self.__class__()
+        return_grid._copy_info_from_grid(self, set_zeros=True)
+        import copy
+        geoTransform = (self._georef_info.geoTransform[0], 
+                        np.sign(self._georef_info.geoTransform[1])*de, 
+                        self._georef_info.geoTransform[2], 
+                        self._georef_info.geoTransform[3], 
+                        self._georef_info.geoTransform[4], 
+                        np.sign(self._georef_info.geoTransform[5])*de)
+        
+        georef = copy.deepcopy(self._georef_info)
+        georef.geoTransform = geoTransform
+        georef.dx = de
+        georef.nx = int(np.round(self._georef_info.nx * self._georef_info.dx / de))
+        georef.ny = int(np.round(self._georef_info.ny * self._georef_info.dx / de))
+        return_grid._georef_info = georef
+        xo = np.linspace(self._georef_info.xllcenter,(self._georef_info.nx-1)*(self._georef_info.dx), num = self._georef_info.nx)
+        yo = np.linspace(self._georef_info.yllcenter,(self._georef_info.ny-1)*(self._georef_info.dx), num = self._georef_info.ny)
+        xf = np.linspace(georef.xllcenter,(georef.nx-1)*georef.dx, num = georef.nx)
+        yf = np.linspace(georef.yllcenter,(georef.ny-1)*georef.dx, num = georef.ny)
+        from scipy.interpolate import interp2d
+        interp_grid = copy.deepcopy(self._griddata)
+        if geoTransform[1] > 0:
+            interp_grid = np.fliplr(interp_grid)
+        if geoTransform[5] < 0:
+            interp_grid = np.flipud(interp_grid)
+        f = interp2d(xo, yo, interp_grid, kind='quintic')
+        return_grid._griddata = f(xf, yf)
+        return return_grid
     
     def location_in_grid(self, xo):
         index = self._xy_to_rowscols((xo,))[0]
         return index[0] is not None and index[1] is not None and self[index[0], index[1]] is not None and self[index[0], index[1]] != 0 and not np.isnan(self[index[0], index[1]])
     
+    def tile(self, tile_xdim = 400, tile_ydim=400, tile_xpadding = 10, tile_ypadding = 10):
+        
+        num_xtiles = int(np.ceil(float(self._georef_info.nx) / float(tile_xdim)))
+        num_ytiles = int(np.ceil(float(self._georef_info.ny) / float(tile_ydim)))
+        
+        tiles = []
+        import copy
+        
+        for x_left in range(num_xtiles):
+            for y_top in range(num_ytiles):
+                
+                left = x_left*tile_xdim-tile_xpadding if (x_left*tile_xdim-tile_xpadding) >= 0 else 0
+                right = (x_left+1)*tile_xdim+tile_xpadding if ((x_left+1)*tile_xdim+tile_xpadding) <= (self._georef_info.nx-1) else self._georef_info.nx
+                top = y_top*tile_ydim-tile_ypadding if (y_top*tile_ydim-tile_ypadding) >= 0 else 0
+                bottom = (y_top+1)*tile_ydim+tile_ypadding if ((y_top+1)*tile_ydim+tile_ypadding) <= (self._georef_info.ny-1) else self._georef_info.ny
+                
+                new_tile = self.__class__()
+                
+                needs_left_padding = (x_left == 0)
+                needs_right_padding = (x_left == (num_xtiles-1))
+                
+                needs_top_padding = (y_top == 0)
+                needs_bottom_padding = (y_top == (num_ytiles-1))
+                
+                griddata = self._griddata[top:bottom,left:right]
+                
+                xllcenter = self._georef_info.xllcenter + left*self._georef_info.dx
+                yllcenter = self._georef_info.yllcenter + (self._georef_info.ny - bottom)*self._georef_info.dx
+                nx = right-left
+                ny = bottom - top
+                
+                if needs_left_padding:
+                    griddata = np.concatenate((np.fliplr(griddata[:,0:tile_xpadding]), griddata), axis = 1)
+                    xllcenter -= tile_xpadding*self._georef_info.dx
+                    nx += tile_xpadding
+                    
+                if needs_right_padding:
+                    griddata = np.concatenate((griddata, np.fliplr(griddata[:,-tile_xpadding:])), axis = 1)
+                    nx += tile_xpadding
+                
+                if needs_top_padding:
+                    griddata = np.concatenate((np.flipud(griddata[0:tile_ypadding,:]), griddata), axis = 0)
+                    ny += tile_ypadding
+                
+                if needs_bottom_padding:
+                    griddata = np.concatenate((griddata, np.flipud(griddata[-tile_ypadding:,:])), axis = 0)
+                    ny += tile_ypadding
+                    yllcenter -= tile_ypadding*self._georef_info.dx
+    
+                new_tile._georef_info.geoTransform = (xllcenter - 0.5*self._georef_info.dx, self._georef_info.dx, 0, yllcenter + (ny + 0.5)*self._georef_info.dx, 0, -self._georef_info.dx)
+                new_tile._georef_info.xllcenter = xllcenter
+                new_tile._georef_info.yllcenter = yllcenter
+                new_tile._georef_info.dx = self._georef_info.dx
+                new_tile._georef_info.nx = nx
+                new_tile._georef_info.ny = ny
+                new_tile._griddata = griddata
+                
+                tiles += [copy.deepcopy(new_tile)]
+        
+        return tiles
+    
+    def remove_padding(self, xpadding = 10, ypadding = 10):
+        
+        import copy
+        unpadded = copy.deepcopy(self)
+        unpadded._griddata =  unpadded._griddata[ypadding:-ypadding,xpadding:-xpadding]
+        unpadded._georef_info.xllcenter += xpadding*unpadded._georef_info.dx
+        unpadded._georef_info.yllcenter += ypadding*unpadded._georef_info.dx
+        unpadded._georef_info.nx -= 2*xpadding
+        unpadded._georef_info.ny -= 2*ypadding
+        unpadded._georef_info.geoTransform = (unpadded._georef_info.xllcenter - 0.5*unpadded._georef_info.dx, unpadded._georef_info.dx, 0, unpadded._georef_info.yllcenter + (float(unpadded._georef_info.ny-0.5))*self._georef_info.dx, 0, -self._georef_info.dx)
+        
+        return unpadded
+        
     def sort(self, reverse=True, force = False, mask = None):
         if force:
             self._sorted = False
@@ -679,6 +802,25 @@ class BaseSpatialGrid(GDALMixin):
         out_grid._griddata = moving_window.apply_moving_window(self._griddata, self._georef_info.dx, self.dtype)
         return out_grid
     
+    def average_over_distance(self, distance, grid = None):
+        (nx, ny) = (self._georef_info.nx, self._georef_info.ny)
+        (dx, dy) = (self._georef_info.dx, self._georef_info.dx)
+        (xmin, xmax) = (self._georef_info.xllcenter, nx*dx+self._georef_info.xllcenter)
+        (ymin, ymax) = (self._georef_info.yllcenter, ny*dy+self._georef_info.yllcenter)
+        (xcenter, ycenter) = ((xmin+xmax) / 2.0, (ymin+ymax) / 2.0)
+        [x,y] = np.meshgrid(np.arange(xmin, xmax, dx),np.arange(ymin, ymax, dy))
+        D = np.sqrt(np.power((x - xcenter),2) + np.power((y - ycenter), 2))
+        template = (D <= distance).astype(float)
+        template /= np.sum(template[:])
+        if grid is None:
+            grid = self._griddata
+        
+        from numpy.fft import fft2 as fft2
+        from numpy.fft import ifft2 as ifft2
+        from numpy.fft import ifftshift
+        
+        return np.real(ifftshift(ifft2(fft2(grid)*fft2(template))))
+        
     def clip_to_bounds(self, bounds):
         extent = (bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1])
         return self.clip_to_extent(extent)
@@ -808,7 +950,7 @@ class BaseSpatialGrid(GDALMixin):
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         plt.imshow(self._griddata, extent = extent, **kwargs)
         plt.ion()
-        plt.show()
+        plt.show(block = False)
     
     def find_nearest_cell_with_value(self, index, value, pixel_radius):
 
@@ -822,6 +964,29 @@ class BaseSpatialGrid(GDALMixin):
                     if np.isnan(minimum_difference) or minimum_difference > value_difference:
                         minimum_difference = value_difference
                         nearest = (y,x)
+        (y,x) = nearest
+        return y, x
+    
+    def find_nearest_cell_with_value_greater_than(self, index, value, pixel_radius):
+
+        (i, j) = index
+        nearest = tuple()
+        minimum_difference = np.nan
+        for y in range(int(i-pixel_radius),int(i+pixel_radius)):
+            for x in range(int(j-pixel_radius),int(j+pixel_radius)):
+                if x is not None and y is not None and np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius and x < self._griddata.shape[1] and y < self._griddata.shape[0]:
+                    value_difference = self._griddata[y,x] - value
+                    if (np.isnan(minimum_difference) or (minimum_difference > value_difference)) and (value_difference >= 0):
+                        minimum_difference = value_difference
+                        nearest = (y,x)
+        if np.isnan(minimum_difference):
+            for y in range(int(i-pixel_radius),int(i+pixel_radius)):
+                for x in range(int(j-pixel_radius),int(j+pixel_radius)):
+                    if x is not None and y is not None and np.sqrt( (y-i)**2 + (x-j)**2) <= pixel_radius and x < self._griddata.shape[1] and y < self._griddata.shape[0]:
+                        value_difference = value - self._griddata[y,x]
+                        if (np.isnan(minimum_difference) or (minimum_difference > value_difference)) :
+                            minimum_difference = value_difference
+                            nearest = (y,x)
         (y,x) = nearest
         return y, x
     
@@ -892,6 +1057,7 @@ class BaseSpatialGrid(GDALMixin):
     def load(cls, filename):
         
         return_object = cls()
+        
         gdal_dataset = gdal.Open(filename)
         band = gdal_dataset.GetRasterBand(1)
         nodata = band.GetNoDataValue()
@@ -918,6 +1084,44 @@ class BaseSpatialGrid(GDALMixin):
         gdal_file = None
         return return_object
 
+    @classmethod
+    def mosaic(cls, tiles):
+        
+        xmin = np.nan
+        xmax = np.nan
+        ymin = np.nan
+        ymax = np.nan
+        
+        for tile in tiles:
+            
+            xmin = tile._georef_info.xllcenter if (np.isnan(xmin) or (xmin > tile._georef_info.xllcenter)) else xmin
+            ymin = tile._georef_info.yllcenter if (np.isnan(ymin) or (ymin > tile._georef_info.yllcenter)) else ymin
+            xmax = tile._georef_info.xllcenter+(tile._georef_info.nx-1)*tile._georef_info.dx if (np.isnan(xmax) or (xmax < tile._georef_info.xllcenter+(tile._georef_info.nx-1)*tile._georef_info.dx)) else xmax
+            ymax = tile._georef_info.yllcenter+(tile._georef_info.ny-1)*tile._georef_info.dx if (np.isnan(ymax) or (ymax < tile._georef_info.yllcenter+(tile._georef_info.ny-1)*tile._georef_info.dx)) else ymax
+        
+        ny = int(round((ymax - ymin) / tiles[0]._georef_info.dx)) + 1
+        nx = int(round((xmax - xmin) / tiles[0]._georef_info.dx)) + 1
+        
+        return_object = cls()
+        return_object._griddata = np.zeros((ny, nx))
+        return_object._griddata[:] = np.nan
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        return_object._georef_info.dx = tiles[0]._georef_info.dx
+        return_object._georef_info.xllcenter = xmin
+        return_object._georef_info.yllcenter = ymin
+        return_object._georef_info.geoTransform = (return_object._georef_info.xllcenter - 0.5*return_object._georef_info.dx, return_object._georef_info.dx, 0, return_object._georef_info.yllcenter + (float(return_object._georef_info.ny-0.5))*return_object._georef_info.dx, 0, -return_object._georef_info.dx)
+        
+        for tile in tiles:
+            j_min = int(round((tile._georef_info.xllcenter - return_object._georef_info.xllcenter) / return_object._georef_info.dx))
+            j_max = j_min + tile._georef_info.nx
+            i_min = int(round((return_object._georef_info.yllcenter + (return_object._georef_info.ny-1)*return_object._georef_info.dx - tile._georef_info.yllcenter - (tile._georef_info.ny-1)*tile._georef_info.dx) / return_object._georef_info.dx))
+            i_max = i_min + tile._georef_info.ny
+                        
+            return_object._griddata[i_min:i_max, j_min:j_max] = tile._griddata
+            
+        return return_object
+    
 class ValueGrid(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
@@ -1064,6 +1268,36 @@ class FlowDirectionD8(FlowDirection):
     
         return iOut, jOut, isGood
 
+    def get_upstream_cell_indexes(self, i, j):
+        
+        options = list()
+        
+        if self[i, j+1] == 16:
+            options += [(i, j+1)]
+        
+        if self[i+1, j+1] == 32:
+            options += [(i+1, j+1)]
+            
+        if self[i+1, j] == 64:
+            options += [(i+1, j)]
+                    
+        if self[i+1, j-1] == 128:
+            options += [(i+1, j-1)]
+                
+        if self[i, j-1] == 1:
+            options += [(i, j-1)]
+         
+        if self[i-1, j-1] == 2:
+            options += [(i-1, j-1)]
+            
+        if self[i-1, j] == 4:
+            options += [(i-1, j)]
+            
+        if self[i-1, j+1] == 8:
+            options += [(i-1, j+1)]
+
+        return options
+    
     def __get_flow_from_cell(self, i, j):
         
         i_source = [i]
@@ -1110,7 +1344,7 @@ class FlowDirectionD8(FlowDirection):
             j_source = j_source + j_append
                
         return i_source, j_source
-    
+
     def __map_flow_from_cell(self, index, **kwargs):
         
         i = index[0]
@@ -1179,6 +1413,60 @@ class FlowDirectionD8(FlowDirection):
         for (i,j) in zip(indexes[0],indexes[1]):
             flow_code = self.__flow_code_for_position(flooded_dem, i, j)
             self._griddata[i,j] = flow_code
+    
+    def divides_for_outlets(self, outlet1, outlet2):
+        basin1 = BaseSpatialGrid()
+        basin1._copy_info_from_grid(self, True)
+        
+        ind = self.get_indexes_of_upstream_cells_for_location(outlet1[0], outlet1[1])
+        i,j = zip(*ind)
+        basin1._griddata[i,j] = 1
+        
+        basin2 = BaseSpatialGrid()
+        basin2._copy_info_from_grid(self, True)
+        
+        ind = self.get_indexes_of_upstream_cells_for_location(outlet2[0], outlet2[1])
+        i,j = zip(*ind)
+        basin2._griddata[i,j] = 1
+        
+        from scipy.ndimage.morphology import binary_dilation as dilate
+        
+        basin3 = BaseSpatialGrid()
+        basin3._copy_info_from_grid(self, True)
+        basin3._griddata = basin1._griddata + dilate(basin2._griddata)
+        
+        basin4 = BaseSpatialGrid()
+        basin4._copy_info_from_grid(self, True)
+        basin4._griddata = basin2._griddata + dilate(basin1._griddata)
+        
+        (i, j) = np.where(basin3._griddata == 2)
+        ind1 = zip(i,j)
+        
+        (i,j) = np.where(basin4._griddata == 2)
+        ind2 = zip(i,j)
+        
+        return ind1, ind2
+    
+    def locations_of_paired_hollows(self, outlet1, outlet2, area, Ao=1E5):
+        
+        def map_down_to_hollow(ind, fd):
+            (i,j) = ind
+            (next_i, next_j, _) = fd.get_flow_to_cell(i,j)
+            if((area[i,j] < Ao) and (area[next_i, next_j] >= Ao)):
+                return next_i, next_j
+            else:
+                return map_down_to_hollow((next_i, next_j), fd)
+            
+        ind1, ind2 = self.divides_for_outlets(outlet1, outlet2)
+        h1 = set()
+        for ind in ind1:
+            h1.add(map_down_to_hollow(ind, self))
+        h2 = set()
+        for ind in ind2:
+            h2.add(map_down_to_hollow(ind, self))
+        
+        return tuple(h1), tuple(h2)
+        
         
     def get_indexes_of_upstream_cells(self, i, j):
         
@@ -1368,7 +1656,263 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
             l += (last_l, )
             this_xy = txy
         return xy, l, e
+
+class Gradient(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'), 
+                           (('elevation',), '_create_from_elevation'))
+     
+    def _create_from_elevation(self, *args, **kwargs):
+        elevation = kwargs['elevation']
+        self._copy_info_from_grid(elevation,True)
+        dx = elevation._georef_info.dx
+        [self._gy, self._gx] = np.gradient(elevation._griddata,dx)
+    
+    def average_gradient(self, distance):
+        outgrid = Gradient()
+        outgrid._copy_info_from_grid(self, True)
+        outgrid._gy = self.average_over_distance(distance, grid = self._gy)
+        outgrid._gx = self.average_over_distance(distance, grid = self._gx)
+        return outgrid
+    
+    def save(self, filename):    
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._gx, self._gy], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+    
+    @classmethod
+    def load(cls, filename):
         
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+        
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+        return_object._gx = get_band(gdal_dataset, 1)
+        return_object._gy = get_band(gdal_dataset, 2)        
+            
+        gdal_file = None
+        return return_object  
+    
+    def plot(self, **kwargs):
+        
+        extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
+        mag = np.sqrt(np.power(self._gx, 2) + np.power(self._gy, 2))
+        direction = np.arctan2(self._gy,self._gx)*180 / np.pi
+        if kwargs.get('azimuth'):
+            direction = 90.0 - direction
+            direction = (direction >= 180)*(direction - 360) + (direction < 180) * (direction)
+            kwargs.pop('azimuth')
+        if kwargs.get('reflect'):
+            direction = (direction > 90)*(direction - 180) + (direction < -90)*(direction + 180) + ((direction <= 90) & (direction >= -90))*direction
+            kwargs.pop('reflect')
+        plt.figure()
+        plt.imshow(mag, extent = extent, **kwargs)
+        plt.figure()
+        plt.imshow(direction, extent = extent, **kwargs)
+        plt.ion()
+        plt.show(block = False)
+
+class ScarpWavelet(BaseSpatialGrid):
+    
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                           (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                           (('gdal_filename',), '_read_gdal'))
+        
+    @classmethod
+    def load(cls, filename):
+        
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+        
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+        return_object._griddata = np.zeros((ny,nx))
+        return_object._A = get_band(gdal_dataset, 1)
+        return_object._kt = get_band(gdal_dataset, 2)
+        return_object._orientation = get_band(gdal_dataset, 3)
+        return_object._SNR = get_band(gdal_dataset, 4)    
+            
+        gdal_file = None
+        return return_object
+
+    def load_elevation(self, filename):
+        self.elevation = Elevation.load(filename)
+
+    def plot_orientations(self, *args, **kwargs):
+        
+        # pop inputs, create those that are needed:
+        
+        elevation = kwargs.pop('elevation', None)
+        distance = kwargs.pop('distance', None)
+        orientation = kwargs.pop('orientation', None)
+        hillshade = kwargs.pop('hillshade', None)
+        
+        adjust_orientations = False
+        
+        if elevation is not None and distance is not None:
+            gradient = Gradient(elevation = elevation)
+            average_gradient = gradient.average_gradient(distance)
+            orientation = BaseSpatialGrid()
+            orientation._copy_info_from_grid(self, True)
+            orientation._griddata = np.arctan2(average_gradient._gy,average_gradient._gx)*180 / np.pi
+            if hillshade is None:
+                hillshade = Hillshade(elevation = elevation, azimuth = 320, inclination = 20)
+            adjust_orientations = True
+        elif orientation is not None:
+            adjust_orientations = True
+        
+        adjusted_orientations = BaseSpatialGrid()
+        adjusted_orientations._copy_info_from_grid(self, True)
+        adjusted_orientations._griddata = self._orientation
+
+        if adjust_orientations:
+            # Align orientations:
+            orientation._griddata = -orientation._griddata
+            orientation._griddata = (orientation._griddata < -90.0).astype(float)*(orientation._griddata + 180.0) + (orientation._griddata >= 90.0).astype(float)*(orientation._griddata - 180.0) + ((orientation._griddata > -90.0) & (orientation._griddata < 90.0))*orientation._griddata
+            adjusted_orientations._griddata = adjusted_orientations._griddata - orientation._griddata
+
+        adjusted_orientations._griddata = (adjusted_orientations._griddata < -90.0).astype(float)*(adjusted_orientations._griddata + 180.0) + (adjusted_orientations._griddata >= 90.0).astype(float)*(adjusted_orientations._griddata - 180.0) + ((adjusted_orientations._griddata > -90.0) & (adjusted_orientations._griddata < 90.0)).astype(float)*adjusted_orientations._griddata
+
+        extent = kwargs.pop('extent', None)
+        if extent is None:
+            extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
+
+        plt.figure()
+        cmap = kwargs.pop('cmap', None)
+        vmin = kwargs.pop('vmin', -90)
+        vmax = kwargs.pop('vmax', 90)
+        title = kwargs.pop('title', '')
+
+        if hillshade is not None:
+            from matplotlib import cm
+            plt.imshow(hillshade._griddata, extent = extent, cmap = cm.gray, **kwargs)
+        self._adjusted_orientations = adjusted_orientations._griddata
+        
+        from matplotlib import colors
+        norm = colors.Normalize(vmin = vmin, vmax = vmax, clip = True)
+        normalized_data = norm(adjusted_orientations._griddata)
+        adjusted_orientations_rgba = cm.ScalarMappable(cmap = cmap, norm = norm).to_rgba(adjusted_orientations._griddata)
+        norm = colors.LogNorm()
+        adjusted_orientations_rgba[:,:,3] = (~normalized_data.mask).astype(float)*norm(self._SNR)
+        plt.imshow(adjusted_orientations_rgba, extent = extent, **kwargs)
+        plt.ion()
+
+        plt.title(title)
+
+        plt.show(block = False)
+
+    def calculate_valid_orientations(self,
+                                     window_size,
+                                     age,
+                                     num=46, 
+                                     discard_max_min=True):
+        data = self.valid_data()
+        max = -np.inf * np.ones_like(data)
+        min = np.inf * np.ones_like(data)
+
+        orientations = np.linspace(-np.pi / 2, np.pi / 2, num=num)
+        for orientation in orientations:
+            # XXX: This uses orientation to conform to N-E coordinates
+            # i.e. N = 0, E = -90, W = +90
+            this = self._convolve_mask(data, window_size, age, orientation)
+            mask = (this != this.max()) * (max < orientation)
+            max[mask] = orientation
+            mask = (this != this.max()) * (min > orientation)
+            min[mask] = orientation
+
+        max[np.isinf(max)] = np.nan
+        min[np.isinf(min)] = np.nan
+        max[np.isnan(data)] = np.nan
+        min[np.isnan(data)] = np.nan
+
+        max[0:window_size, :] = np.nan
+        max[-window_size:, :] = np.nan
+        max[:, 0:window_size] = np.nan
+        max[:, -window_size:] = np.nan
+        min[0:window_size, :] = np.nan
+        min[-window_size:, :] = np.nan
+        min[:, 0:window_size] = np.nan
+        min[:, -window_size:] = np.nan
+
+        if discard_max_min:
+            max[max == orientations.max()] = np.nan
+            min[min == orientations.min()] = np.nan
+
+        return max, min
+
+    def _convolve_mask(self, data, window_size, age, orientation):
+        """
+        Returns the number of valid pixels in specified window at each pixel
+        """
+        from numpy.fft import fft2, ifft2, fftshift
+        mask = ~np.isnan(data)
+        window = self.template_window(window_size,
+                                      age,
+                                      orientation,
+                                      use_pixels=True)
+        count = np.round(np.real(fftshift(ifft2(fft2(window) * fft2(mask)))))
+        return count
+
+    def template_window(self, window_size, age, orientation, use_pixels=False):
+        nx = self._georef_info.nx
+        ny = self._georef_info.ny
+        if use_pixels:
+            dx = 1
+        else:
+            dx = self._georef_info.dx
+
+        from scarplet.WindowedTemplate import Scarp
+        template = Scarp(window_size, age, orientation, nx, ny, dx)
+        window = template.get_mask()
+
+        return window
+
+    def valid_data(self):
+        if self.elevation is None:
+            raise AttributeError('No elevation data! Use load_elevation first')
+        valid = np.ones_like(self.elevation._griddata)
+        valid[np.isnan(self.elevation._griddata)] = np.nan
+        valid[self.elevation._griddata <= 0] = np.nan
+        return valid
 
 class LocalRelief(BaseSpatialGrid):
     
@@ -1731,17 +2275,25 @@ class Area(BaseSpatialGrid):
                     area[i_next, j_next] += area[i,j]
     
         self._griddata = area # Return non bc version of area
-
-    def _area_per_pixel(self, *args, **kwargs):
-        return self._georef_info.dx**2 * np.ones((self._georef_info.ny, self._georef_info.nx))
-
-    def _mean_pixel_dimension(self, *args, **kwargs):
-        return self._georef_info.dx * np.ones_like(kwargs['flow_direction']._griddata, self.dtype)
     
     def areas_greater_than(self, min_area):
         ij_cols = np.where(self._griddata >= min_area)
         ij = zip(ij_cols[0].tolist(), ij_cols[1].tolist())
         return self._rowscols_to_xy(ij)
+    
+    def areas_between(self, fd, min_area, max_area):
+        ij_out = []
+        ij_cols = np.where((self._griddata >= min_area) & (self._griddata <= max_area))
+        for (i,j) in zip(ij_cols[0].tolist(), ij_cols[1].tolist()):
+            options = fd.get_upstream_cell_indexes(i,j)
+            max_a = None
+            for (i_p, j_p) in options:
+                if max_a is None or (self._griddata[i_p, j_p] > max_a):
+                    max_a = self._griddata[i_p, j_p]
+            if max_a < min_area:
+                ij_out += [(i,j)]
+        return self._rowscols_to_xy(ij_out)
+        
     
 class GeographicArea(GeographicGridMixin, Area):
     pass
@@ -1845,7 +2397,457 @@ class MainstemValleyArea(Area):
                             
 class GeographicMainstemValleyArea(GeographicGridMixin, MainstemValleyArea):
     pass
+
+
     
+class KsFromChiWithSmoothing(BaseSpatialGrid):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('elevation', 'area', 'flow_direction', 'theta', 'vertical_interval'), '_create_from_elevation_area_flow_direction'),
+                                   (('elevation', 'area', 'flow_direction', 'theta', 'horizontal_interval'), '_create_from_elevation_area_flow_direction'),
+                                   )
+    
+    def _upstream_downstream_indexes(self, area, flow_direction):
+        upstream_i = (np.ones_like(area._griddata)*-1.0).astype(int)
+        upstream_j = (np.ones_like(area._griddata)*-1.0).astype(int)
+        downstream_i = (np.ones_like(area._griddata)*-1.0).astype(int)
+        downstream_j = (np.ones_like(area._griddata)*-1.0).astype(int)
+        visited = np.zeros_like(area._griddata).astype(bool)
+        shape = upstream_i.shape
+        indexes = area.sort(reverse = False)
+        (i_s, j_s) = np.unravel_index(indexes, shape)
+        def set_usdsindexes(ij):
+            i, j = ij
+            ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
+            if good and not visited[ds_i,ds_j]:
+                visited[i,j] = True
+                (downstream_i[i, j], downstream_j[i,j]) = (ds_i, ds_j)
+                (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
+        map(set_usdsindexes, zip(i_s, j_s))
+            
+        return upstream_i, upstream_j, downstream_i, downstream_j
+            
+    def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
+        
+        elevation = kwargs['elevation']
+        area = kwargs['area']
+        flow_direction = kwargs['flow_direction']
+        theta = kwargs['theta']
+        vertical_interval = kwargs.get('vertical_interval', None)
+        de = area._mean_pixel_dimension()
+        
+        self._copy_info_from_grid(elevation)
+        self._griddata = np.zeros_like(elevation._griddata)
+        self._n = np.zeros_like(self._griddata).astype(int)
+        self._n_regression = np.zeros_like(self._griddata).astype(int)
+        self._mse = np.zeros_like(self._griddata)
+        self._ss = np.zeros_like(self._griddata)
+        self._r2 = np.zeros_like(self._griddata)
+        self._pval = np.zeros_like(self._griddata)
+        self._griddata[:] = np.nan
+        
+        import time
+        t1 = time.time()
+        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
+        t2 = time.time()
+        
+        print('completed flow graph in: ' + str(t2-t1) + " s")
+        
+        if vertical_interval is not None:
+            def find_points_along_path(this_i, this_j):
+                ret = list()
+                ret += [(this_i, this_j)]
+                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
+                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
+                if (ups_i < 0) or (ds_i < 0):
+                    return None
+                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+                while (delta_e < vertical_interval) & (ups_i >= 0):
+                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
+                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+                    if (ups_i < 0) or (ds_i < 0):
+                        return None
+                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                    delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+                return ret
+        else:
+            horizontal_interval = kwargs['horizontal_interval']
+            
+            def find_points_along_path(this_i, this_j):
+                horizontal_distance = 0
+                ret = list()
+                ret += [(this_i, this_j)]
+                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
+                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
+                if (ups_i < 0) or (ds_i < 0):
+                    return None
+                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414))*de[this_i, this_j]
+                while (horizontal_distance < horizontal_interval) & (ups_i >= 0):
+                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
+                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+                    if (ups_i < 0) or (ds_i < 0):
+                        return None
+                    horizontal_distance += (1.0 if ((ds_i == ret[0][0]) or (ds_j == ret[0][1])) else 1.414)*de[ds_i, ds_j] + (1.0 if ((ups_i == ret[-1][0]) or (ups_j == ret[-1][1])) else 1.414)*de[ups_i, ups_j]
+                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                return ret
+        
+        def calc_ks(i,j):
+
+            points = find_points_along_path(i, j)     
+            if points is not None:
+                pts = zip(*(points))
+                points = np.array(pts).astype(int)
+                adjustment = np.ones((len(points[0])))
+                i = np.where((points[0,1:-1] != points[0,2:]) & (points[1,1:-1] != points[1,2:]))
+                adjustment[i[0]+1] += 0.414
+                area_profile = area._griddata[points[0],points[1]]
+                elevation_profile = elevation._griddata[points[0], points[1]]
+                de_profile = de[points[0], points[1]]
+                chi_profile = np.zeros_like(elevation_profile)
+                chi_profile[1:] = np.cumsum(0.25*(np.power(area_profile[1:], -theta) + np.power(area_profile[0:-1], -theta)) * (de_profile[1:] + de_profile[0:-1])*adjustment[1:]) 
+                X = np.array(chi_profile)
+                y = np.array(elevation_profile) - elevation_profile[0]
+                model = sm.OLS(y, X)
+                res = model.fit()
+                SS = res.ssr
+                return res.params[0], SS / float(len(chi_profile)), SS, res.rsquared, points, res.pvalues[0], len(chi_profile)
+            
+            else:
+                
+                return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0 
+        
+        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
+        ij = zip(i[0],i[1])
+        totalnumber = len(ij)
+        counter = 0.0    
+        next_readout = 0.1    
+        sys.stdout.write('Percent completion...')    
+        sys.stdout.flush()    
+        for (i,j) in ij:    
+            self._griddata[i,j], self._mse[i,j], self._ss[i,j], self._r2[i,j], pts, self._pval[i,j], self._n_regression[i,j] = calc_ks(i,j)    
+            self._n[pts[0], pts[1]] += 1    
+            counter += 1.0 / totalnumber    
+            if counter > next_readout:
+                sys.stdout.write(str(int(next_readout*100)) + "...")
+                sys.stdout.flush()
+                next_readout += 0.1
+                
+        sys.stdout.write('Percent completion...')
+        sys.stdout.flush()            
+        sys.stdout.write('100')
+        sys.stdout.flush()
+                                            
+    def save(self, filename):
+        
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._n, self._mse, self._ss, self._r2, self._pval, self._n_regression], self.dtype, filename, ['COMPRESS=LZW', 'BIGTIFF=YES'], multiple_bands=True)
+            
+    @classmethod
+    def load(cls, filename):
+        
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                from numpy import uint8
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+        
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+        return_object._griddata = get_band(gdal_dataset, 1)
+        return_object._n = get_band(gdal_dataset, 2)
+        return_object._mse = get_band(gdal_dataset, 3)
+        return_object._ss = get_band(gdal_dataset, 4)
+        return_object._r2 = get_band(gdal_dataset, 5)
+        return_object._pval = get_band(gdal_dataset, 6)
+        return_object._n_regression = get_band(gdal_dataset, 7)
+        
+            
+        gdal_file = None
+        return return_object
+    
+class GeographicKsFromChiWithSmoothing(GeographicGridMixin, KsFromChiWithSmoothing):
+    pass
+
+class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('elevation', 'area', 'area_cutoff', 'max_width', 'min_width'), '_create_from_inputs'),)
+    
+    def _create_from_inputs(self, *args, **kwargs):
+        
+        def _calc_inv_G_for_kernel(X, Y, N, fix_center = False):
+            x4 = np.sum(np.power(X,4)[:])
+            x2y2 = np.sum((np.power(X,2)[:]*np.power(Y,2))[:])
+            x2 = np.sum(np.power(X,2)[:])
+            
+            if fix_center:
+                G = np.asarray([[x4, x2y2, 0, 0, 0],
+                            [x2y2, x4, 0, 0, 0],
+                            [0, 0, x2y2, 0, 0],
+                            [0, 0, 0, x2, 0],
+                            [0, 0, 0, 0, x2]])
+            else:
+                G = np.asarray([[x4, x2y2, 0, 0, 0, x2],
+                            [x2y2, x4, 0, 0, 0, x2],
+                            [0, 0, x2y2, 0, 0, 0],
+                            [0, 0, 0, x2, 0, 0],
+                            [0, 0, 0, 0, x2, 0],
+                            [x2, x2, 0, 0, 0, N]])
+            
+            
+            from numpy.linalg import inv
+            
+            return inv(G)
+        
+        def _convolve(X, Y, Z, K, fix_center = False):
+            
+            from numpy.fft import fft2 as fft2
+            from numpy.fft import ifft2 as ifft2
+            from numpy import flipud as flipud
+            from numpy import fliplr as fliplr
+            from numpy.fft import ifftshift
+            
+            Xt = fliplr(X)
+            Yt = flipud(Y)
+            
+            FZ = fft2(Z._griddata)
+            FX1 = fft2(np.power(Xt, 2))
+            FX2 = fft2(np.power(Yt, 2))
+            FX3 = fft2(Xt*Yt)
+            FX4 = fft2(Xt)
+            FX5 = fft2(Yt)
+            FX6 = fft2(K)
+            
+            g = np.real(ifftshift(ifft2(FZ*FX1))) - np.sum(np.power(Xt,2))*Z._griddata
+            h = np.real(ifftshift(ifft2(FZ*FX2))) - np.sum(np.power(Yt,2))*Z._griddata
+            i = np.real(ifftshift(ifft2(FZ*FX3))) - np.sum(Xt*Yt)*Z._griddata
+            j = np.real(ifftshift(ifft2(FZ*FX4))) - np.sum(Xt)*Z._griddata
+            k = np.real(ifftshift(ifft2(FZ*FX5))) - np.sum(Yt)*Z._griddata
+            if not fix_center:
+                l = np.real(ifftshift(ifft2(FZ*FX6))) - np.sum(K)*Z._griddata
+            else:
+                l = None
+            
+            return g, h, i, j, k, l
+        
+        def _Cmin(H, g, h, i, j, k, l, fix_center = False):
+            
+            if fix_center:
+                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k
+                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k
+                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k
+            else:
+                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
+                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
+                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
+
+            return -a-b-np.sqrt(np.power((a-b),2)+np.power(c,2))
+        
+        def _create_kernel(Z, de):
+            
+            center = (Z._georef_info.xllcenter + (Z._georef_info.dx/2)*(Z._georef_info.nx-1), Z._georef_info.yllcenter + (Z._georef_info.dx/2)*(Z._georef_info.ny-1))
+            x = np.arange(Z._georef_info.nx)*Z._georef_info.dx + Z._georef_info.xllcenter - center[0]
+            y = np.arange(Z._georef_info.ny)*Z._georef_info.dx + Z._georef_info.yllcenter - center[1]
+            
+            X, Y = np.meshgrid(x,y)
+            K = ((np.abs(X) <= (de)) & (np.abs(Y) <= (de))).astype(float)
+            
+            N = np.sum(K[:])
+            return X*K, Y*K, N, K
+    
+        def _Cmin_for_scale(Z, de, fix_center = False):
+            
+            X, Y, N, K = _create_kernel(Z, de)
+            H = _calc_inv_G_for_kernel(X,Y,N, fix_center)
+            g, h, i, j, k, l= _convolve(X, Y, Z, K, fix_center)
+            Cmin = _Cmin(H, g, h, i, j, k, l, fix_center)
+            sys.stdout.write('scale ' + str(de) + '\n')   
+            sys.stdout.flush() 
+            return Cmin, de
+        
+        # Condition inputs to ensure that grids produce square convolution matrices:
+        
+        (area_cutoff, max_width, min_width, normalize, fix_center, use_dask) = (kwargs['area_cutoff'], kwargs['max_width'], kwargs['min_width'], kwargs.get('normalize', False), kwargs.get('fix_center', False), kwargs.get('use_dask', False))
+        
+        if use_dask:
+            from dask import compute, delayed
+        
+        Z = Elevation()
+        A = Area()
+        Z._copy_info_from_grid(kwargs['elevation'], set_zeros = False)
+        A._copy_info_from_grid(kwargs['area'], set_zeros = False)
+        
+        needs_reshaping_x = ((Z._georef_info.nx % 2) != 1) 
+        needs_reshaping_y = ((Z._georef_info.ny % 2) != 1)
+            
+        if needs_reshaping_x:
+            nx = Z._georef_info.nx + 1
+            xllcenter = Z._georef_info.xllcenter - Z._georef_info.dx
+            Z._georef_info.nx = nx
+            Z._georef_info.xllcenter = xllcenter
+            Z._griddata = np.concatenate(((np.reshape(Z._griddata[:,0],(Z._georef_info.ny, 1)), Z._griddata)), axis=1)
+            A._georef_info.nx = nx
+            A._georef_info.xllcenter = xllcenter
+            A._griddata = np.concatenate((np.zeros((Z._georef_info.ny, 1)), A._griddata), axis=1)
+        if needs_reshaping_y:
+            ny = Z._georef_info.ny + 1
+            yllcenter = Z._georef_info.yllcenter - Z._georef_info.dx
+            Z._georef_info.ny = ny
+            Z._georef_info.yllcenter = yllcenter
+            Z._griddata = np.concatenate(((np.reshape(Z._griddata[0,:], (1, Z._georef_info.nx)), Z._griddata)), axis=0)
+            A._georef_info.ny = ny
+            A._georef_info.yllcenter = yllcenter
+            A._griddata = np.concatenate((np.zeros((1, Z._georef_info.nx)), A._griddata), axis=0)
+        self._copy_info_from_grid(kwargs['elevation'], set_zeros = True)
+        de = Z._georef_info.dx
+        scales = np.arange(min_width, max_width, de)
+        g_minC = np.zeros_like(Z._griddata)
+        g_w = np.zeros_like(Z._griddata)
+        ind = 1
+        
+        if use_dask:
+            from functools import partial
+            wrapper = partial(_Cmin_for_scale, Z, fix_center = fix_center)
+            tasks = [delayed(wrapper)(s) for s in scales]
+            results = compute(*tasks)
+            for result in results:
+                minC, scale = result
+                if normalize:
+                    minC *= scale
+                i = np.where(minC < g_minC)
+                g_w[i] = np.ones(i[0].shape)*scale
+                g_minC[i] = minC[i]
+                ind += 1
+        else:
+            for scale in scales:   
+                minC, _ = _Cmin_for_scale(Z, scale, fix_center)
+                if normalize:
+                    minC *= scale
+                i = np.where(minC < g_minC)
+                g_w[i] = np.ones(i[0].shape)*scale
+                g_minC[i] = minC[i]
+                ind += 1
+                
+        i = np.where(A._griddata < area_cutoff)
+        g_minC[i] = np.nan
+        g_w[i] = np.nan
+        start_x_index = 1 if needs_reshaping_x else 0
+        start_y_index = 1 if needs_reshaping_y else 0
+        self._griddata = g_w[start_y_index:,start_x_index:]
+        self._minC = g_minC[start_y_index:, start_x_index:]
+    
+    def remove_padding(self, xpadding = 10, ypadding = 10):
+        
+        import copy
+        unpadded = copy.deepcopy(self)
+        unpadded._griddata =  unpadded._griddata[ypadding:-ypadding,xpadding:-xpadding]
+        unpadded._minC = unpadded._minC[ypadding:-ypadding,xpadding:-xpadding]
+        unpadded._georef_info.xllcenter += xpadding*unpadded._georef_info.dx
+        unpadded._georef_info.yllcenter += ypadding*unpadded._georef_info.dx
+        unpadded._georef_info.nx -= 2*xpadding
+        unpadded._georef_info.ny -= 2*ypadding
+        unpadded._georef_info.geoTransform = (unpadded._georef_info.xllcenter - 0.5*unpadded._georef_info.dx, unpadded._georef_info.dx, 0, unpadded._georef_info.yllcenter + (float(unpadded._georef_info.ny-0.5))*self._georef_info.dx, 0, -self._georef_info.dx)
+        
+        return unpadded
+    
+    def save(self, filename):
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff', [self._griddata, self._minC], self.dtype, filename, ['COMPRESS=LZW'], multiple_bands=True)
+    
+    @classmethod
+    def load(cls, filename):
+        
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                from numpy import uint8
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+        
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+        
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+        
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[0]+return_object._georef_info.dx/2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3]-(return_object._georef_info.dx*(ny-0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        
+        return_object._griddata = get_band(gdal_dataset, 1)
+        return_object._minC = get_band(gdal_dataset, 2)        
+            
+        gdal_file = None
+        return return_object
+    
+    @classmethod
+    def mosaic(cls, tiles):
+        
+        xmin = np.nan
+        xmax = np.nan
+        ymin = np.nan
+        ymax = np.nan
+        
+        for tile in tiles:
+            
+            xmin = tile._georef_info.xllcenter if (np.isnan(xmin) or (xmin > tile._georef_info.xllcenter)) else xmin
+            ymin = tile._georef_info.yllcenter if (np.isnan(ymin) or (ymin > tile._georef_info.yllcenter)) else ymin
+            xmax = tile._georef_info.xllcenter+(tile._georef_info.nx-1)*tile._georef_info.dx if (np.isnan(xmax) or (xmax < tile._georef_info.xllcenter+(tile._georef_info.nx-1)*tile._georef_info.dx)) else xmax
+            ymax = tile._georef_info.yllcenter+(tile._georef_info.ny-1)*tile._georef_info.dx if (np.isnan(ymax) or (ymax < tile._georef_info.yllcenter+(tile._georef_info.ny-1)*tile._georef_info.dx)) else ymax
+        
+        ny = int(round((ymax - ymin) / tiles[0]._georef_info.dx)) + 1
+        nx = int(round((xmax - xmin) / tiles[0]._georef_info.dx)) + 1
+        
+        return_object = cls()
+        return_object._griddata = np.zeros((ny, nx))
+        return_object._griddata[:] = np.nan
+        return_object._minC = np.zeros((ny, nx))
+        return_object._minC[:] = np.nan
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+        return_object._georef_info.dx = tiles[0]._georef_info.dx
+        return_object._georef_info.xllcenter = xmin
+        return_object._georef_info.yllcenter = ymin
+        return_object._georef_info.geoTransform = (return_object._georef_info.xllcenter - 0.5*return_object._georef_info.dx, return_object._georef_info.dx, 0, return_object._georef_info.yllcenter + (float(return_object._georef_info.ny-0.5))*return_object._georef_info.dx, 0, -return_object._georef_info.dx)
+        
+        for tile in tiles:
+            j_min = int(round((tile._georef_info.xllcenter - return_object._georef_info.xllcenter) / return_object._georef_info.dx))
+            j_max = j_min + tile._georef_info.nx
+            i_min = int(round((return_object._georef_info.yllcenter + (return_object._georef_info.ny-1)*return_object._georef_info.dx - tile._georef_info.yllcenter - (tile._georef_info.ny-1)*tile._georef_info.dx) / return_object._georef_info.dx))
+            i_max = i_min + tile._georef_info.ny
+                        
+            return_object._griddata[i_min:i_max, j_min:j_max] = tile._griddata
+            return_object._minC[i_min:i_max, j_min:j_max] = tile._minC
+            
+        return return_object                   
+     
 class DiscreteFlowAccumulation(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
@@ -2774,7 +3776,6 @@ class ChannelSlope(BaseSpatialGrid):
     def __calc_D8_slope(self, fd, dem):
 
         dx = self._georef_info.dx
-        print(dx)
         idcs = fd.sort() # Get the sorted indices of the array in reverse order (e.g. largest first)
     
         for idx in idcs:  # Loop through all the data in sorted order
@@ -2783,8 +3784,6 @@ class ChannelSlope(BaseSpatialGrid):
             i_next, j_next, is_good = fd.get_flow_to_cell(i,j)
             if is_good:
                 dist = np.sqrt((i-i_next)**2 + (j-j_next)**2)*dx
-                print(dist)
-                print((dem[i,j] - dem[i_next, j_next]))
                 self._griddata[i,j] = (dem[i,j] - dem[i_next, j_next]) / dist
 
     
