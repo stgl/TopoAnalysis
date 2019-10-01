@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib
+from numpy import mean
 
 def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, A_mdx = None, xo = 500.0):
 
@@ -302,6 +303,15 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
 
         return rez
     return steves_best_guess_for_fit_chi(outlet,flow_direction, elevation, area, minimum_area=minimum_area, min_pathlength_in_cells=min_pathlength_in_cells)
+def organized_ks_theta_output(rez):
+    theta, ks, R2, area = zip(*[[x['theta'], x['ks'], x['R2'], x['area']] for x in rez])
+    
+    return{'mainstem': {'theta': theta[0],'R2': R2[0],'ks': ks[0]}, 'area': area[0],
+           'tributaries': {'theta': np.mean(theta[1:]),
+                            'R2': np.mean(R2[1:]),
+                            'ks': np.mean(ks[1:]), 'area': np.mean(area), 'number_of_tribs': len(theta[1:])}
+            }
+ 
 
 def best_ks_wrss_for_outlet(outlet, flow_direction, elevation, area, minimum_area = 1E7, theta = 0.4):
 
