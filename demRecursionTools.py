@@ -205,16 +205,17 @@ def indexes_for_mainstem_and_tributaries(outlet, flow_direction, area, minimum_a
     
     def get_indexes(ld_list, indexes, area, tributary_ld, minimum_area_to_consider):
         maximum_area = 0.0
-        for next_ld in ld_list['next']:
-            if (next_ld['area'] > minimum_area_to_consider) and (next_ld['area'] > maximum_area):
-                maximum_area = next_ld['area']
+        if ld_list.get('next', None) is not None:
+            for next_ld in ld_list['next']:
+                if (next_ld['area'] > minimum_area_to_consider) and (next_ld['area'] > maximum_area):
+                    maximum_area = next_ld['area']
         
-        for next_ld in ld_list['next']:
-            if next_ld['area'] == maximum_area:
-                indexes += [next_ld['index']]
-                (indexes, tributary_ld) = get_indexes(next_ld, indexes, area, tributary_ld, minimum_area_to_consider)
-            elif next_ld['area'] > minimum_area_to_consider:
-                tributary_ld.append(next_ld)   
+            for next_ld in ld_list['next']:
+                if next_ld['area'] == maximum_area:
+                    indexes += [next_ld['index']]
+                    (indexes, tributary_ld) = get_indexes(next_ld, indexes, area, tributary_ld, minimum_area_to_consider)
+                elif next_ld['area'] > minimum_area_to_consider:
+                        tributary_ld.append(next_ld)   
         return (indexes, tributary_ld)
     
     (indexes, tributary_ld) = get_indexes(ld_list, indexes, area, tributary_ld, minimum_area)

@@ -215,7 +215,6 @@ def plot_chi_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elev
     for (c, e) in zip(chi_tribs, elevation_tribs):
         
         plt.plot(c, e, 'r.')
-        plt.hold(True)
         
 def plot_mainstem_and_trib_locations(outlet, elevation, hillshade, flow_direction, area, minimum_area = 1.0E7):
     from demRecursionTools import indexes_for_mainstem_and_tributaries
