@@ -224,10 +224,10 @@ def plot_mainstem_and_trib_locations(outlet, elevation, hillshade, flow_directio
     elevation.plot()
     hillshade.plot(alpha = 0.5, cmap = plt.cm.gray)
     
-    (mainstem_x, mainstem_y) = zip(*flow_direction._rowscols_to_xy(indexes[0]))
+    (mainstem_x, mainstem_y) = list(zip(*flow_direction._rowscols_to_xy(indexes[0])))
     plt.plot(mainstem_x, mainstem_y, 'b-')
     
     for index in indexes[1:]:
-        (trib_x, trib_y) = zip(*flow_direction._rowscols_to_xy(index))
+        (trib_x, trib_y) = list(zip(*flow_direction._rowscols_to_xy(index)))
         plt.plot(trib_x, trib_y, 'r-')
     
