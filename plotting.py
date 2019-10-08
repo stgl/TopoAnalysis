@@ -75,7 +75,8 @@ def find_incision(elevation, flow_direction, outlet, plot_code, downstream = Tru
     x = (length[len(length) - 1] - length[0])
     y = (elevation_profile[len(elevation_profile) - 1] - elevation_profile[0])
     area_under_line = np.absolute((x*y)/2)
-    rectangle = (elevation_profile[np.argmin(elevation_profile)])*x
+    rec_min = np.min(elevation_profile)
+    rectangle = (rec_min)*x
     area_under_rectangle = area_under_curve - rectangle
     depth_of_incision = area_under_line - area_under_rectangle
     
