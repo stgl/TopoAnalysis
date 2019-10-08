@@ -2,6 +2,7 @@ import dem as d
 import demRecursionTools as drt
 import numpy as np
 import matplotlib.pylab as plt
+import scipy as sp
 
 def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downstream = True, start_at = 0.0, mean_pixel_dimension = None, figure = None):
     
@@ -37,6 +38,47 @@ def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downst
     plt.figure(figure.number)
     plt.plot(length, elevation_profile, plot_code)
     
+def find_incision(elevation, flow_direction, outlet, plot_code, downstream = True, start_at = 0.0, mean_pixel_dimension = None, figure = None):
+    
+    rc = flow_direction.search_down_flow_direction(outlet)
+    
+    rows = np.array(list(zip(*rc))[0], dtype = np.int)
+    cols = np.array(list(zip(*rc))[1], dtype = np.int)
+    
+    if downstream:
+        direction = 1.0
+    else:
+        direction = -1.0
+        
+    if mean_pixel_dimension is None:
+        pixel_dimension = np.ones_like(rows) * flow_direction._georef_info.dx
+    else:
+        pixel_dimension = mean_pixel_dimension[rows, cols]
+        
+    for i in range(rows.shape[0]):
+        if i == 0:
+            length = np.array([start_at])
+        else:
+            if (rows[i] != rows[i-1]) & (cols[i] != cols[i-1]):
+                length = np.append(length, np.array([length[i-1] + pixel_dimension[i-1] * 1.414 * direction]))
+            else:
+                length = np.append(length, np.array([length[i-1] + pixel_dimension[i-1] * direction]))
+    
+    elevation_profile = elevation._griddata[rows, cols]
+    
+    if figure is None:
+        figure = plt.figure()
+            
+    plt.figure(figure.number)
+    plt.plot(length, elevation_profile, plot_code)
+    area_under_curve = np.absolute(np.trapz(elevation_profile,dx = (length[1]-length[0])))
+    x = (length[len(length) - 1] - length[0])
+    y = (elevation_profile[len(elevation_profile) - 1] - elevation_profile[0])
+    area_under_line = np.absolute((x*y)/2)
+    depth_of_incision = area_under_line - area_under_curve
+    
+    return area_under_line, area_under_curve, depth_of_incision, elevation_profile, length
+        
 def plot_recursive_upstream_profiles(elevation, flow_direction, area, outlet, plot_code, downstream = False, start_at = 0.0, figure = None, minimum_area = 1.0E6):
     
     def plot_ld_link(current_length, ld_list, plot_code, downstream_sign, minimum_area):
