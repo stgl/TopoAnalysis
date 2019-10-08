@@ -76,9 +76,10 @@ def find_incision(elevation, flow_direction, outlet, plot_code, downstream = Tru
     y = (elevation_profile[len(elevation_profile) - 1] - elevation_profile[0])
     area_under_line = np.absolute((x*y)/2)
     rectangle = (elevation_profile[len(elevation_profile)-1])*x
-    depth_of_incision = area_under_line - area_under_curve - rectangle
+    area_under_rectangle = area_under_curve - rectangle
+    depth_of_incision = area_under_line - area_under_rectangle
     
-    return area_under_line, area_under_curve, depth_of_incision, rectangle, elevation_profile, length
+    return area_under_line, area_under_curve, depth_of_incision, area_under_rectangle, elevation_profile, length
         
 def plot_recursive_upstream_profiles(elevation, flow_direction, area, outlet, plot_code, downstream = False, start_at = 0.0, figure = None, minimum_area = 1.0E6):
     
