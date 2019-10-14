@@ -103,19 +103,19 @@ def find_incision(prefix,elevation, outlet, plot_code, figure = None):
             
     plt.figure(figure.number)
     plt.plot(length, elevation_profile, plot_code)
-    area_under_curve = np.absolute(np.trapz(elevation_profile,dx = (length[1]-length[0])))
+    area_under_curve = (np.trapz(elevation_profile,dx = (length[1]-length[0])))
     x = (np.max(length))
     y = (np.max(elevation_profile) - np.min(elevation_profile))
     point_one = [length[0], length[len(length) -1]]
     point_two = [elevation_profile[0],elevation_profile[len(elevation_profile)-1]]
     plt.plot(point_one,point_two)
-    area_under_line = np.absolute((x*y)/2)
+    area_under_line = ((x*y)/2)
     rec_min = np.min(elevation_profile)
     rectangle = (rec_min)*x
-    area_under_rectangle = area_under_curve - rectangle
-    depth_of_incision = area_under_line - area_under_rectangle
+    depth_of_incision_if_concave = area_under_line - area_under_curve - rectangle
+    depth_of_incision_if_convex = area_under_curve - area_under_line - rectangle
     
-    return depth_of_incision
+    return depth_of_incision_if_concave, depth_of_incision_if_convex
         
 def plot_recursive_upstream_profiles(elevation, flow_direction, area, outlet, plot_code, downstream = False, start_at = 0.0, figure = None, minimum_area = 1.0E6):
     
