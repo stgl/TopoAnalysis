@@ -38,34 +38,66 @@ def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downst
     plt.figure(figure.number)
     plt.plot(length, elevation_profile, plot_code)
     
-def find_incision(elevation, flow_direction, outlet, plot_code, downstream = True, start_at = 0.0, mean_pixel_dimension = None, figure = None):
+# def find_incision(elevation, flow_direction, outlet, plot_code, downstream = True, start_at = 0.0, mean_pixel_dimension = None, figure = None):
+#     
+#     rc = flow_direction.search_down_flow_direction(outlet)
+#      
+#     rows = np.array(list(zip(*rc))[0], dtype = np.int)
+#     cols = np.array(list(zip(*rc))[1], dtype = np.int)
+#      
+#     if downstream:
+#         direction = 1.0
+#     else:
+#         direction = -1.0
+#          
+#     if mean_pixel_dimension is None:
+#         pixel_dimension = np.ones_like(rows) * flow_direction._georef_info.dx
+#     else:
+#         pixel_dimension = mean_pixel_dimension[rows, cols]
+#          
+#     for i in range(rows.shape[0]):
+#         if i == 0:
+#             length = np.array([start_at])
+#         else:
+#             if (rows[i] != rows[i-1]) & (cols[i] != cols[i-1]):
+#                 length = np.append(length, np.array([length[i-1] + pixel_dimension[i-1] * 1.414 * direction]))
+#             else:
+#                 length = np.append(length, np.array([length[i-1] + pixel_dimension[i-1] * direction]))
+#      
+#     elevation_profile = elevation._griddata[rows, cols]
+# 
+#       
+#     if figure is None:
+#         figure = plt.figure()
+#             
+#     plt.figure(figure.number)
+#     plt.plot(length, elevation_profile, plot_code)
+#     area_under_curve = np.absolute(np.trapz(elevation_profile,dx = (length[1]-length[0])))
+#     x = (np.max(length))
+#     y = (np.max(elevation_profile) - np.min(elevation_profile))
+#     point_one = [length[0], length[len(length) -1]]
+#     point_two = [elevation_profile[0],elevation_profile[len(elevation_profile)-1]]
+#     plt.plot(point_one,point_two)
+#     area_under_line = np.absolute((x*y)/2)
+#     rec_min = np.min(elevation_profile)
+#     rectangle = (rec_min)*x
+#     area_under_rectangle = area_under_curve - rectangle
+#     depth_of_incision = area_under_line - area_under_rectangle
+#     
+#     return area_under_line, area_under_curve, depth_of_incision, area_under_rectangle, elevation_profile, length
+
+def get_flow_direction(prefix, elevation):
+    filled = d.FilledElevation(elevation)
+    fd = d.FlowDirectionD8(flooded_dem = filled)
+    length = d.FlowLength(flow_direction = fd)
+    length.save(prefix + '_length')
     
-    rc = flow_direction.search_down_flow_direction(outlet)
+def find_incision(prefix,elevation, outlet, plot_code, figure = None):
     
-    rows = np.array(list(zip(*rc))[0], dtype = np.int)
-    cols = np.array(list(zip(*rc))[1], dtype = np.int)
-    
-    if downstream:
-        direction = 1.0
-    else:
-        direction = -1.0
-        
-    if mean_pixel_dimension is None:
-        pixel_dimension = np.ones_like(rows) * flow_direction._georef_info.dx
-    else:
-        pixel_dimension = mean_pixel_dimension[rows, cols]
-        
-    for i in range(rows.shape[0]):
-        if i == 0:
-            length = np.array([start_at])
-        else:
-            if (rows[i] != rows[i-1]) & (cols[i] != cols[i-1]):
-                length = np.append(length, np.array([length[i-1] + pixel_dimension[i-1] * 1.414 * direction]))
-            else:
-                length = np.append(length, np.array([length[i-1] + pixel_dimension[i-1] * direction]))
-    
-    elevation_profile = elevation._griddata[rows, cols]
-    
+    flow_length = d.FlowLength.load(prefix + '_length')  
+    length = [flow_length[i,j] for (i,j) in flow_length.indexes_along_flow_path_from_outlet(outlet)]
+    elevation_profile = [elevation[i,j] for (i,j) in flow_length.indexes_along_flow_path_from_outlet(outlet)]
+      
     if figure is None:
         figure = plt.figure()
             
@@ -83,7 +115,7 @@ def find_incision(elevation, flow_direction, outlet, plot_code, downstream = Tru
     area_under_rectangle = area_under_curve - rectangle
     depth_of_incision = area_under_line - area_under_rectangle
     
-    return area_under_line, area_under_curve, depth_of_incision, area_under_rectangle, elevation_profile, length
+    return depth_of_incision
         
 def plot_recursive_upstream_profiles(elevation, flow_direction, area, outlet, plot_code, downstream = False, start_at = 0.0, figure = None, minimum_area = 1.0E6):
     
