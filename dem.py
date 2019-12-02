@@ -14,7 +14,6 @@ import numpy as np # Used for tons o stuff, keeping most data stored as numpy ar
 import subprocess # Used to run gdal_merge.py from the command line
 import Error
 from numpy import uint8, int8, float64
-from matplotlib.mlab import dist
 from matplotlib import pyplot as plt
 import sys
 from scipy import stats
