@@ -2680,7 +2680,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
                 d = H[3, 0] * g + H[3, 1] * h + H[3, 2] * i + H[3, 3] * j + H[3, 4] * k + H[3, 5] * l
                 e = H[4, 0] * g + H[4, 1] * h + H[4, 2] * i + H[4, 3] * j + H[4, 4] * k + H[4, 5] * l
                 f = H[5, 0] * g + H[5, 1] * h + H[5, 2] * i + H[5, 3] * j + H[5, 4] * k + H[5, 5] * l
-            return (a, b, c, d, e, f)
+            return a, b, c, d, e, f
 
         @classmethod
         def _calc_coefficients_for_scale(cls, Z, de, fix_center=False):
@@ -2714,24 +2714,24 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             sys.stdout.flush()
             return Cmin, de
 
-    def _elevation_fit_for_location(self, x, y, de, fix_center = False):
+    def _elevation_fit_for_location(self, x, y, elevation, de, fix_center = False):
 
         # Determine location in index space:
-        ((i,j),) = self._xy_to_rowscols(((x,y),))
-        ((xa, ya),) = self._rowscols_to_xy(((i,j),))
-        (a,b,c,d,e,f) = self.Utilities._calc_coefficients_for_scale(self._griddata, de)
+        ((i,j),) = elevation._xy_to_rowscols(((x,y),))
+        ((xa, ya),) = elevation._rowscols_to_xy(((i,j),))
+        a,b,c,d,e,f = self.Utilities._calc_coefficients_for_scale(elevation._griddata, de)
         a = a[i,j]
         b = b[i,j]
         c = c[i,j]
         d = d[i,j]
         e = e[i,j]
         f = f[i,j]
-        (nx, ny, dx) = (self._georef_info.nx, self._georef_info.ny, self._georef_info.dx)
-        (xllcenter, yllcenter) = (self._georef_info.xllcenter, self._georef_info.xllcenter)
+        (nx, ny, dx) = (elevation._georef_info.nx, elevation._georef_info.ny, elevation._georef_info.dx)
+        (xllcenter, yllcenter) = (elevation._georef_info.xllcenter, elevation._georef_info.xllcenter)
 
         [X,Y] = np.meshgrid(np.arange(xllcenter+dx/2, xllcenter + (nx-0.5)*dx, dx),np.arange(yllcenter+dx/2, yllcenter + (ny-0.5)*dx, dx))
         return a*np.power(X,2) + b*np.power(Y,2) + c*X*Y + d*X + e*Y + f
-    
+
 
     def _create_from_inputs(self, *args, **kwargs):
         
