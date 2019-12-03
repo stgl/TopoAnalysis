@@ -2591,121 +2591,149 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
                                    (('elevation', 'area', 'area_cutoff', 'max_width', 'min_width'), '_create_from_inputs'),)
-    
-    def _create_from_inputs(self, *args, **kwargs):
-        
-        def _calc_inv_G_for_kernel(X, Y, N, fix_center = False):
-            x4 = np.sum(np.power(X,4)[:])
-            x2y2 = np.sum((np.power(X,2)[:]*np.power(Y,2))[:])
-            x2 = np.sum(np.power(X,2)[:])
-            
+
+    class Utilities(object):
+
+        @classmethod
+        def _calc_inv_G_for_kernel(cls, X, Y, N, fix_center=False):
+            x4 = np.sum(np.power(X, 4)[:])
+            x2y2 = np.sum((np.power(X, 2)[:] * np.power(Y, 2))[:])
+            x2 = np.sum(np.power(X, 2)[:])
+
             if fix_center:
                 G = np.asarray([[x4, x2y2, 0, 0, 0],
-                            [x2y2, x4, 0, 0, 0],
-                            [0, 0, x2y2, 0, 0],
-                            [0, 0, 0, x2, 0],
-                            [0, 0, 0, 0, x2]])
+                                [x2y2, x4, 0, 0, 0],
+                                [0, 0, x2y2, 0, 0],
+                                [0, 0, 0, x2, 0],
+                                [0, 0, 0, 0, x2]])
             else:
                 G = np.asarray([[x4, x2y2, 0, 0, 0, x2],
-                            [x2y2, x4, 0, 0, 0, x2],
-                            [0, 0, x2y2, 0, 0, 0],
-                            [0, 0, 0, x2, 0, 0],
-                            [0, 0, 0, 0, x2, 0],
-                            [x2, x2, 0, 0, 0, N]])
-            
-            
+                                [x2y2, x4, 0, 0, 0, x2],
+                                [0, 0, x2y2, 0, 0, 0],
+                                [0, 0, 0, x2, 0, 0],
+                                [0, 0, 0, 0, x2, 0],
+                                [x2, x2, 0, 0, 0, N]])
+
             from numpy.linalg import inv
-            
+
             return inv(G)
-        
-        def _convolve(X, Y, Z, K, fix_center = False):
-            
+
+        @classmethod
+        def _convolve(cls, X, Y, Z, K, fix_center=False):
+
             from numpy.fft import fft2 as fft2
             from numpy.fft import ifft2 as ifft2
             from numpy import flipud as flipud
             from numpy import fliplr as fliplr
             from numpy.fft import ifftshift
-            
+
             Xt = fliplr(X)
             Yt = flipud(Y)
-            
+
             FZ = fft2(Z._griddata)
             FX1 = fft2(np.power(Xt, 2))
             FX2 = fft2(np.power(Yt, 2))
-            FX3 = fft2(Xt*Yt)
+            FX3 = fft2(Xt * Yt)
             FX4 = fft2(Xt)
             FX5 = fft2(Yt)
             FX6 = fft2(K)
-            
-            g = np.real(ifftshift(ifft2(FZ*FX1))) - np.sum(np.power(Xt,2))*Z._griddata
-            h = np.real(ifftshift(ifft2(FZ*FX2))) - np.sum(np.power(Yt,2))*Z._griddata
-            i = np.real(ifftshift(ifft2(FZ*FX3))) - np.sum(Xt*Yt)*Z._griddata
-            j = np.real(ifftshift(ifft2(FZ*FX4))) - np.sum(Xt)*Z._griddata
-            k = np.real(ifftshift(ifft2(FZ*FX5))) - np.sum(Yt)*Z._griddata
+
+            g = np.real(ifftshift(ifft2(FZ * FX1))) - np.sum(np.power(Xt, 2)) * Z._griddata
+            h = np.real(ifftshift(ifft2(FZ * FX2))) - np.sum(np.power(Yt, 2)) * Z._griddata
+            i = np.real(ifftshift(ifft2(FZ * FX3))) - np.sum(Xt * Yt) * Z._griddata
+            j = np.real(ifftshift(ifft2(FZ * FX4))) - np.sum(Xt) * Z._griddata
+            k = np.real(ifftshift(ifft2(FZ * FX5))) - np.sum(Yt) * Z._griddata
             if not fix_center:
-                l = np.real(ifftshift(ifft2(FZ*FX6))) - np.sum(K)*Z._griddata
+                l = np.real(ifftshift(ifft2(FZ * FX6))) - np.sum(K) * Z._griddata
             else:
                 l = None
-            
+
             return g, h, i, j, k, l
-        
-        def _Cmin(H, g, h, i, j, k, l, fix_center = False):
-            
+
+        @classmethod
+        def _Cmin(cls, H, g, h, i, j, k, l, fix_center=False):
+
             if fix_center:
-                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k
-                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k
-                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k
+                a = H[0, 0] * g + H[0, 1] * h + H[0, 2] * i + H[0, 3] * j + H[0, 4] * k
+                b = H[1, 0] * g + H[1, 1] * h + H[1, 2] * i + H[1, 3] * j + H[1, 4] * k
+                c = H[2, 0] * g + H[2, 1] * h + H[2, 2] * i + H[2, 3] * j + H[2, 4] * k
             else:
-                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
-                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
-                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
+                a = H[0, 0] * g + H[0, 1] * h + H[0, 2] * i + H[0, 3] * j + H[0, 4] * k + H[0, 5] * l
+                b = H[1, 0] * g + H[1, 1] * h + H[1, 2] * i + H[1, 3] * j + H[1, 4] * k + H[1, 5] * l
+                c = H[2, 0] * g + H[2, 1] * h + H[2, 2] * i + H[2, 3] * j + H[2, 4] * k + H[2, 5] * l
 
-            return -a-b-np.sqrt(np.power((a-b),2)+np.power(c,2))
+            return -a - b - np.sqrt(np.power((a - b), 2) + np.power(c, 2))
 
-        def _calc_coefficients(H, g, h, i, j, k, l, fix_center = False):
+        @classmethod
+        def _calc_coefficients(cls, H, g, h, i, j, k, l, fix_center=False):
             if fix_center:
-                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k
-                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k
-                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k
-                d = H[3,0]*g + H[3,1]*h + H[3,2]*i + H[3,3]*j + H[3,4]*k
-                e = H[4,0]*g + H[4,1]*h + H[4,2]*i + H[4,3]*j + H[4,4]*k
+                a = H[0, 0] * g + H[0, 1] * h + H[0, 2] * i + H[0, 3] * j + H[0, 4] * k
+                b = H[1, 0] * g + H[1, 1] * h + H[1, 2] * i + H[1, 3] * j + H[1, 4] * k
+                c = H[2, 0] * g + H[2, 1] * h + H[2, 2] * i + H[2, 3] * j + H[2, 4] * k
+                d = H[3, 0] * g + H[3, 1] * h + H[3, 2] * i + H[3, 3] * j + H[3, 4] * k
+                e = H[4, 0] * g + H[4, 1] * h + H[4, 2] * i + H[4, 3] * j + H[4, 4] * k
                 f = 0
             else:
-                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
-                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
-                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
-                d = H[3,0]*g + H[3,1]*h + H[3,2]*i + H[3,3]*j + H[3,4]*k + H[3,5]*l
-                e = H[4,0]*g + H[4,1]*h + H[4,2]*i + H[4,3]*j + H[4,4]*k + H[4,5]*l
-                f = H[5,0]*g + H[5,1]*h + H[5,2]*i + H[5,3]*j + H[5,4]*k + H[5,5]*l
-            return (a,b,c,d,e,f)
+                a = H[0, 0] * g + H[0, 1] * h + H[0, 2] * i + H[0, 3] * j + H[0, 4] * k + H[0, 5] * l
+                b = H[1, 0] * g + H[1, 1] * h + H[1, 2] * i + H[1, 3] * j + H[1, 4] * k + H[1, 5] * l
+                c = H[2, 0] * g + H[2, 1] * h + H[2, 2] * i + H[2, 3] * j + H[2, 4] * k + H[2, 5] * l
+                d = H[3, 0] * g + H[3, 1] * h + H[3, 2] * i + H[3, 3] * j + H[3, 4] * k + H[3, 5] * l
+                e = H[4, 0] * g + H[4, 1] * h + H[4, 2] * i + H[4, 3] * j + H[4, 4] * k + H[4, 5] * l
+                f = H[5, 0] * g + H[5, 1] * h + H[5, 2] * i + H[5, 3] * j + H[5, 4] * k + H[5, 5] * l
+            return (a, b, c, d, e, f)
 
-        def _calc_coefficients_for_scale(Z, de, fix_center = False):
-            X, Y, N, K = _create_kernel(Z, de)
-            H = _calc_inv_G_for_kernel(X, Y, N, fix_center)
-            g, h, i, j, k, l = _convolve(X, Y, Z, K, fix_center)
-            return _calc_coefficients(H, g, h, i, j, k, l, fix_center)
+        @classmethod
+        def _calc_coefficients_for_scale(cls, Z, de, fix_center=False):
+            X, Y, N, K = cls._create_kernel(Z, de)
+            H = cls._calc_inv_G_for_kernel(X, Y, N, fix_center)
+            g, h, i, j, k, l = cls._convolve(X, Y, Z, K, fix_center)
+            return cls._calc_coefficients(H, g, h, i, j, k, l, fix_center)
 
-        def _create_kernel(Z, de):
-            
-            center = (Z._georef_info.xllcenter + (Z._georef_info.dx/2)*(Z._georef_info.nx-1), Z._georef_info.yllcenter + (Z._georef_info.dx/2)*(Z._georef_info.ny-1))
-            x = np.arange(Z._georef_info.nx)*Z._georef_info.dx + Z._georef_info.xllcenter - center[0]
-            y = np.arange(Z._georef_info.ny)*Z._georef_info.dx + Z._georef_info.yllcenter - center[1]
-            
-            X, Y = np.meshgrid(x,y)
+        @classmethod
+        def _create_kernel(cls, Z, de):
+
+            center = (Z._georef_info.xllcenter + (Z._georef_info.dx / 2) * (Z._georef_info.nx - 1),
+                      Z._georef_info.yllcenter + (Z._georef_info.dx / 2) * (Z._georef_info.ny - 1))
+            x = np.arange(Z._georef_info.nx) * Z._georef_info.dx + Z._georef_info.xllcenter - center[0]
+            y = np.arange(Z._georef_info.ny) * Z._georef_info.dx + Z._georef_info.yllcenter - center[1]
+
+            X, Y = np.meshgrid(x, y)
             K = ((np.abs(X) <= (de)) & (np.abs(Y) <= (de))).astype(float)
-            
+
             N = np.sum(K[:])
-            return X*K, Y*K, N, K
-    
-        def _Cmin_for_scale(Z, de, fix_center = False):
-            
-            X, Y, N, K = _create_kernel(Z, de)
-            H = _calc_inv_G_for_kernel(X,Y,N, fix_center)
-            g, h, i, j, k, l= _convolve(X, Y, Z, K, fix_center)
-            Cmin = _Cmin(H, g, h, i, j, k, l, fix_center)
-            sys.stdout.write('scale ' + str(de) + '\n')   
-            sys.stdout.flush() 
+            return X * K, Y * K, N, K
+
+        @classmethod
+        def _Cmin_for_scale(cls, Z, de, fix_center=False):
+
+            X, Y, N, K = cls._create_kernel(Z, de)
+            H = cls._calc_inv_G_for_kernel(X, Y, N, fix_center)
+            g, h, i, j, k, l = cls._convolve(X, Y, Z, K, fix_center)
+            Cmin = cls._Cmin(H, g, h, i, j, k, l, fix_center)
+            sys.stdout.write('scale ' + str(de) + '\n')
+            sys.stdout.flush()
             return Cmin, de
+
+    def _elevation_fit_for_location(self, x, y, de, fix_center = False):
+
+        # Determine location in index space:
+        ((i,j),) = self._xy_to_rowscols(((x,y),))
+        ((xa, ya),) = self._rowscols_to_xy(((i,j),))
+        (a,b,c,d,e,f) = self.Utilities._calc_coefficients_for_scale(self._griddata, de)
+        a = a[i,j]
+        b = b[i,j]
+        c = c[i,j]
+        d = d[i,j]
+        e = e[i,j]
+        f = f[i,j]
+        (nx, ny, dx) = (self._georef_info.nx, self._georef_info.ny, self._georef_info.dx)
+        (xllcenter, yllcenter) = (self._georef_info.xllcenter, self._georef_info.xllcenter)
+
+        [X,Y] = np.meshgrid(np.arange(xllcenter+dx/2, xllcenter + (nx-0.5)*dx, dx),np.arange(yllcenter+dx/2, yllcenter + (ny-0.5)*dx, dx))
+        return a*np.power(X,2) + b*np.power(Y,2) + c*X*Y + d*X + e*Y + f
+    
+
+    def _create_from_inputs(self, *args, **kwargs):
         
         # Condition inputs to ensure that grids produce square convolution matrices:
         
@@ -2749,7 +2777,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         
         if use_dask:
             from functools import partial
-            wrapper = partial(_Cmin_for_scale, Z, fix_center = fix_center)
+            wrapper = partial(self.Utilities._Cmin_for_scale, Z, fix_center = fix_center)
             tasks = [delayed(wrapper)(s) for s in scales]
             results = compute(*tasks)
             for result in results:
@@ -2762,7 +2790,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
                 ind += 1
         else:
             for scale in scales:   
-                minC, _ = _Cmin_for_scale(Z, scale, fix_center)
+                minC, _ = self.Utilities._Cmin_for_scale(Z, scale, fix_center)
                 if normalize:
                     minC *= scale
                 i = np.where(minC < g_minC)
