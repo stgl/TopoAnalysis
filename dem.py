@@ -2661,7 +2661,30 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
                 c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
 
             return -a-b-np.sqrt(np.power((a-b),2)+np.power(c,2))
-        
+
+        def _calc_coefficients(H, g, h, i, j, k, l, fix_center = False):
+            if fix_center:
+                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k
+                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k
+                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k
+                d = H[3,0]*g + H[3,1]*h + H[3,2]*i + H[3,3]*j + H[3,4]*k
+                e = H[4,0]*g + H[4,1]*h + H[4,2]*i + H[4,3]*j + H[4,4]*k
+                f = 0
+            else:
+                a = H[0,0]*g + H[0,1]*h + H[0,2]*i + H[0,3]*j + H[0,4]*k + H[0,5]*l
+                b = H[1,0]*g + H[1,1]*h + H[1,2]*i + H[1,3]*j + H[1,4]*k + H[1,5]*l
+                c = H[2,0]*g + H[2,1]*h + H[2,2]*i + H[2,3]*j + H[2,4]*k + H[2,5]*l
+                d = H[3,0]*g + H[3,1]*h + H[3,2]*i + H[3,3]*j + H[3,4]*k + H[3,5]*l
+                e = H[4,0]*g + H[4,1]*h + H[4,2]*i + H[4,3]*j + H[4,4]*k + H[4,5]*l
+                f = H[5,0]*g + H[5,1]*h + H[5,2]*i + H[5,3]*j + H[5,4]*k + H[5,5]*l
+            return (a,b,c,d,e,f)
+
+        def _calc_coefficients_for_scale(Z, de, fix_center = False):
+            X, Y, N, K = _create_kernel(Z, de)
+            H = _calc_inv_G_for_kernel(X, Y, N, fix_center)
+            g, h, i, j, k, l = _convolve(X, Y, Z, K, fix_center)
+            return _calc_coefficients(H, g, h, i, j, k, l, fix_center)
+
         def _create_kernel(Z, de):
             
             center = (Z._georef_info.xllcenter + (Z._georef_info.dx/2)*(Z._georef_info.nx-1), Z._georef_info.yllcenter + (Z._georef_info.dx/2)*(Z._georef_info.ny-1))
