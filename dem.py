@@ -2714,12 +2714,13 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             sys.stdout.flush()
             return Cmin, de
 
-    def _elevation_fit_for_location(self, x, y, elevation, de, fix_center = False):
+    @classmethod
+    def _elevation_fit_for_location(cls, x, y, elevation, de, fix_center = False):
 
         # Determine location in index space:
         ((i,j),) = elevation._xy_to_rowscols(((x,y),))
         ((xa, ya),) = elevation._rowscols_to_xy(((i,j),))
-        a,b,c,d,e,f = self.Utilities._calc_coefficients_for_scale(elevation._griddata, de)
+        a,b,c,d,e,f = cls.Utilities._calc_coefficients_for_scale(elevation._griddata, de)
         a = a[i,j]
         b = b[i,j]
         c = c[i,j]
@@ -2727,7 +2728,7 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         e = e[i,j]
         f = f[i,j]
         print('a = ' + str(a) + ', b = ' + str(b) + ', c = ' + str(c) + ', d = ' + str(d) + ', e = ' + str(e) + ', f = ' + str(f))
-        
+
         (nx, ny, dx) = (elevation._georef_info.nx, elevation._georef_info.ny, elevation._georef_info.dx)
         (xllcenter, yllcenter) = (elevation._georef_info.xllcenter, elevation._georef_info.xllcenter)
 
