@@ -2721,13 +2721,14 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         ((i,j),) = elevation._xy_to_rowscols(((x,y),))
         ((xa, ya),) = elevation._rowscols_to_xy(((i,j),))
         a,b,c,d,e,f = cls.Utilities._calc_coefficients_for_scale(elevation, de)
+        elevation_center = elevation[i,j]
         a = a[i,j]
         b = b[i,j]
         c = c[i,j]
         d = d[i,j]
         e = e[i,j]
-        f = f[i,j]
-        print('Window size = ' + str(de) + '/n' + 'a = ' + str(a) + ', b = ' + str(b) + ', c = ' + str(c) + ', d = ' + str(d) + ', e = ' + str(e) + ', f = ' + str(f))
+        f = f[i,j] + elevation_center
+        print('Window size = ' + str(de) + '/n' + 'a = ' + str(a) + ', b = ' + str(b) + ', c = ' + str(c)  + ', d = ' + str(d) + ', e = ' + str(e) + ', f = ' + str(f))
 
         (nx, ny, dx) = (elevation._georef_info.nx, elevation._georef_info.ny, elevation._georef_info.dx)
         (xllcenter, yllcenter) = (elevation._georef_info.xllcenter, elevation._georef_info.xllcenter)
