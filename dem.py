@@ -2738,10 +2738,10 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
                 self._n_regression[i, j] = calc_theta(i, j)
                 self._n[pts[0], pts[1]] += 1
                 counter += 1.0 / totalnumber
-                if counter > next_readout:
-                    sys.stdout.write(str(int(next_readout * 100)) + "...")
-                    sys.stdout.flush()
-                    next_readout += 0.1
+            if counter > next_readout:
+                sys.stdout.write(str(int(next_readout * 100)) + "...")
+                sys.stdout.flush()
+                next_readout += 0.1
 
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
