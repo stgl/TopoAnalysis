@@ -2724,7 +2724,7 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
 
                 return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0
 
-        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
+        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata) & (area._griddata > min_area))
         ij = zip(i[0], i[1])
         totalnumber = len(ij)
         counter = 0.0
@@ -2732,12 +2732,11 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
         for (i, j) in ij:
-            this_area = area[i,j]
-            if this_area > min_area:
-                self._griddata[i, j], self._mse[i, j], self._ss[i, j], self._r2[i, j], pts, self._pval[i, j], \
-                self._n_regression[i, j] = calc_theta(i, j)
-                self._n[pts[0], pts[1]] += 1
-                counter += 1.0 / totalnumber
+            self._griddata[i, j], self._mse[i, j], self._ss[i, j], self._r2[i, j], pts, self._pval[i, j], \
+            self._n_regression[i, j] = calc_theta(i, j)
+            self._n[pts[0], pts[1]] += 1
+            counter += 1.0 / totalnumber
+            print(counter)
             if counter > next_readout:
                 sys.stdout.write(str(int(next_readout * 100)) + "...")
                 sys.stdout.flush()
