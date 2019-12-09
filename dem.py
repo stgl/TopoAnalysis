@@ -2709,17 +2709,20 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
                     res = model.fit()
                     return res.ssr
                 from scipy.optimize import fmin
-                (theta_bf, funval, iter, funcalls, warnflag) = fmin(r2_for_theta, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, False, 0, None)
-                chi_profile = np.zeros_like(elevation_profile)
-                chi_profile[1:] = np.cumsum(
-                    0.25 * (np.power(area_profile[1:], -theta_bf) + np.power(area_profile[0:-1], -theta_bf)) * (
-                            de_profile[1:] + de_profile[0:-1]) * adjustment[1:])
-                X = np.array(chi_profile)
-                y = np.array(elevation_profile) - elevation_profile[0]
-                model = sm.OLS(y, X)
-                res = model.fit()
-                SS = res.ssr
-                return theta_bf, SS / float(len(chi_profile)), SS, res.rsquared, points, res.pvalues[0], len(chi_profile)
+                try:
+                    (theta_bf, funval, iter, funcalls, warnflag) = fmin(r2_for_theta, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, False, 0, None)
+                    chi_profile = np.zeros_like(elevation_profile)
+                    chi_profile[1:] = np.cumsum(
+                        0.25 * (np.power(area_profile[1:], -theta_bf) + np.power(area_profile[0:-1], -theta_bf)) * (
+                                de_profile[1:] + de_profile[0:-1]) * adjustment[1:])
+                    X = np.array(chi_profile)
+                    y = np.array(elevation_profile) - elevation_profile[0]
+                    model = sm.OLS(y, X)
+                    res = model.fit()
+                    SS = res.ssr
+                    return theta_bf, SS / float(len(chi_profile)), SS, res.rsquared, points, res.pvalues[0], len(chi_profile)
+                except:
+                    return np.nan, np.nan, np.nan, np.nan, [[], []], np.nan, 0
             else:
 
                 return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0
