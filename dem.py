@@ -2708,7 +2708,7 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
                     res = model.fit()
                     return -res.rsquared
                 from scipy.optimize import fmin
-                (theta_bf, funval, iter, funcalls, warnflag) = fmin(r2_for_theta, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None, disp=False)
+                (theta_bf, funval, iter, funcalls, warnflag) = fmin(r2_for_theta, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, False, 0, None)
                 chi_profile = np.zeros_like(elevation_profile)
                 chi_profile[1:] = np.cumsum(
                     0.25 * (np.power(area_profile[1:], -theta_bf) + np.power(area_profile[0:-1], -theta_bf)) * (
