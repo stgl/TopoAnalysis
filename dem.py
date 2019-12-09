@@ -2582,8 +2582,221 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
             
         gdal_file = None
         return return_object
-    
+
+
+class ThetaFromChiWithSmoothing(BaseSpatialGrid):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
+                                   (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'),
+                                   (('elevation', 'area', 'flow_direction', 'vertical_interval'),
+                                    '_create_from_elevation_area_flow_direction'),
+                                   (('elevation', 'area', 'flow_direction', 'horizontal_interval'),
+                                    '_create_from_elevation_area_flow_direction'),
+                                   )
+
+    def _upstream_downstream_indexes(self, area, flow_direction):
+        upstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
+        upstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
+        downstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
+        downstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
+        visited = np.zeros_like(area._griddata).astype(bool)
+        shape = upstream_i.shape
+        indexes = area.sort(reverse=False)
+        (i_s, j_s) = np.unravel_index(indexes, shape)
+
+        def set_usdsindexes(ij):
+            i, j = ij
+            ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
+            if good and not visited[ds_i, ds_j]:
+                visited[i, j] = True
+                (downstream_i[i, j], downstream_j[i, j]) = (ds_i, ds_j)
+                (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
+
+        map(set_usdsindexes, zip(i_s, j_s))
+
+        return upstream_i, upstream_j, downstream_i, downstream_j
+
+    def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
+
+        elevation = kwargs['elevation']
+        area = kwargs['area']
+        flow_direction = kwargs['flow_direction']
+        vertical_interval = kwargs.get('vertical_interval', None)
+        de = area._mean_pixel_dimension()
+
+        self._copy_info_from_grid(elevation)
+        self._griddata = np.zeros_like(elevation._griddata)
+        self._n = np.zeros_like(self._griddata).astype(int)
+        self._n_regression = np.zeros_like(self._griddata).astype(int)
+        self._mse = np.zeros_like(self._griddata)
+        self._ss = np.zeros_like(self._griddata)
+        self._r2 = np.zeros_like(self._griddata)
+        self._pval = np.zeros_like(self._griddata)
+        self._griddata[:] = np.nan
+
+        import time
+        t1 = time.time()
+        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
+        t2 = time.time()
+
+        print('completed flow graph in: ' + str(t2 - t1) + " s")
+
+        if vertical_interval is not None:
+            def find_points_along_path(this_i, this_j):
+                ret = list()
+                ret += [(this_i, this_j)]
+                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
+                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
+                if (ups_i < 0) or (ds_i < 0):
+                    return None
+                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+                while (delta_e < vertical_interval) & (ups_i >= 0):
+                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
+                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+                    if (ups_i < 0) or (ds_i < 0):
+                        return None
+                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                    delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+                return ret
+        else:
+            horizontal_interval = kwargs['horizontal_interval']
+
+            def find_points_along_path(this_i, this_j):
+                horizontal_distance = 0
+                ret = list()
+                ret += [(this_i, this_j)]
+                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
+                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
+                if (ups_i < 0) or (ds_i < 0):
+                    return None
+                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (
+                    1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414)) * de[this_i, this_j]
+                while (horizontal_distance < horizontal_interval) & (ups_i >= 0):
+                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
+                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
+                    if (ups_i < 0) or (ds_i < 0):
+                        return None
+                    horizontal_distance += (1.0 if ((ds_i == ret[0][0]) or (ds_j == ret[0][1])) else 1.414) * de[
+                        ds_i, ds_j] + (1.0 if ((ups_i == ret[-1][0]) or (ups_j == ret[-1][1])) else 1.414) * de[
+                                               ups_i, ups_j]
+                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
+                return ret
+
+        def calc_theta(i, j):
+
+            points = find_points_along_path(i, j)
+            if points is not None:
+                pts = zip(*(points))
+                points = np.array(pts).astype(int)
+                adjustment = np.ones((len(points[0])))
+                i = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
+                adjustment[i[0] + 1] += 0.414
+                area_profile = area._griddata[points[0], points[1]]
+                elevation_profile = elevation._griddata[points[0], points[1]]
+                de_profile = de[points[0], points[1]]
+
+                def r2_for_theta(theta):
+                    chi_profile = np.zeros_like(elevation_profile)
+                    chi_profile[1:] = np.cumsum(
+                        0.25 * (np.power(area_profile[1:], -theta) + np.power(area_profile[0:-1], -theta)) * (
+                                de_profile[1:] + de_profile[0:-1]) * adjustment[1:])
+                    X = np.array(chi_profile)
+                    y = np.array(elevation_profile) - elevation_profile[0]
+                    model = sm.OLS(y, X)
+                    res = model.fit()
+                    return -res.rsquared
+                from scipy.optimize import fmin
+                (theta_bf, funval, iter, funcalls, warnflag) = fmin(r2_for_theta, np.array([0.5]), (), 1E-5, 1E-5, 100, 200, True, True, 0, None)
+                chi_profile = np.zeros_like(elevation_profile)
+                chi_profile[1:] = np.cumsum(
+                    0.25 * (np.power(area_profile[1:], -theta_bf) + np.power(area_profile[0:-1], -theta_bf)) * (
+                            de_profile[1:] + de_profile[0:-1]) * adjustment[1:])
+                X = np.array(chi_profile)
+                y = np.array(elevation_profile) - elevation_profile[0]
+                model = sm.OLS(y, X)
+                res = model.fit()
+                SS = res.ssr
+                return theta_bf, SS / float(len(chi_profile)), SS, res.rsquared, points, res.pvalues[0], len(chi_profile)
+            else:
+
+                return np.nan
+
+        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
+        ij = zip(i[0], i[1])
+        totalnumber = len(ij)
+        counter = 0.0
+        next_readout = 0.1
+        sys.stdout.write('Percent completion...')
+        sys.stdout.flush()
+        for (i, j) in ij:
+            self._griddata[i, j], self._mse[i, j], self._ss[i, j], self._r2[i, j], pts, self._pval[i, j], \
+            self._n_regression[i, j] = calc_theta(i, j)
+            self._n[pts[0], pts[1]] += 1
+            counter += 1.0 / totalnumber
+            if counter > next_readout:
+                sys.stdout.write(str(int(next_readout * 100)) + "...")
+                sys.stdout.flush()
+                next_readout += 0.1
+
+        sys.stdout.write('Percent completion...')
+        sys.stdout.flush()
+        sys.stdout.write('100')
+        sys.stdout.flush()
+
+    def save(self, filename):
+
+        self._create_gdal_representation_from_array(self._georef_info, 'GTiff',
+                                                    [self._griddata, self._n, self._mse, self._ss, self._r2, self._pval,
+                                                     self._n_regression], self.dtype, filename,
+                                                    ['COMPRESS=LZW', 'BIGTIFF=YES'], multiple_bands=True)
+
+    @classmethod
+    def load(cls, filename):
+
+        def get_band(gdal_dataset, band_number):
+            band = gdal_dataset.GetRasterBand(band_number)
+            nodata = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(cls.dtype)
+            if nodata is not None:
+                nodata_elements = np.where(grid == nodata)
+                from numpy import uint8
+                if cls.dtype is not uint8:
+                    grid[nodata_elements] = np.NAN
+            return grid
+
+        return_object = cls()
+        gdal_dataset = gdal.Open(filename)
+
+        geoTransform = gdal_dataset.GetGeoTransform()
+        nx = gdal_dataset.RasterXSize
+        ny = gdal_dataset.RasterYSize
+
+        return_object._georef_info.geoTransform = geoTransform
+        return_object._georef_info.dx = return_object._georef_info.geoTransform[1]
+        return_object._georef_info.xllcenter = return_object._georef_info.geoTransform[
+                                                   0] + return_object._georef_info.dx / 2.0
+        return_object._georef_info.yllcenter = return_object._georef_info.geoTransform[3] - (
+                    return_object._georef_info.dx * (ny - 0.5))
+        return_object._georef_info.nx = nx
+        return_object._georef_info.ny = ny
+
+        return_object._griddata = get_band(gdal_dataset, 1)
+        return_object._n = get_band(gdal_dataset, 2)
+        return_object._mse = get_band(gdal_dataset, 3)
+        return_object._ss = get_band(gdal_dataset, 4)
+        return_object._r2 = get_band(gdal_dataset, 5)
+        return_object._pval = get_band(gdal_dataset, 6)
+        return_object._n_regression = get_band(gdal_dataset, 7)
+
+        gdal_file = None
+        return return_object
+
 class GeographicKsFromChiWithSmoothing(GeographicGridMixin, KsFromChiWithSmoothing):
+    pass
+
+class GeographicThetaFromChiWithSmoothing(GeographicGridMixin, KsFromChiWithSmoothing):
     pass
 
 class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
