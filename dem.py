@@ -2588,9 +2588,9 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
                                    (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
                                    (('gdal_filename',), '_read_gdal'),
-                                   (('elevation', 'area', 'flow_direction', 'vertical_interval'),
+                                   (('elevation', 'area', 'flow_direction', 'vertical_interval', 'min_area),
                                     '_create_from_elevation_area_flow_direction'),
-                                   (('elevation', 'area', 'flow_direction', 'horizontal_interval'),
+                                   (('elevation', 'area', 'flow_direction', 'horizontal_interval', 'min_area'),
                                     '_create_from_elevation_area_flow_direction'),
                                    )
 
@@ -2621,6 +2621,7 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
         elevation = kwargs['elevation']
         area = kwargs['area']
         flow_direction = kwargs['flow_direction']
+        min_area = kwargs['min_area']
         vertical_interval = kwargs.get('vertical_interval', None)
         de = area._mean_pixel_dimension()
 
@@ -2731,14 +2732,16 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
         for (i, j) in ij:
-            self._griddata[i, j], self._mse[i, j], self._ss[i, j], self._r2[i, j], pts, self._pval[i, j], \
-            self._n_regression[i, j] = calc_theta(i, j)
-            self._n[pts[0], pts[1]] += 1
-            counter += 1.0 / totalnumber
-            if counter > next_readout:
-                sys.stdout.write(str(int(next_readout * 100)) + "...")
-                sys.stdout.flush()
-                next_readout += 0.1
+            this_area = area[i,j]
+            if this_area > min_area:
+                self._griddata[i, j], self._mse[i, j], self._ss[i, j], self._r2[i, j], pts, self._pval[i, j], \
+                self._n_regression[i, j] = calc_theta(i, j)
+                self._n[pts[0], pts[1]] += 1
+                counter += 1.0 / totalnumber
+                if counter > next_readout:
+                    sys.stdout.write(str(int(next_readout * 100)) + "...")
+                    sys.stdout.flush()
+                    next_readout += 0.1
 
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
