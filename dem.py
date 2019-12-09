@@ -2588,7 +2588,7 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
                                    (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
                                    (('gdal_filename',), '_read_gdal'),
-                                   (('elevation', 'area', 'flow_direction', 'vertical_interval', 'min_area),
+                                   (('elevation', 'area', 'flow_direction', 'vertical_interval', 'min_area'),
                                     '_create_from_elevation_area_flow_direction'),
                                    (('elevation', 'area', 'flow_direction', 'horizontal_interval', 'min_area'),
                                     '_create_from_elevation_area_flow_direction'),
