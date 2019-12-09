@@ -2718,10 +2718,11 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
                 model = sm.OLS(y, X)
                 res = model.fit()
                 SS = res.ssr
+                print(res.pvalues)
                 return theta_bf, SS / float(len(chi_profile)), SS, res.rsquared, points, res.pvalues[0], len(chi_profile)
             else:
 
-                return np.nan
+                return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0
 
         i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
         ij = zip(i[0], i[1])
