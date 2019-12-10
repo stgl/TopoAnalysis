@@ -2699,6 +2699,8 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
                 de_profile = de[points[0], points[1]]
 
                 def r2_for_theta(theta):
+                    if theta > 10 or theta < -10:
+                        return np.inf
                     chi_profile = np.zeros_like(elevation_profile)
                     chi_profile[1:] = np.cumsum(
                         0.25 * (np.power(area_profile[1:], -theta) + np.power(area_profile[0:-1], -theta)) * (
