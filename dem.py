@@ -2397,62 +2397,38 @@ class MainstemValleyArea(Area):
 class GeographicMainstemValleyArea(GeographicGridMixin, MainstemValleyArea):
     pass
 
+class AlongFlowSmoothing(object):
 
-    
-class KsFromChiWithSmoothing(BaseSpatialGrid):
-    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
-                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
-                                   (('gdal_filename',), '_read_gdal'), 
-                                   (('elevation', 'area', 'flow_direction', 'theta', 'vertical_interval'), '_create_from_elevation_area_flow_direction'),
-                                   (('elevation', 'area', 'flow_direction', 'theta', 'horizontal_interval'), '_create_from_elevation_area_flow_direction'),
-                                   )
-    
-    def _upstream_downstream_indexes(self, area, flow_direction):
-        upstream_i = (np.ones_like(area._griddata)*-1.0).astype(int)
-        upstream_j = (np.ones_like(area._griddata)*-1.0).astype(int)
-        downstream_i = (np.ones_like(area._griddata)*-1.0).astype(int)
-        downstream_j = (np.ones_like(area._griddata)*-1.0).astype(int)
+    def _find_points_along_path(self, de, **kwargs):
+        area = kwargs['area']
+        flow_direction = kwargs['flow_direction']
+
+        import time
+        t1 = time.time()
+
+        upstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
+        upstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
+        downstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
+        downstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
         visited = np.zeros_like(area._griddata).astype(bool)
         shape = upstream_i.shape
-        indexes = area.sort(reverse = False)
+        indexes = area.sort(reverse=False)
         (i_s, j_s) = np.unravel_index(indexes, shape)
+
         def set_usdsindexes(ij):
             i, j = ij
             ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
-            if good and not visited[ds_i,ds_j]:
-                visited[i,j] = True
-                (downstream_i[i, j], downstream_j[i,j]) = (ds_i, ds_j)
+            if good and not visited[ds_i, ds_j]:
+                visited[i, j] = True
+                (downstream_i[i, j], downstream_j[i, j]) = (ds_i, ds_j)
                 (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
-        map(set_usdsindexes, zip(i_s, j_s))
-            
-        return upstream_i, upstream_j, downstream_i, downstream_j
-            
-    def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
-        
-        elevation = kwargs['elevation']
-        area = kwargs['area']
-        flow_direction = kwargs['flow_direction']
-        theta = kwargs['theta']
-        vertical_interval = kwargs.get('vertical_interval', None)
-        de = area._mean_pixel_dimension()
-        
-        self._copy_info_from_grid(elevation)
-        self._griddata = np.zeros_like(elevation._griddata)
-        self._n = np.zeros_like(self._griddata).astype(int)
-        self._n_regression = np.zeros_like(self._griddata).astype(int)
-        self._mse = np.zeros_like(self._griddata)
-        self._ss = np.zeros_like(self._griddata)
-        self._r2 = np.zeros_like(self._griddata)
-        self._pval = np.zeros_like(self._griddata)
-        self._griddata[:] = np.nan
-        
-        import time
-        t1 = time.time()
-        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
+
+        list(map(set_usdsindexes, zip(i_s, j_s)))
+
         t2 = time.time()
-        
-        print('completed flow graph in: ' + str(t2-t1) + " s")
-        
+        print('completed flow graph in: ' + str(t2 - t1) + " s")
+
+        vertical_interval = kwargs.get('vertical_interval', None)
         if vertical_interval is not None:
             def find_points_along_path(this_i, this_j):
                 ret = list()
@@ -2471,9 +2447,10 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                     ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
                     delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
                 return ret
+            return find_points_along_path
         else:
             horizontal_interval = kwargs['horizontal_interval']
-            
+
             def find_points_along_path(this_i, this_j):
                 horizontal_distance = 0
                 ret = list()
@@ -2483,21 +2460,51 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 if (ups_i < 0) or (ds_i < 0):
                     return None
                 ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414))*de[this_i, this_j]
+                horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (
+                    1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414)) * de[this_i, this_j]
                 while (horizontal_distance < horizontal_interval) & (ups_i >= 0):
                     (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
                     (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
                     if (ups_i < 0) or (ds_i < 0):
                         return None
-                    horizontal_distance += (1.0 if ((ds_i == ret[0][0]) or (ds_j == ret[0][1])) else 1.414)*de[ds_i, ds_j] + (1.0 if ((ups_i == ret[-1][0]) or (ups_j == ret[-1][1])) else 1.414)*de[ups_i, ups_j]
+                    horizontal_distance += (1.0 if ((ds_i == ret[0][0]) or (ds_j == ret[0][1])) else 1.414) * de[
+                        ds_i, ds_j] + (1.0 if ((ups_i == ret[-1][0]) or (ups_j == ret[-1][1])) else 1.414) * de[
+                                               ups_i, ups_j]
                     ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
                 return ret
+            return find_points_along_path
+    
+class KsFromChiWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
+                                   (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'), 
+                                   (('elevation', 'area', 'flow_direction', 'theta', 'vertical_interval'), '_create_from_elevation_area_flow_direction'),
+                                   (('elevation', 'area', 'flow_direction', 'theta', 'horizontal_interval'), '_create_from_elevation_area_flow_direction'),
+                                   )
+            
+    def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
         
-        def calc_ks(i,j):
+        elevation = kwargs['elevation']
+        area = kwargs['area']
+        theta = kwargs['theta']
+        de = area._mean_pixel_dimension()
+        
+        self._copy_info_from_grid(elevation)
+        self._griddata = np.zeros_like(elevation._griddata)
+        self._n = np.zeros_like(self._griddata).astype(int)
+        self._n_regression = np.zeros_like(self._griddata).astype(int)
+        self._mse = np.zeros_like(self._griddata)
+        self._ss = np.zeros_like(self._griddata)
+        self._r2 = np.zeros_like(self._griddata)
+        self._pval = np.zeros_like(self._griddata)
+        self._griddata[:] = np.nan
 
+        find_points_along_path = self._find_points_along_path(de, **kwargs)
+
+        def calc_ks(i,j):
             points = find_points_along_path(i, j)     
             if points is not None:
-                pts = zip(*(points))
+                pts = list(zip(*(points)))
                 points = np.array(pts).astype(int)
                 adjustment = np.ones((len(points[0])))
                 i = np.where((points[0,1:-1] != points[0,2:]) & (points[1,1:-1] != points[1,2:]))
@@ -2519,7 +2526,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
                 return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0 
         
         i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
-        ij = zip(i[0],i[1])
+        ij = list(zip(i[0],i[1]))
         totalnumber = len(ij)
         counter = 0.0    
         next_readout = 0.1    
@@ -2584,7 +2591,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid):
         return return_object
 
 
-class ThetaFromChiWithSmoothing(BaseSpatialGrid):
+class ThetaFromChiWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
                                    (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
                                    (('gdal_filename',), '_read_gdal'),
@@ -2594,35 +2601,11 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
                                     '_create_from_elevation_area_flow_direction'),
                                    )
 
-    def _upstream_downstream_indexes(self, area, flow_direction):
-        upstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
-        upstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
-        downstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
-        downstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
-        visited = np.zeros_like(area._griddata).astype(bool)
-        shape = upstream_i.shape
-        indexes = area.sort(reverse=False)
-        (i_s, j_s) = np.unravel_index(indexes, shape)
-
-        def set_usdsindexes(ij):
-            i, j = ij
-            ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
-            if good and not visited[ds_i, ds_j]:
-                visited[i, j] = True
-                (downstream_i[i, j], downstream_j[i, j]) = (ds_i, ds_j)
-                (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
-
-        map(set_usdsindexes, zip(i_s, j_s))
-
-        return upstream_i, upstream_j, downstream_i, downstream_j
-
     def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
 
         elevation = kwargs['elevation']
         area = kwargs['area']
-        flow_direction = kwargs['flow_direction']
         min_area = kwargs['min_area']
-        vertical_interval = kwargs.get('vertical_interval', None)
         de = area._mean_pixel_dimension()
 
         self._copy_info_from_grid(elevation)
@@ -2635,61 +2618,13 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
         self._pval = np.zeros_like(self._griddata)
         self._griddata[:] = np.nan
 
-        import time
-        t1 = time.time()
-        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
-        t2 = time.time()
-
-        print('completed flow graph in: ' + str(t2 - t1) + " s")
-
-        if vertical_interval is not None:
-            def find_points_along_path(this_i, this_j):
-                ret = list()
-                ret += [(this_i, this_j)]
-                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
-                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
-                if (ups_i < 0) or (ds_i < 0):
-                    return None
-                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
-                while (delta_e < vertical_interval) & (ups_i >= 0):
-                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
-                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
-                    if (ups_i < 0) or (ds_i < 0):
-                        return None
-                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                    delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
-                return ret
-        else:
-            horizontal_interval = kwargs['horizontal_interval']
-
-            def find_points_along_path(this_i, this_j):
-                horizontal_distance = 0
-                ret = list()
-                ret += [(this_i, this_j)]
-                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
-                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
-                if (ups_i < 0) or (ds_i < 0):
-                    return None
-                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (
-                    1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414)) * de[this_i, this_j]
-                while (horizontal_distance < horizontal_interval) & (ups_i >= 0):
-                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
-                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
-                    if (ups_i < 0) or (ds_i < 0):
-                        return None
-                    horizontal_distance += (1.0 if ((ds_i == ret[0][0]) or (ds_j == ret[0][1])) else 1.414) * de[
-                        ds_i, ds_j] + (1.0 if ((ups_i == ret[-1][0]) or (ups_j == ret[-1][1])) else 1.414) * de[
-                                               ups_i, ups_j]
-                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                return ret
+        find_points_along_path = self._find_points_along_path(de, **kwargs)
 
         def calc_theta(i, j):
 
             points = find_points_along_path(i, j)
             if points is not None:
-                pts = zip(*(points))
+                pts = list(zip(*(points)))
                 points = np.array(pts).astype(int)
                 adjustment = np.ones((len(points[0])))
                 i = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
@@ -2730,7 +2665,7 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
                 return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0
 
         i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata) & (area._griddata > min_area))
-        ij = zip(i[0], i[1])
+        ij = list(zip(i[0], i[1]))
         totalnumber = len(ij)
         counter = 0.0
         next_readout = 0.1
@@ -2800,7 +2735,10 @@ class ThetaFromChiWithSmoothing(BaseSpatialGrid):
         return return_object
 
 
-class ChannelSlopeWithSmoothing(BaseSpatialGrid):
+
+
+
+class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
                                    (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
                                    (('gdal_filename',), '_read_gdal'),
@@ -2810,89 +2748,17 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid):
                                     '_create_from_elevation_flow_direction'),
                                    )
 
-    def _upstream_downstream_indexes(self, area, flow_direction):
-        upstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
-        upstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
-        downstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
-        downstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
-        visited = np.zeros_like(area._griddata).astype(bool)
-        shape = upstream_i.shape
-        indexes = area.sort(reverse=False)
-        (i_s, j_s) = np.unravel_index(indexes, shape)
-
-        def set_usdsindexes(ij):
-            i, j = ij
-            ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
-            if good and not visited[ds_i, ds_j]:
-                visited[i, j] = True
-                (downstream_i[i, j], downstream_j[i, j]) = (ds_i, ds_j)
-                (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
-
-        list(map(set_usdsindexes, zip(i_s, j_s)))
-
-        return upstream_i, upstream_j, downstream_i, downstream_j
 
     def _create_from_elevation_flow_direction(self, *args, **kwargs):
 
         elevation = kwargs['elevation']
-        flow_direction = kwargs['flow_direction']
-        area = kwargs['area']
-        vertical_interval = kwargs.get('vertical_interval', None)
         de = elevation._mean_pixel_dimension()
 
         self._copy_info_from_grid(elevation)
         self._griddata = np.zeros_like(elevation._griddata)
         self._griddata[:] = np.nan
 
-        import time
-        t1 = time.time()
-        upstream_i, upstream_j, downstream_i, downstream_j = self._upstream_downstream_indexes(area, flow_direction)
-        t2 = time.time()
-
-        print('completed flow graph in: ' + str(t2 - t1) + " s")
-
-        if vertical_interval is not None:
-            def find_points_along_path(this_i, this_j):
-                ret = list()
-                ret += [(this_i, this_j)]
-                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
-                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
-                if (ups_i < 0) or (ds_i < 0):
-                    return None
-                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
-                while (delta_e < vertical_interval) & (ups_i >= 0):
-                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
-                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
-                    if (ups_i < 0) or (ds_i < 0):
-                        return None
-                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                    delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
-                return ret
-        else:
-            horizontal_interval = kwargs['horizontal_interval']
-
-            def find_points_along_path(this_i, this_j):
-                horizontal_distance = 0
-                ret = list()
-                ret += [(this_i, this_j)]
-                (ups_i, ups_j) = (upstream_i[this_i, this_j], upstream_j[this_i, this_j])
-                (ds_i, ds_j) = (downstream_i[this_i, this_j], downstream_j[this_i, this_j])
-                if (ups_i < 0) or (ds_i < 0):
-                    return None
-                ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (
-                    1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414)) * de[this_i, this_j]
-                while (horizontal_distance < horizontal_interval) & (ups_i >= 0):
-                    (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
-                    (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
-                    if (ups_i < 0) or (ds_i < 0):
-                        return None
-                    horizontal_distance += (1.0 if ((ds_i == ret[0][0]) or (ds_j == ret[0][1])) else 1.414) * de[
-                        ds_i, ds_j] + (1.0 if ((ups_i == ret[-1][0]) or (ups_j == ret[-1][1])) else 1.414) * de[
-                                               ups_i, ups_j]
-                    ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
-                return ret
+        find_points_along_path = self._find_points_along_path(de, **kwargs)
 
         def calc_channel_slope(i, j):
 
@@ -2901,11 +2767,10 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid):
                 pts = list(zip(*(points)))
                 points = np.array(pts).astype(int)
                 adjustment = np.ones((len(points[0])))
-                i = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
-                adjustment[i[0] + 1] += 0.414
+                ind = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
+                adjustment[ind[0] + 1] += 0.414
                 elevation_profile = elevation._griddata[points[0], points[1]]
                 de_profile = de[points[0], points[1]]
-
                 dx = np.sum(de_profile*adjustment)
                 dy = elevation_profile[-1] - elevation_profile[0]
                 return dy / dx
@@ -2914,10 +2779,9 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid):
 
                 return np.nan
 
-        i = np.where(~np.isnan(elevation._griddata) & ~np.isnan(flow_direction._griddata))
+        i = np.where(~np.isnan(elevation._griddata))
         ij = list(zip(i[0], i[1]))
         totalnumber = len(ij)
-        print('total number: ' + str(totalnumber))
         counter = 0.0
         next_readout = 0.1
         sys.stdout.write('Percent completion...')
