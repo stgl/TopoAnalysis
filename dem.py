@@ -1351,9 +1351,8 @@ class FlowDirectionD8(FlowDirection):
 
     def __map_flow_from_cell(self, index, **kwargs):
         
-        i = index[0]
-        j = index[1]
-        
+        (i, j) = index
+
         return_dict = dict()
         
         return_dict['index'] = index
