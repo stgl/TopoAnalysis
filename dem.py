@@ -12,7 +12,6 @@ import glob  # Used for finding files that I want to mosaic (by allowing wildcar
 import heapq # Used for constructing priority queue, which is used for filling dems
 import numpy as np # Used for tons o stuff, keeping most data stored as numpy arrays
 import subprocess # Used to run gdal_merge.py from the command line
-import Error
 from numpy import uint8, int8, float64
 from matplotlib import pyplot as plt
 import sys
@@ -947,6 +946,7 @@ class BaseSpatialGrid(GDALMixin):
     def plot(self, **kwargs):
 
         interactive = kwargs.pop('interactive', True)
+        colorbar = kwargs.pop('colorbar', False)
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         plt.imshow(self._griddata, extent = extent, **kwargs)
         if interactive:
@@ -955,6 +955,8 @@ class BaseSpatialGrid(GDALMixin):
         else:
             plt.ioff()
             plt.show(block=True)
+        if colorbar:
+            plt.colorbar()
     
     def find_nearest_cell_with_value(self, index, value, pixel_radius):
 
@@ -1032,6 +1034,9 @@ class BaseSpatialGrid(GDALMixin):
 
         self._create_gdal_representation_from_array(self._georef_info, 'E00GRID', self._griddata, self.dtype, filename)
 
+    def set_value_at_rowscols(self, value, rowscols):
+        rowscols_array = (np.array(list(zip(*rowscols))).T[:,0],np.array(list(zip(*rowscols))).T[:,1])
+        self._griddata[rowscols_array] = value
         
     def save(self, filename):
         
@@ -1241,7 +1246,7 @@ class FlowDirectionD8(FlowDirection):
         iOut = None
         jOut = None
         isGood = False
-    
+
         if self._griddata[i,j] == 1 and j+1 < self._georef_info.nx:
             iOut = i
             jOut = j+1
@@ -1482,23 +1487,28 @@ class FlowDirectionD8(FlowDirection):
         ((i, j),) = self._xy_to_rowscols(v)
         return self.get_indexes_of_upstream_cells(i, j)
         
-    def search_down_flow_direction(self, start):
+    def search_down_flow_direction(self, start, search_length = np.inf):
         l = list()
         ((row,col),) = self._xy_to_rowscols((start,))
-        
-        while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1 or (row,col) in l):
+        length = 0.0
+        while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1 or \
+                   (row,col) in l) and (length < search_length):
             l.append((row, col))
             row,col,inBounds = self.get_flow_to_cell(row, col)
+            length += self._georef_info.dx * (1.0 if (row == col) else 1.414)
             if not inBounds:
-                break    
-            
-            
+                break
         return tuple(l)
     
-    def search_down_flow_direction_from_xy_location(self, start):
+    def search_down_flow_direction_from_rowscols_location(self, start, return_rowscols = False, search_length = np.inf):
         
-        rcs = self.search_down_flow_direction(start)
-        return self._rowscols_to_xy(rcs)
+        rcs = self.search_down_flow_direction(self._rowscols_to_xy(((start),))[0], search_length = search_length)
+        return rcs if return_rowscols else self._rowscols_to_xy(rcs)
+
+    def search_down_flow_direction_from_xy_location(self, start, return_rowscols=False, search_length=np.inf):
+
+        rcs = self.search_down_flow_direction(start, search_length=search_length)
+        return rcs if return_rowscols else self._rowscols_to_xy(rcs)
 
     def convert_rivertools_directions_to_arc(self):
         # Function to convert river tools flow directions to arcGisFlowDirections
@@ -1964,6 +1974,14 @@ class Mask(BaseSpatialGrid):
             for index in indexes:
                 self[index[0],index[1]] = 1
 
+    def perform_opening(self, structure = None, iterations = 1):
+        from scipy.ndimage.morphology import binary_opening
+        self._griddata = binary_opening(self._griddata, iterations = iterations, structure = structure)
+
+    def perform_erosion(self, structure = None, iterations = 1):
+        from scipy.ndimage.morphology import binary_erosion
+        self._griddata = binary_erosion(self._griddata, iterations = iterations, structure = structure)
+
 class LogArea(BaseSpatialGrid):
     
     dtype = uint8
@@ -2049,15 +2067,11 @@ class Laplacian(CalculationMixin, BaseSpatialGrid):
     
     def _create_from_elevation(self, *args, **kwargs):
 
+        from scipy.ndimage import laplace
         elevation = kwargs['elevation']
         
         self._copy_info_from_grid(elevation)
-        self.calcLaplacian()
-    
-    def calcLaplacian(self):
- 
-        Sx, Sy = self._calcFiniteSlopes(self._griddata, self._mean_pixel_dimension(), self._georef_info.nx, self._georef_info.ny)  # Calculate slope in X and Y directions    
-        self._griddata = self.calcFiniteCurv(self._griddata, self._mean_pixel_dimension())
+        self._griddata = laplace(elevation._griddata) / np.power(elevation._georef_info.dx,2)
     
 
 class GeographicLaplacian(GeographicGridMixin, Laplacian):
