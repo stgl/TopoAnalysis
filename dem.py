@@ -1489,6 +1489,7 @@ class FlowDirectionD8(FlowDirection):
         
     def search_down_flow_direction(self, start, search_length = np.inf):
         l = list()
+
         ((row,col),) = self._xy_to_rowscols((start,))
         length = 0.0
         while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1 or \
@@ -2436,6 +2437,7 @@ class AlongFlowSmoothing(object):
         upstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
         downstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
         downstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
+
         shape = upstream_i.shape
         indexes = area.sort(reverse=False)
         (i_s, j_s) = np.unravel_index(indexes, shape)
@@ -2772,6 +2774,7 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
                                     '_create_from_elevation_flow_direction'),
                                    )
 
+
     def calc_channel_slope(self, i, j, elevation, de, find_points_along_path):
 
         points = find_points_along_path(i, j)
@@ -2801,6 +2804,7 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
         self._griddata[:] = np.nan
 
         find_points_along_path = self._find_points_along_path(de, **kwargs)
+
 
         i = np.where(~np.isnan(elevation._griddata))
         ij = list(zip(i[0], i[1]))
@@ -2872,6 +2876,7 @@ class ChannelDownSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
         for (i, j) in ij:
+
             self._griddata[i, j] = self.calc_channel_slope(i, j, elevation, de, find_points_along_path)
             counter += 1.0 / totalnumber
             if counter > next_readout:
