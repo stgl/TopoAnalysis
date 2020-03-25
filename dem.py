@@ -12,7 +12,6 @@ import glob  # Used for finding files that I want to mosaic (by allowing wildcar
 import heapq # Used for constructing priority queue, which is used for filling dems
 import numpy as np # Used for tons o stuff, keeping most data stored as numpy arrays
 import subprocess # Used to run gdal_merge.py from the command line
-import Error
 from numpy import uint8, int8, float64
 from matplotlib import pyplot as plt
 import sys
@@ -945,11 +944,19 @@ class BaseSpatialGrid(GDALMixin):
         return (k1re, k2re)
         
     def plot(self, **kwargs):
-        
+
+        interactive = kwargs.pop('interactive', True)
+        colorbar = kwargs.pop('colorbar', False)
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         plt.imshow(self._griddata, extent = extent, **kwargs)
-        plt.ion()
-        plt.show(block = False)
+        if interactive:
+            plt.ion()
+            plt.show(block=False)
+        else:
+            plt.ioff()
+            plt.show(block=True)
+        if colorbar:
+            plt.colorbar()
     
     def find_nearest_cell_with_value(self, index, value, pixel_radius):
 
@@ -1027,6 +1034,9 @@ class BaseSpatialGrid(GDALMixin):
 
         self._create_gdal_representation_from_array(self._georef_info, 'E00GRID', self._griddata, self.dtype, filename)
 
+    def set_value_at_rowscols(self, value, rowscols):
+        rowscols_array = (np.array(list(zip(*rowscols))).T[:,0],np.array(list(zip(*rowscols))).T[:,1])
+        self._griddata[rowscols_array] = value
         
     def save(self, filename):
         
@@ -1236,7 +1246,7 @@ class FlowDirectionD8(FlowDirection):
         iOut = None
         jOut = None
         isGood = False
-    
+
         if self._griddata[i,j] == 1 and j+1 < self._georef_info.nx:
             iOut = i
             jOut = j+1
@@ -1346,9 +1356,8 @@ class FlowDirectionD8(FlowDirection):
 
     def __map_flow_from_cell(self, index, **kwargs):
         
-        i = index[0]
-        j = index[1]
-        
+        (i, j) = index
+
         return_dict = dict()
         
         return_dict['index'] = index
@@ -1478,29 +1487,29 @@ class FlowDirectionD8(FlowDirection):
         ((i, j),) = self._xy_to_rowscols(v)
         return self.get_indexes_of_upstream_cells(i, j)
         
-    def search_down_flow_direction(self, start):
+    def search_down_flow_direction(self, start, search_length = np.inf):
         l = list()
-        #comment out below for original
-        (row,col) = start
-        #uncomment below for original
-        #((row,col),) = self._xy_to_rowscols((start,))
-        
-        while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1 or (row,col) in l):
+
+        ((row,col),) = self._xy_to_rowscols((start,))
+        length = 0.0
+        while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1 or \
+                   (row,col) in l) and (length < search_length):
             l.append((row, col))
             row,col,inBounds = self.get_flow_to_cell(row, col)
+            length += self._georef_info.dx * (1.0 if (row == col) else 1.414)
             if not inBounds:
-                break    
-            
-            
+                break
         return tuple(l)
     
-    def search_down_flow_direction_from_xy_location(self, start):
+    def search_down_flow_direction_from_rowscols_location(self, start, return_rowscols = False, search_length = np.inf):
         
-        rcs = self.search_down_flow_direction(start)
-        #comment out below for original
-        return rcs
-        #uncomment below for original
-        #return self._rowscols_to_xy(rcs)
+        rcs = self.search_down_flow_direction(self._rowscols_to_xy(((start),))[0], search_length = search_length)
+        return rcs if return_rowscols else self._rowscols_to_xy(rcs)
+
+    def search_down_flow_direction_from_xy_location(self, start, return_rowscols=False, search_length=np.inf):
+
+        rcs = self.search_down_flow_direction(start, search_length=search_length)
+        return rcs if return_rowscols else self._rowscols_to_xy(rcs)
 
     def convert_rivertools_directions_to_arc(self):
         # Function to convert river tools flow directions to arcGisFlowDirections
@@ -1719,7 +1728,8 @@ class Gradient(BaseSpatialGrid):
         return return_object  
     
     def plot(self, **kwargs):
-        
+
+        interactive = kwargs.pop('interactive', True)
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         mag = np.sqrt(np.power(self._gx, 2) + np.power(self._gy, 2))
         direction = np.arctan2(self._gy,self._gx)*180 / np.pi
@@ -1734,8 +1744,12 @@ class Gradient(BaseSpatialGrid):
         plt.imshow(mag, extent = extent, **kwargs)
         plt.figure()
         plt.imshow(direction, extent = extent, **kwargs)
-        plt.ion()
-        plt.show(block = False)
+        if interactive:
+            plt.ion()
+            plt.show(block=False)
+        else:
+            plt.ioff()
+            plt.show(block=True)
 
 class ScarpWavelet(BaseSpatialGrid):
     
@@ -1790,7 +1804,7 @@ class ScarpWavelet(BaseSpatialGrid):
         distance = kwargs.pop('distance', None)
         orientation = kwargs.pop('orientation', None)
         hillshade = kwargs.pop('hillshade', None)
-        
+        interactive = kwargs.pop('interactive', True)
         adjust_orientations = False
         
         if elevation is not None and distance is not None:
@@ -1839,11 +1853,14 @@ class ScarpWavelet(BaseSpatialGrid):
         norm = colors.LogNorm()
         adjusted_orientations_rgba[:,:,3] = (~normalized_data.mask).astype(float)*norm(self._SNR)
         plt.imshow(adjusted_orientations_rgba, extent = extent, **kwargs)
-        plt.ion()
-
         plt.title(title)
+        if interactive:
+            plt.ion()
+            plt.show(block=False)
+        else:
+            plt.ioff()
+            plt.show(block=True)
 
-        plt.show(block = False)
 
     def calculate_valid_orientations(self,
                                      window_size,
@@ -1958,6 +1975,14 @@ class Mask(BaseSpatialGrid):
             for index in indexes:
                 self[index[0],index[1]] = 1
 
+    def perform_opening(self, structure = None, iterations = 1):
+        from scipy.ndimage.morphology import binary_opening
+        self._griddata = binary_opening(self._griddata, iterations = iterations, structure = structure)
+
+    def perform_erosion(self, structure = None, iterations = 1):
+        from scipy.ndimage.morphology import binary_erosion
+        self._griddata = binary_erosion(self._griddata, iterations = iterations, structure = structure)
+
 class LogArea(BaseSpatialGrid):
     
     dtype = uint8
@@ -2043,15 +2068,11 @@ class Laplacian(CalculationMixin, BaseSpatialGrid):
     
     def _create_from_elevation(self, *args, **kwargs):
 
+        from scipy.ndimage import laplace
         elevation = kwargs['elevation']
         
         self._copy_info_from_grid(elevation)
-        self.calcLaplacian()
-    
-    def calcLaplacian(self):
- 
-        Sx, Sy = self._calcFiniteSlopes(self._griddata, self._mean_pixel_dimension(), self._georef_info.nx, self._georef_info.ny)  # Calculate slope in X and Y directions    
-        self._griddata = self.calcFiniteCurv(self._griddata, self._mean_pixel_dimension())
+        self._griddata = laplace(elevation._griddata) / np.power(elevation._georef_info.dx,2)
     
 
 class GeographicLaplacian(GeographicGridMixin, Laplacian):
@@ -2416,7 +2437,7 @@ class AlongFlowSmoothing(object):
         upstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
         downstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
         downstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
-        visited = np.zeros_like(area._griddata).astype(bool)
+
         shape = upstream_i.shape
         indexes = area.sort(reverse=False)
         (i_s, j_s) = np.unravel_index(indexes, shape)
@@ -2424,8 +2445,7 @@ class AlongFlowSmoothing(object):
         def set_usdsindexes(ij):
             i, j = ij
             ds_i, ds_j, good = flow_direction.get_flow_to_cell(i, j)
-            if good and not visited[ds_i, ds_j]:
-                visited[i, j] = True
+            if good:
                 (downstream_i[i, j], downstream_j[i, j]) = (ds_i, ds_j)
                 (upstream_i[ds_i, ds_j], upstream_j[ds_i, ds_j]) = (i, j)
 
@@ -2755,6 +2775,25 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
                                    )
 
 
+    def calc_channel_slope(self, i, j, elevation, de, find_points_along_path):
+
+        points = find_points_along_path(i, j)
+        if points is not None:
+            pts = list(zip(*(points)))
+            points = np.array(pts).astype(int)
+            adjustment = np.ones((len(points[0])))
+            ind = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
+            adjustment[ind[0] + 1] += 0.414
+            elevation_profile = elevation._griddata[points[0], points[1]]
+            de_profile = de[points[0], points[1]]
+            dx = np.sum(de_profile * adjustment)
+            dy = elevation_profile[-1] - elevation_profile[0]
+            return dy / dx
+
+        else:
+
+            return np.nan
+
     def _create_from_elevation_flow_direction(self, *args, **kwargs):
 
         elevation = kwargs['elevation']
@@ -2766,24 +2805,6 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
 
         find_points_along_path = self._find_points_along_path(de, **kwargs)
 
-        def calc_channel_slope(i, j):
-
-            points = find_points_along_path(i, j)
-            if points is not None:
-                pts = list(zip(*(points)))
-                points = np.array(pts).astype(int)
-                adjustment = np.ones((len(points[0])))
-                ind = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
-                adjustment[ind[0] + 1] += 0.414
-                elevation_profile = elevation._griddata[points[0], points[1]]
-                de_profile = de[points[0], points[1]]
-                dx = np.sum(de_profile*adjustment)
-                dy = elevation_profile[-1] - elevation_profile[0]
-                return dy / dx
-
-            else:
-
-                return np.nan
 
         i = np.where(~np.isnan(elevation._griddata))
         ij = list(zip(i[0], i[1]))
@@ -2793,13 +2814,75 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
         for (i, j) in ij:
-            self._griddata[i, j] = calc_channel_slope(i, j)
+            self._griddata[i, j] = self.calc_channel_slope(i, j, elevation, de, find_points_along_path)
             counter += 1.0 / totalnumber
             if counter > next_readout:
                 sys.stdout.write(str(int(next_readout * 100)) + "...")
                 sys.stdout.flush()
                 next_readout += 0.1
+        sys.stdout.write('Percent completion...')
+        sys.stdout.flush()
+        sys.stdout.write('100')
+        sys.stdout.flush()
 
+class ChannelDownSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
+                                   (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'),
+                                   (('elevation', 'area', 'flow_direction',  'vertical_interval'),
+                                    '_create_from_elevation_area_flow_direction'),
+                                   (('elevation',  'area', 'flow_direction',  'horizontal_interval'),
+                                    '_create_from_elevation_flow_direction'),
+                                   )
+
+    def calc_channel_slope(self, i, j, elevation, de, find_points_along_path):
+
+        points = find_points_along_path(i, j)
+
+        if points is not None:
+            number_of_points = int(len(points) / 2.0)+1
+            points = points[0:number_of_points]
+            pts = list(zip(*(points)))
+            points = np.array(pts).astype(int)
+            adjustment = np.ones((len(points[0])))
+            ind = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
+            adjustment[ind[0] + 1] += 0.414
+            elevation_profile = elevation._griddata[points[0], points[1]]
+            de_profile = de[points[0], points[1]]
+            dx = np.sum(de_profile * adjustment)
+            dy = elevation_profile[-1] - elevation_profile[0]
+            return dy / dx
+
+        else:
+
+            return np.nan
+
+    def _create_from_elevation_flow_direction(self, *args, **kwargs):
+
+        elevation = kwargs['elevation']
+        de = elevation._mean_pixel_dimension()
+
+        self._copy_info_from_grid(elevation)
+        self._griddata = np.zeros_like(elevation._griddata)
+        self._griddata[:] = np.nan
+
+        find_points_along_path = self._find_points_along_path(de, **kwargs)
+
+        i = np.where(~np.isnan(elevation._griddata))
+        ij = list(zip(i[0], i[1]))
+        totalnumber = len(ij)
+        counter = 0.0
+        next_readout = 0.1
+        sys.stdout.write('Percent completion...')
+        sys.stdout.flush()
+        for (i, j) in ij:
+
+            self._griddata[i, j] = self.calc_channel_slope(i, j, elevation, de, find_points_along_path)
+            counter += 1.0 / totalnumber
+            if counter > next_readout:
+                sys.stdout.write(str(int(next_readout * 100)) + "...")
+                sys.stdout.flush()
+                next_readout += 0.1
         sys.stdout.write('Percent completion...')
         sys.stdout.flush()
         sys.stdout.write('100')
@@ -4084,7 +4167,8 @@ def plot(*args, **kwargs):
     
     grid1 = args[0]._griddata
     grid2 = args[1]._griddata
-    
+
+    interactive = kwargs.pop('interactive', True)
     if kwargs.get('xlabel') is None:
         xlabel = 'Grid 1'
     
@@ -4105,8 +4189,13 @@ def plot(*args, **kwargs):
     plt.plot(grid1[valid_indexes], grid2[valid_indexes], symbol)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-    plt.ion()
-    plt.show()
+    if interactive:
+        plt.ion()
+        plt.show(block=False)
+    else:
+        plt.ioff()
+        plt.show(block=True)
+
     ax = plt.gca()
     
     return ax
