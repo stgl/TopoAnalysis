@@ -221,7 +221,7 @@ class GDALMixin(object):
         georef_data = dict()
         
         with open(fileName, "r") as ascii_file:
-            for _ in xrange(6):
+            for _ in range(6):
                 line = ascii_file.readline()
                 (key, value) = (line.split()[0], float(line.split()[-1]))
                 georef_data[key.lower()] = value
@@ -2930,10 +2930,10 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             from numpy import fliplr as fliplr
             from numpy.fft import ifftshift
 
-            Xt = fliplr(X)
-            Yt = flipud(Y)
+            Xt = X
+            Yt = Y
 
-            FZ = fft2(Z._griddata)
+            FZ = fft2(fliplr(fliplr(Z._griddata)))
             FX1 = fft2(np.power(Xt, 2))
             FX2 = fft2(np.power(Yt, 2))
             FX3 = fft2(Xt * Yt)
