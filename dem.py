@@ -3031,13 +3031,15 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         d = d[i,j]
         e = e[i,j]
         f = f[i,j] + elevation_center
-        print('Window size = ' + str(de) + '/n' + 'a = ' + str(a) + ', b = ' + str(b) + ', c = ' + str(c)  + ', d = ' + str(d) + ', e = ' + str(e) + ', f = ' + str(f))
+        print('Window size = ' + str(de) + '\n' + 'a = ' + str(a) + ', b = ' + str(b) + ', c = ' + str(c)  + ', d = ' + str(d) + ', e = ' + str(e) + ', f = ' + str(f))
 
         (nx, ny, dx) = (elevation._georef_info.nx, elevation._georef_info.ny, elevation._georef_info.dx)
-        (xllcenter, yllcenter) = (elevation._georef_info.xllcenter, elevation._georef_info.xllcenter)
+        (xllcenter, yllcenter) = (elevation._georef_info.xllcenter, elevation._georef_info.yllcenter)
 
         [X,Y] = np.meshgrid(np.arange(xllcenter+dx/2, xllcenter + (nx-0.5)*dx, dx),np.arange(yllcenter+dx/2, yllcenter + (ny-0.5)*dx, dx))
-        return a*np.power(X,2) + b*np.power(Y,2) + c*X*Y + d*X + e*Y + f
+        X -= xa
+        Y -= ya
+        return a*np.power(X,2) + b*np.power(Y,2) + c*X*Y + d*X + e*Y + f, X, Y
 
 
     def _create_from_inputs(self, *args, **kwargs):
