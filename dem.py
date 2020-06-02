@@ -666,7 +666,13 @@ class BaseSpatialGrid(GDALMixin):
 
     def _mean_pixel_dimension(self, *args, **kwargs):
         return self._georef_info.dx * np.ones_like(self._griddata, dtype = float64)
-    
+
+    def get_XY_matricies(self):
+        xllc, yllc, nx, ny, dx = (self._georef_info.xllcenter, self._georef_info.yllcenter, self._georef_info.nx, self._georef_info.ny, self._georef_info.dx)
+        x = np.arange(xllc, xllc+(nx-1)*dx, dx)
+        y = np.arange(yllc, yllc+(ny-1)*dx, dx)
+        return np.meshgrid(x,y)
+
     def resample(self, de):
         return_grid = self.__class__()
         return_grid._copy_info_from_grid(self, set_zeros=True)
@@ -946,7 +952,7 @@ class BaseSpatialGrid(GDALMixin):
     def plot(self, **kwargs):
 
         interactive = kwargs.pop('interactive', True)
-        colorbar = kwargs.pop('colorbar', False)
+        colorbar = kwargs.pop('colorbar', True)
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         plt.imshow(self._griddata, extent = extent, **kwargs)
         if interactive:
@@ -3020,11 +3026,30 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
     @classmethod
     def _elevation_fit_for_location(cls, x, y, elevation, de, fix_center = False):
 
+        Z = Elevation()
+        Z._copy_info_from_grid(elevation, set_zeros=False)
+
+        needs_reshaping_x = ((Z._georef_info.nx % 2) != 1)
+        needs_reshaping_y = ((Z._georef_info.ny % 2) != 1)
+
+        if needs_reshaping_x:
+            nx = Z._georef_info.nx + 1
+            xllcenter = Z._georef_info.xllcenter - Z._georef_info.dx
+            Z._georef_info.nx = nx
+            Z._georef_info.xllcenter = xllcenter
+            Z._griddata = np.concatenate(((np.reshape(Z._griddata[:, 0], (Z._georef_info.ny, 1)), Z._griddata)), axis=1)
+        if needs_reshaping_y:
+            ny = Z._georef_info.ny + 1
+            yllcenter = Z._georef_info.yllcenter - Z._georef_info.dx
+            Z._georef_info.ny = ny
+            Z._georef_info.yllcenter = yllcenter
+            Z._griddata = np.concatenate(((np.reshape(Z._griddata[0, :], (1, Z._georef_info.nx)), Z._griddata)), axis=0)
+
         # Determine location in index space:
         ((i,j),) = elevation._xy_to_rowscols(((x,y),))
         ((xa, ya),) = elevation._rowscols_to_xy(((i,j),))
-        a,b,c,d,e,f = cls.Utilities._calc_coefficients_for_scale(elevation, de)
-        elevation_center = elevation[i,j]
+        a,b,c,d,e,f = cls.Utilities._calc_coefficients_for_scale(Z, de)
+        elevation_center = Z[i,j]
         a = a[i,j]
         b = b[i,j]
         c = c[i,j]
@@ -3033,13 +3058,22 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
         f = f[i,j] + elevation_center
         print('Window size = ' + str(de) + '\n' + 'a = ' + str(a) + ', b = ' + str(b) + ', c = ' + str(c)  + ', d = ' + str(d) + ', e = ' + str(e) + ', f = ' + str(f))
 
-        (nx, ny, dx) = (elevation._georef_info.nx, elevation._georef_info.ny, elevation._georef_info.dx)
-        (xllcenter, yllcenter) = (elevation._georef_info.xllcenter, elevation._georef_info.yllcenter)
+        (nx, ny, dx) = (Z._georef_info.nx, Z._georef_info.ny, Z._georef_info.dx)
+        (xllcenter, yllcenter) = (Z._georef_info.xllcenter, Z._georef_info.yllcenter)
 
         [X,Y] = np.meshgrid(np.arange(xllcenter+dx/2, xllcenter + (nx-0.5)*dx, dx),np.arange(yllcenter+dx/2, yllcenter + (ny-0.5)*dx, dx))
         X -= xa
         Y -= ya
-        return a*np.power(X,2) + b*np.power(Y,2) + c*X*Y + d*X + e*Y + f, X, Y
+
+        Z = Elevation()
+        Z._copy_info_from_grid(elevation, set_zeros=True)
+        Z._griddata = a*np.power(X,2) + b*np.power(Y,2) + c*X*Y + d*X + e*Y + f
+
+        start_x_index = 1 if needs_reshaping_x else 0
+        start_y_index = 1 if needs_reshaping_y else 0
+        Z._griddata = Z._griddata[start_y_index:, start_x_index:]
+
+        return Z
 
 
     def _create_from_inputs(self, *args, **kwargs):
