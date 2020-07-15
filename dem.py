@@ -2188,9 +2188,7 @@ class PriorityQueueMixIn(object):
                 if not closed[neighborRows[i], neighborCols[i]]:    
                     #If this was a hole (lower than the cell downstream), fill it
                     if self._griddata[neighborRows[i], neighborCols[i]] <= elevation:
-                        
-                        
-                        
+
                         if kwargs.get('maximum_pit_depth'):
                             fill_depth = elevation - self._griddata[neighborRows[i], neighborCols[i]]
                             if fill_depth > kwargs.get('maximum_pit_depth'):
