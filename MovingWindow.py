@@ -1,4 +1,4 @@
-import Error
+import error
 import numpy as np
 
 class MovingWindow(object):
@@ -7,11 +7,11 @@ class MovingWindow(object):
     
     def __init__(self, *args, **kwargs):
         if kwargs.get('window_dimension') is None:
-            raise Error.InputError('Window dimension','is a required parameter')
+            raise error.InputError('Window dimension', 'is a required parameter')
         self.window_dimension = kwargs.get('window_dimension')
         
         if self.__class__ is MovingWindow:
-            raise Error.Error('MovingWindow is an abstract base class')
+            raise error.Error('MovingWindow is an abstract base class')
     
     def _build_search_kernel(self, dx):        
         return None, None
@@ -58,7 +58,7 @@ class RectangularMovingWindow(MovingWindow):
     def __init__(self, *args, **kwargs):
         super(RectangularMovingWindow, self).__init__(*args, **kwargs)
         if self.__class__ is RectangularMovingWindow:
-            raise Error.Error('RectangularMovingWindow has no bound function')
+            raise error.Error('RectangularMovingWindow has no bound function')
         
     def _build_search_kernel(self, dx):
         # Function to build a search kernel that is either square or circular
@@ -73,7 +73,7 @@ class CircularMovingWindow(MovingWindow):
     def __init__(self, *args, **kwargs):
         super(CircularMovingWindow, self).__init__(*args, **kwargs)
         if self.__class__ is CircularMovingWindow:
-            raise Error.Error('CircularMovingWindow has no bound function')
+            raise error.Error('CircularMovingWindow has no bound function')
         
     def _build_search_kernel(self, dx):
         # Function to build a search kernel that is either square or circular

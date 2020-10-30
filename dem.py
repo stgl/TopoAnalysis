@@ -16,6 +16,7 @@ from numpy import uint8, int8, float64
 from matplotlib import pyplot as plt
 import sys
 from scipy import stats
+from . import error as Error
 
 try:
     import statsmodels.api as sm
@@ -226,7 +227,7 @@ class GDALMixin(object):
                 (key, value) = (line.split()[0], float(line.split()[-1]))
                 georef_data[key.lower()] = value
 
-        required_values = ('ncols', 'nrows', 'cellsize','nodata_value')
+        required_values = ('ncols', 'nrows', 'cellsize')
         
         if len(set(required_values).difference(set(georef_data.keys()))) != 0:
             raise Error.InputError('A/I ASCII grid error','The following properties are missing: ' + str(set(required_values).difference(set(georef_data.keys()))))
@@ -236,7 +237,7 @@ class GDALMixin(object):
         
         if georef_data.get('yllcorner') is None and georef_data.get('yllcenter') is None:
             raise Error.InputError('A/I ASCII grid error','Neither YLLCorner nor YLLCenter is present.')
-        
+
         dx = georef_data.get('cellsize')
         nx = int(georef_data.get('ncols'))
         ny = int(georef_data.get('nrows'))
@@ -2086,7 +2087,7 @@ class GeographicLaplacian(GeographicGridMixin, Laplacian):
 
 class PriorityQueueMixIn(object):
     
-    aggradation_slope = 0.000000001
+    aggradation_slope = 1E-12
 
     class priorityQueue:
         #Implements a priority queue using heapq. Python has a priority queue module built in, but it
