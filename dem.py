@@ -4,9 +4,7 @@
 #If you somehow have this, and have never spoken to me, please reach out
 #- I'd be curious to hear what you are doing (maybe I can even help with something!)
 
-from osgeo import gdal # Used to load gis in files
-#import osr # Used with gis files
-from osgeo import ogr, osr
+from osgeo import gdal, ogr, osr # Used to load gis in files
 import os # Used to join file paths, iteract with os in other ways..
 import glob  # Used for finding files that I want to mosaic (by allowing wildcard searches of the filesystem)
 import heapq # Used for constructing priority queue, which is used for filling dems
@@ -37,7 +35,7 @@ class GDALMixin(object):
     def _get_gdal_type_for_numpy_type(self, numpy_type):
     
         from numpy import float64, uint8, uint16, int16, uint32, int32, float32, complex64
-        from gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64, GDT_Unknown
+        from osgeo.gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64, GDT_Unknown
         
         type_map = { uint8: GDT_Byte,
                 uint16: GDT_UInt16,
@@ -58,7 +56,7 @@ class GDALMixin(object):
     def _get_numpy_type_for_gdal_type(self, gdal_type):
         
         from numpy import float64, uint8, uint16, int16, uint32, int32, float32, complex64
-        from gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64
+        from osgeo.gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64
                     
         type_map = { GDT_Byte: uint8,
                 GDT_UInt16: uint16,
