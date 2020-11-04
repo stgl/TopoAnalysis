@@ -5,8 +5,8 @@
 #- I'd be curious to hear what you are doing (maybe I can even help with something!)
 
 from osgeo import gdal # Used to load gis in files
-import osr # Used with gis files
-from osgeo import ogr
+#import osr # Used with gis files
+from osgeo import ogr, osr
 import os # Used to join file paths, iteract with os in other ways..
 import glob  # Used for finding files that I want to mosaic (by allowing wildcard searches of the filesystem)
 import heapq # Used for constructing priority queue, which is used for filling dems
