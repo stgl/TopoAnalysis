@@ -959,7 +959,6 @@ class BaseSpatialGrid(GDALMixin):
             plt.show(block=False)
         else:
             plt.ioff()
-            plt.show(block=True)
         if colorbar:
             plt.colorbar()
     
@@ -1312,48 +1311,54 @@ class FlowDirectionD8(FlowDirection):
 
         return options
     
-    def __get_flow_from_cell(self, i, j):
+    def __get_flow_from_cell(self, i, j, max_recursion_depth=None, depth=0):
         
         i_source = [i]
         j_source = [j]
-        
+
+        if max_recursion_depth is not None and depth > max_recursion_depth:
+            return i_source, j_source
+
+        recursion_depth = depth + 1
+
+
         if self[i, j+1] == 16:
-            [i_append, j_append] = self.__get_flow_from_cell(i,j+1)
+            [i_append, j_append] = self.__get_flow_from_cell(i,j+1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
         
         if self[i+1, j+1] == 32:
-            [i_append, j_append] = self.__get_flow_from_cell(i+1,j+1)
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j+1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
         if self[i+1, j] == 64:
-            [i_append, j_append] = self.__get_flow_from_cell(i+1,j)
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
         
         if self[i+1, j-1] == 128:
-            [i_append, j_append] = self.__get_flow_from_cell(i+1,j-1)
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j-1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
                 
         if self[i, j-1] == 1:
-            [i_append, j_append] = self.__get_flow_from_cell(i,j-1)
+            [i_append, j_append] = self.__get_flow_from_cell(i,j-1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
          
         if self[i-1, j-1] == 2:
-            [i_append, j_append] = self.__get_flow_from_cell(i-1,j-1)
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j-1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
         if self[i-1, j] == 4:
-            [i_append, j_append] = self.__get_flow_from_cell(i-1,j)
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j,max_recursion_depth = max_recursion_depth,depth = recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
         if self[i-1, j+1] == 8:
-            [i_append, j_append] = self.__get_flow_from_cell(i-1,j+1)
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j+1,max_recursion_depth = max_recursion_depth,depth = recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
                
@@ -2775,10 +2780,17 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
                                     '_create_from_elevation_flow_direction'),
                                    )
 
+    scale_factor = 1.0
+
+    def points_along_path(self, points, i, j):
+        return points
+
     def calc_channel_slope(self, i, j, elevation, de, find_points_along_path):
 
         points = find_points_along_path(i, j)
+
         if points is not None:
+            points = self.points_along_path(points, i, j)
             pts = list(zip(*(points)))
             points = np.array(pts).astype(int)
             adjustment = np.ones((len(points[0])))
@@ -2797,6 +2809,11 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
     def _create_from_elevation_flow_direction(self, *args, **kwargs):
 
         elevation = kwargs['elevation']
+        if kwargs.get('horizontal_interval') is not None:
+            kwargs['horizontal_interval'] = kwargs['horizontal_interval']*self.scale_factor
+        if kwargs.get('vertical_interval') is not None:
+            kwargs['vertical_interval'] = kwargs['vertical_interval']*self.scale_factor
+
         de = elevation._mean_pixel_dimension()
 
         self._copy_info_from_grid(elevation)
@@ -2824,7 +2841,7 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
         sys.stdout.write('100')
         sys.stdout.flush()
 
-class ChannelDownSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
+class ChannelDownSlopeWithSmoothing(ChannelSlopeWithSmoothing):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
                                    (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
                                    (('gdal_filename',), '_read_gdal'),
@@ -2833,58 +2850,26 @@ class ChannelDownSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
                                    (('elevation',  'area', 'flow_direction',  'horizontal_interval'),
                                     '_create_from_elevation_flow_direction'),
                                    )
+    scale_factor = 2.0
 
-    def calc_channel_slope(self, i, j, elevation, de, find_points_along_path):
+    def points_along_path(self, points, i, j):
+        position_of_center = list([ind[0] for ind in zip(range(len(points)),points) if (ind[1][0] == i and ind[1][1] == j)])[0]
+        return points[0:position_of_center]
 
-        points = find_points_along_path(i, j)
+class ChannelUpSlopeWithSmoothing(ChannelSlopeWithSmoothing):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
+                                   (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'),
+                                   (('elevation', 'area', 'flow_direction',  'vertical_interval'),
+                                    '_create_from_elevation_area_flow_direction'),
+                                   (('elevation',  'area', 'flow_direction',  'horizontal_interval'),
+                                    '_create_from_elevation_flow_direction'),
+                                   )
+    scale_factor = 2.0
 
-        if points is not None:
-            number_of_points = int(len(points) / 2.0)+1
-            points = points[0:number_of_points]
-            pts = list(zip(*(points)))
-            points = np.array(pts).astype(int)
-            adjustment = np.ones((len(points[0])))
-            ind = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
-            adjustment[ind[0] + 1] += 0.414
-            elevation_profile = elevation._griddata[points[0], points[1]]
-            de_profile = de[points[0], points[1]]
-            dx = np.sum(de_profile * adjustment)
-            dy = elevation_profile[-1] - elevation_profile[0]
-            return dy / dx
-
-        else:
-
-            return np.nan
-
-    def _create_from_elevation_flow_direction(self, *args, **kwargs):
-
-        elevation = kwargs['elevation']
-        de = elevation._mean_pixel_dimension()
-
-        self._copy_info_from_grid(elevation)
-        self._griddata = np.zeros_like(elevation._griddata)
-        self._griddata[:] = np.nan
-
-        find_points_along_path = self._find_points_along_path(de, **kwargs)
-
-        i = np.where(~np.isnan(elevation._griddata))
-        ij = list(zip(i[0], i[1]))
-        totalnumber = len(ij)
-        counter = 0.0
-        next_readout = 0.1
-        sys.stdout.write('Percent completion...')
-        sys.stdout.flush()
-        for (i, j) in ij:
-            self._griddata[i, j] = self.calc_channel_slope(i, j, elevation, de, find_points_along_path)
-            counter += 1.0 / totalnumber
-            if counter > next_readout:
-                sys.stdout.write(str(int(next_readout * 100)) + "...")
-                sys.stdout.flush()
-                next_readout += 0.1
-        sys.stdout.write('Percent completion...')
-        sys.stdout.flush()
-        sys.stdout.write('100')
-        sys.stdout.flush()
+    def points_along_path(self, points, i, j):
+        position_of_center = list([ind[0] for ind in zip(range(len(points)),points) if (ind[1][0] == i and ind[1][1] == j)])[0]
+        return points[position_of_center:]
 
 class GeographicKsFromChiWithSmoothing(GeographicGridMixin, KsFromChiWithSmoothing):
     pass
