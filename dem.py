@@ -2789,8 +2789,13 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
 
         points = find_points_along_path(i, j)
 
+        if points is None:
+            return np.nan
+
+        points = self.points_along_path(points, i, j)
+        
         if points is not None:
-            points = self.points_along_path(points, i, j)
+
             pts = list(zip(*(points)))
             points = np.array(pts).astype(int)
             adjustment = np.ones((len(points[0])))
