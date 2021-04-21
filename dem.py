@@ -2794,7 +2794,7 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
 
         points = self.points_along_path(points, i, j)
 
-        if points is not None or len(points) == 0:
+        if points is not None:
 
             pts = list(zip(*(points)))
             points = np.array(pts).astype(int)
@@ -2859,7 +2859,7 @@ class ChannelDownSlopeWithSmoothing(ChannelSlopeWithSmoothing):
 
     def points_along_path(self, points, i, j):
         position_of_center = list([ind[0] for ind in zip(range(len(points)),points) if (ind[1][0] == i and ind[1][1] == j)])[0]
-        return points[0:position_of_center]
+        return points[0:position_of_center] if len(points[0:position_of_center]) > 0 else None
 
 class ChannelUpSlopeWithSmoothing(ChannelSlopeWithSmoothing):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
@@ -2874,7 +2874,7 @@ class ChannelUpSlopeWithSmoothing(ChannelSlopeWithSmoothing):
 
     def points_along_path(self, points, i, j):
         position_of_center = list([ind[0] for ind in zip(range(len(points)),points) if (ind[1][0] == i and ind[1][1] == j)])[0]
-        return points[position_of_center:]
+        return points[position_of_center:] if len(points[position_of_center:]) > 0 else None
 
 class GeographicKsFromChiWithSmoothing(GeographicGridMixin, KsFromChiWithSmoothing):
     pass
