@@ -4,9 +4,7 @@
 #If you somehow have this, and have never spoken to me, please reach out
 #- I'd be curious to hear what you are doing (maybe I can even help with something!)
 
-from osgeo import gdal # Used to load gis in files
-import osr # Used with gis files
-from osgeo import ogr
+from osgeo import gdal, ogr, osr # Used to load gis in files
 import os # Used to join file paths, iteract with os in other ways..
 import glob  # Used for finding files that I want to mosaic (by allowing wildcard searches of the filesystem)
 import heapq # Used for constructing priority queue, which is used for filling dems
@@ -16,6 +14,7 @@ from numpy import uint8, int8, float64
 from matplotlib import pyplot as plt
 import sys
 from scipy import stats
+from . import error as Error
 
 try:
     import statsmodels.api as sm
@@ -36,7 +35,7 @@ class GDALMixin(object):
     def _get_gdal_type_for_numpy_type(self, numpy_type):
     
         from numpy import float64, uint8, uint16, int16, uint32, int32, float32, complex64
-        from gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64, GDT_Unknown
+        from osgeo.gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64, GDT_Unknown
         
         type_map = { uint8: GDT_Byte,
                 uint16: GDT_UInt16,
@@ -57,7 +56,7 @@ class GDALMixin(object):
     def _get_numpy_type_for_gdal_type(self, gdal_type):
         
         from numpy import float64, uint8, uint16, int16, uint32, int32, float32, complex64
-        from gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64
+        from osgeo.gdal import GDT_Byte, GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32, GDT_Float32, GDT_Float64, GDT_CFloat64
                     
         type_map = { GDT_Byte: uint8,
                 GDT_UInt16: uint16,
@@ -221,12 +220,12 @@ class GDALMixin(object):
         georef_data = dict()
         
         with open(fileName, "r") as ascii_file:
-            for _ in xrange(6):
+            for _ in range(6):
                 line = ascii_file.readline()
                 (key, value) = (line.split()[0], float(line.split()[-1]))
                 georef_data[key.lower()] = value
 
-        required_values = ('ncols', 'nrows', 'cellsize','nodata_value')
+        required_values = ('ncols', 'nrows', 'cellsize')
         
         if len(set(required_values).difference(set(georef_data.keys()))) != 0:
             raise Error.InputError('A/I ASCII grid error','The following properties are missing: ' + str(set(required_values).difference(set(georef_data.keys()))))
@@ -236,7 +235,7 @@ class GDALMixin(object):
         
         if georef_data.get('yllcorner') is None and georef_data.get('yllcenter') is None:
             raise Error.InputError('A/I ASCII grid error','Neither YLLCorner nor YLLCenter is present.')
-        
+
         dx = georef_data.get('cellsize')
         nx = int(georef_data.get('ncols'))
         ny = int(georef_data.get('nrows'))
@@ -666,7 +665,13 @@ class BaseSpatialGrid(GDALMixin):
 
     def _mean_pixel_dimension(self, *args, **kwargs):
         return self._georef_info.dx * np.ones_like(self._griddata, dtype = float64)
-    
+
+    def get_XY_matricies(self):
+        xllc, yllc, nx, ny, dx = (self._georef_info.xllcenter, self._georef_info.yllcenter, self._georef_info.nx, self._georef_info.ny, self._georef_info.dx)
+        x = np.arange(xllc, xllc+(nx-1)*dx, dx)
+        y = np.arange(yllc, yllc+(ny-1)*dx, dx)
+        return np.meshgrid(x,y)
+
     def resample(self, de):
         return_grid = self.__class__()
         return_grid._copy_info_from_grid(self, set_zeros=True)
@@ -946,7 +951,7 @@ class BaseSpatialGrid(GDALMixin):
     def plot(self, **kwargs):
 
         interactive = kwargs.pop('interactive', True)
-        colorbar = kwargs.pop('colorbar', False)
+        colorbar = kwargs.pop('colorbar', True)
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         plt.imshow(self._griddata, extent = extent, **kwargs)
         if interactive:
@@ -954,7 +959,6 @@ class BaseSpatialGrid(GDALMixin):
             plt.show(block=False)
         else:
             plt.ioff()
-            plt.show(block=True)
         if colorbar:
             plt.colorbar()
     
@@ -1307,48 +1311,54 @@ class FlowDirectionD8(FlowDirection):
 
         return options
     
-    def __get_flow_from_cell(self, i, j):
+    def __get_flow_from_cell(self, i, j, max_recursion_depth=None, depth=0):
         
         i_source = [i]
         j_source = [j]
-        
+
+        if max_recursion_depth is not None and depth > max_recursion_depth:
+            return i_source, j_source
+
+        recursion_depth = depth + 1
+
+
         if self[i, j+1] == 16:
-            [i_append, j_append] = self.__get_flow_from_cell(i,j+1)
+            [i_append, j_append] = self.__get_flow_from_cell(i,j+1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
         
         if self[i+1, j+1] == 32:
-            [i_append, j_append] = self.__get_flow_from_cell(i+1,j+1)
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j+1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
         if self[i+1, j] == 64:
-            [i_append, j_append] = self.__get_flow_from_cell(i+1,j)
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
         
         if self[i+1, j-1] == 128:
-            [i_append, j_append] = self.__get_flow_from_cell(i+1,j-1)
+            [i_append, j_append] = self.__get_flow_from_cell(i+1,j-1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
                 
         if self[i, j-1] == 1:
-            [i_append, j_append] = self.__get_flow_from_cell(i,j-1)
+            [i_append, j_append] = self.__get_flow_from_cell(i,j-1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
          
         if self[i-1, j-1] == 2:
-            [i_append, j_append] = self.__get_flow_from_cell(i-1,j-1)
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j-1,max_recursion_depth=max_recursion_depth,depth=recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
         if self[i-1, j] == 4:
-            [i_append, j_append] = self.__get_flow_from_cell(i-1,j)
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j,max_recursion_depth = max_recursion_depth,depth = recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
             
         if self[i-1, j+1] == 8:
-            [i_append, j_append] = self.__get_flow_from_cell(i-1,j+1)
+            [i_append, j_append] = self.__get_flow_from_cell(i-1,j+1,max_recursion_depth = max_recursion_depth,depth = recursion_depth)
             i_source = i_source + i_append
             j_source = j_source + j_append
                
@@ -1487,19 +1497,24 @@ class FlowDirectionD8(FlowDirection):
         ((i, j),) = self._xy_to_rowscols(v)
         return self.get_indexes_of_upstream_cells(i, j)
         
-    def search_down_flow_direction(self, start, search_length = np.inf):
+    def search_down_flow_direction(self, start, search_length = np.inf, len_out = False):
         l = list()
-
+        len = list()
         ((row,col),) = self._xy_to_rowscols((start,))
         length = 0.0
         while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1 or \
                    (row,col) in l) and (length < search_length):
             l.append((row, col))
+            if len_out:
+            	len.append(length)
             row,col,inBounds = self.get_flow_to_cell(row, col)
             length += self._georef_info.dx * (1.0 if (row == col) else 1.414)
             if not inBounds:
                 break
-        return tuple(l)
+        if len_out:
+        	return tuple(l), tuple(len)
+        else:
+        	return tuple(l)
     
     def search_down_flow_direction_from_rowscols_location(self, start, return_rowscols = False, search_length = np.inf):
         
@@ -2081,7 +2096,7 @@ class GeographicLaplacian(GeographicGridMixin, Laplacian):
 
 class PriorityQueueMixIn(object):
     
-    aggradation_slope = 0.000000001
+    aggradation_slope = 1E-12
 
     class priorityQueue:
         #Implements a priority queue using heapq. Python has a priority queue module built in, but it
@@ -2183,9 +2198,7 @@ class PriorityQueueMixIn(object):
                 if not closed[neighborRows[i], neighborCols[i]]:    
                     #If this was a hole (lower than the cell downstream), fill it
                     if self._griddata[neighborRows[i], neighborCols[i]] <= elevation:
-                        
-                        
-                        
+
                         if kwargs.get('maximum_pit_depth'):
                             fill_depth = elevation - self._griddata[neighborRows[i], neighborCols[i]]
                             if fill_depth > kwargs.get('maximum_pit_depth'):
@@ -2437,7 +2450,6 @@ class AlongFlowSmoothing(object):
         upstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
         downstream_i = (np.ones_like(area._griddata) * -1.0).astype(int)
         downstream_j = (np.ones_like(area._griddata) * -1.0).astype(int)
-
         shape = upstream_i.shape
         indexes = area.sort(reverse=False)
         (i_s, j_s) = np.unravel_index(indexes, shape)
@@ -2774,11 +2786,22 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
                                     '_create_from_elevation_flow_direction'),
                                    )
 
+    scale_factor = 1.0
+
+    def points_along_path(self, points, i, j):
+        return points
 
     def calc_channel_slope(self, i, j, elevation, de, find_points_along_path):
 
         points = find_points_along_path(i, j)
+
+        if points is None or len(points) == 0:
+            return np.nan
+
+        points = self.points_along_path(points, i, j)
+
         if points is not None:
+
             pts = list(zip(*(points)))
             points = np.array(pts).astype(int)
             adjustment = np.ones((len(points[0])))
@@ -2797,6 +2820,11 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
     def _create_from_elevation_flow_direction(self, *args, **kwargs):
 
         elevation = kwargs['elevation']
+        if kwargs.get('horizontal_interval') is not None:
+            kwargs['horizontal_interval'] = kwargs['horizontal_interval']*self.scale_factor
+        if kwargs.get('vertical_interval') is not None:
+            kwargs['vertical_interval'] = kwargs['vertical_interval']*self.scale_factor
+
         de = elevation._mean_pixel_dimension()
 
         self._copy_info_from_grid(elevation)
@@ -2804,7 +2832,6 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
         self._griddata[:] = np.nan
 
         find_points_along_path = self._find_points_along_path(de, **kwargs)
-
 
         i = np.where(~np.isnan(elevation._griddata))
         ij = list(zip(i[0], i[1]))
@@ -2825,7 +2852,7 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
         sys.stdout.write('100')
         sys.stdout.flush()
 
-class ChannelDownSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
+class ChannelDownSlopeWithSmoothing(ChannelSlopeWithSmoothing):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
                                    (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
                                    (('gdal_filename',), '_read_gdal'),
@@ -2834,59 +2861,26 @@ class ChannelDownSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
                                    (('elevation',  'area', 'flow_direction',  'horizontal_interval'),
                                     '_create_from_elevation_flow_direction'),
                                    )
+    scale_factor = 2.0
 
-    def calc_channel_slope(self, i, j, elevation, de, find_points_along_path):
+    def points_along_path(self, points, i, j):
+        position_of_center = list([ind[0] for ind in zip(range(len(points)),points) if (ind[1][0] == i and ind[1][1] == j)])[0]
+        return points[0:position_of_center] if len(points[0:position_of_center]) > 0 else None
 
-        points = find_points_along_path(i, j)
+class ChannelUpSlopeWithSmoothing(ChannelSlopeWithSmoothing):
+    required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',), '_create'),
+                                   (('ai_ascii_filename', 'EPSGprojectionCode'), '_read_ai'),
+                                   (('gdal_filename',), '_read_gdal'),
+                                   (('elevation', 'area', 'flow_direction',  'vertical_interval'),
+                                    '_create_from_elevation_area_flow_direction'),
+                                   (('elevation',  'area', 'flow_direction',  'horizontal_interval'),
+                                    '_create_from_elevation_flow_direction'),
+                                   )
+    scale_factor = 2.0
 
-        if points is not None:
-            number_of_points = int(len(points) / 2.0)+1
-            points = points[0:number_of_points]
-            pts = list(zip(*(points)))
-            points = np.array(pts).astype(int)
-            adjustment = np.ones((len(points[0])))
-            ind = np.where((points[0, 1:-1] != points[0, 2:]) & (points[1, 1:-1] != points[1, 2:]))
-            adjustment[ind[0] + 1] += 0.414
-            elevation_profile = elevation._griddata[points[0], points[1]]
-            de_profile = de[points[0], points[1]]
-            dx = np.sum(de_profile * adjustment)
-            dy = elevation_profile[-1] - elevation_profile[0]
-            return dy / dx
-
-        else:
-
-            return np.nan
-
-    def _create_from_elevation_flow_direction(self, *args, **kwargs):
-
-        elevation = kwargs['elevation']
-        de = elevation._mean_pixel_dimension()
-
-        self._copy_info_from_grid(elevation)
-        self._griddata = np.zeros_like(elevation._griddata)
-        self._griddata[:] = np.nan
-
-        find_points_along_path = self._find_points_along_path(de, **kwargs)
-
-        i = np.where(~np.isnan(elevation._griddata))
-        ij = list(zip(i[0], i[1]))
-        totalnumber = len(ij)
-        counter = 0.0
-        next_readout = 0.1
-        sys.stdout.write('Percent completion...')
-        sys.stdout.flush()
-        for (i, j) in ij:
-
-            self._griddata[i, j] = self.calc_channel_slope(i, j, elevation, de, find_points_along_path)
-            counter += 1.0 / totalnumber
-            if counter > next_readout:
-                sys.stdout.write(str(int(next_readout * 100)) + "...")
-                sys.stdout.flush()
-                next_readout += 0.1
-        sys.stdout.write('Percent completion...')
-        sys.stdout.flush()
-        sys.stdout.write('100')
-        sys.stdout.flush()
+    def points_along_path(self, points, i, j):
+        position_of_center = list([ind[0] for ind in zip(range(len(points)),points) if (ind[1][0] == i and ind[1][1] == j)])[0]
+        return points[position_of_center:] if len(points[position_of_center:]) > 0 else None
 
 class GeographicKsFromChiWithSmoothing(GeographicGridMixin, KsFromChiWithSmoothing):
     pass
@@ -2935,10 +2929,10 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
             from numpy import fliplr as fliplr
             from numpy.fft import ifftshift
 
-            Xt = fliplr(X)
-            Yt = flipud(Y)
+            Xt = X
+            Yt = Y
 
-            FZ = fft2(Z._griddata)
+            FZ = fft2(fliplr(fliplr(Z._griddata)))
             FX1 = fft2(np.power(Xt, 2))
             FX2 = fft2(np.power(Yt, 2))
             FX3 = fft2(Xt * Yt)
@@ -3025,24 +3019,54 @@ class MultiscaleCurvatureValleyWidth(BaseSpatialGrid):
     @classmethod
     def _elevation_fit_for_location(cls, x, y, elevation, de, fix_center = False):
 
+        Z = Elevation()
+        Z._copy_info_from_grid(elevation, set_zeros=False)
+
+        needs_reshaping_x = ((Z._georef_info.nx % 2) != 1)
+        needs_reshaping_y = ((Z._georef_info.ny % 2) != 1)
+
+        if needs_reshaping_x:
+            nx = Z._georef_info.nx + 1
+            xllcenter = Z._georef_info.xllcenter - Z._georef_info.dx
+            Z._georef_info.nx = nx
+            Z._georef_info.xllcenter = xllcenter
+            Z._griddata = np.concatenate(((np.reshape(Z._griddata[:, 0], (Z._georef_info.ny, 1)), Z._griddata)), axis=1)
+        if needs_reshaping_y:
+            ny = Z._georef_info.ny + 1
+            yllcenter = Z._georef_info.yllcenter - Z._georef_info.dx
+            Z._georef_info.ny = ny
+            Z._georef_info.yllcenter = yllcenter
+            Z._griddata = np.concatenate(((np.reshape(Z._griddata[0, :], (1, Z._georef_info.nx)), Z._griddata)), axis=0)
+
         # Determine location in index space:
         ((i,j),) = elevation._xy_to_rowscols(((x,y),))
         ((xa, ya),) = elevation._rowscols_to_xy(((i,j),))
-        a,b,c,d,e,f = cls.Utilities._calc_coefficients_for_scale(elevation, de)
-        elevation_center = elevation[i,j]
+        a,b,c,d,e,f = cls.Utilities._calc_coefficients_for_scale(Z, de)
+        elevation_center = Z[i,j]
         a = a[i,j]
         b = b[i,j]
         c = c[i,j]
         d = d[i,j]
         e = e[i,j]
         f = f[i,j] + elevation_center
-        print('Window size = ' + str(de) + '/n' + 'a = ' + str(a) + ', b = ' + str(b) + ', c = ' + str(c)  + ', d = ' + str(d) + ', e = ' + str(e) + ', f = ' + str(f))
+        print('Window size = ' + str(de) + '\n' + 'a = ' + str(a) + ', b = ' + str(b) + ', c = ' + str(c)  + ', d = ' + str(d) + ', e = ' + str(e) + ', f = ' + str(f))
 
-        (nx, ny, dx) = (elevation._georef_info.nx, elevation._georef_info.ny, elevation._georef_info.dx)
-        (xllcenter, yllcenter) = (elevation._georef_info.xllcenter, elevation._georef_info.xllcenter)
+        (nx, ny, dx) = (Z._georef_info.nx, Z._georef_info.ny, Z._georef_info.dx)
+        (xllcenter, yllcenter) = (Z._georef_info.xllcenter, Z._georef_info.yllcenter)
 
         [X,Y] = np.meshgrid(np.arange(xllcenter+dx/2, xllcenter + (nx-0.5)*dx, dx),np.arange(yllcenter+dx/2, yllcenter + (ny-0.5)*dx, dx))
-        return a*np.power(X,2) + b*np.power(Y,2) + c*X*Y + d*X + e*Y + f
+        X -= xa
+        Y -= ya
+
+        Z = Elevation()
+        Z._copy_info_from_grid(elevation, set_zeros=True)
+        Z._griddata = a*np.power(X,2) + b*np.power(Y,2) + c*X*Y + d*X + e*Y + f
+
+        start_x_index = 1 if needs_reshaping_x else 0
+        start_y_index = 1 if needs_reshaping_y else 0
+        Z._griddata = Z._griddata[start_y_index:, start_x_index:]
+
+        return Z
 
 
     def _create_from_inputs(self, *args, **kwargs):
