@@ -1497,18 +1497,24 @@ class FlowDirectionD8(FlowDirection):
         ((i, j),) = self._xy_to_rowscols(v)
         return self.get_indexes_of_upstream_cells(i, j)
         
-    def search_down_flow_direction(self, start, search_length = np.inf):
+    def search_down_flow_direction(self, start, search_length = np.inf, len_out = False):
         l = list()
+        len = list()
         ((row,col),) = self._xy_to_rowscols((start,))
         length = 0.0
         while not (row == 0 or row == self._georef_info.ny-1 or col == 0 or col == self._georef_info.nx - 1 or \
                    (row,col) in l) and (length < search_length):
             l.append((row, col))
+            if len_out:
+            	len.append(length)
             row,col,inBounds = self.get_flow_to_cell(row, col)
             length += self._georef_info.dx * (1.0 if (row == col) else 1.414)
             if not inBounds:
                 break
-        return tuple(l)
+        if len_out:
+        	return tuple(l), tuple(len)
+        else:
+        	return tuple(l)
     
     def search_down_flow_direction_from_rowscols_location(self, start, return_rowscols = False, search_length = np.inf):
         
