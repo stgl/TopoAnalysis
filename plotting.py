@@ -1,5 +1,4 @@
-import dem as d
-import demRecursionTools as drt
+from . import dem as d
 import numpy as np
 import matplotlib.pylab as plt
 
@@ -178,4 +177,3 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
         return hoverwrapper
     
     fig1.canvas.mpl_connect('motion_notify_event', hover(current_marker, Ao, theta))
-    
