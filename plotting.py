@@ -1,5 +1,4 @@
 from . import dem as d
-import numpy as np
 import matplotlib.pylab as plt
 
 def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downstream = True, start_at = 0.0, mean_pixel_dimension = None, figure = None):
