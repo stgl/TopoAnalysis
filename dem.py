@@ -513,6 +513,8 @@ class BaseSpatialGrid(GDALMixin):
                                    (('gdal_filename',), '_read_gdal'), 
                                    (('nx', 'ny', 'dx'), '_create_random_grid'),)
     dtype = float64
+
+    # BaseSpatialGrid is a class for all rasters
     
     def __deepcopy__(self, memo):
         import copy
