@@ -1369,57 +1369,85 @@ class FlowDirectionD8(FlowDirection):
         return i_source, j_source
 
     def __map_flow_from_cell(self, index, **kwargs):
-        
-        (i, j) = index
+
+        if len(index) == 1:
+            (i, j) = index[0]
+        else:
+            (i, j) = index
 
         return_dict = dict()
         
         return_dict['index'] = index
         for arg in kwargs:
-            return_dict[arg] = kwargs[arg][i,j]
+            if arg != 'assume_valid_routing':
+                return_dict[arg] = kwargs[arg][i,j]
         
         return_dict['next'] = []
         return_dict['distance_scale'] = 1.0
         
         if self[i, j+1] == 16:
-            return_dict['distance_scale'] = 1.0
-            child_dict = self.__map_flow_from_cell((i,j+1), **kwargs)
-            return_dict['next'].append(child_dict)
+            if kwargs.get('assume_valid_routing', True) or not self.visited[i, j+1]:
+                if not kwargs.get('assume_valid_routing', True):
+                    self.visited[i, j+1] = True
+                return_dict['distance_scale'] = 1.0
+                child_dict = self.__map_flow_from_cell((i,j+1), **kwargs)
+                return_dict['next'].append(child_dict)
         
         if self[i+1, j+1] == 32:
-            return_dict['distance_scale'] = 1.4142135623730951
-            child_dict = self.__map_flow_from_cell((i+1,j+1), **kwargs)
-            return_dict['next'].append(child_dict)
+            if kwargs.get('assume_valid_routing', True) or not self.visited[i+1, j+1]:
+                if not kwargs.get('assume_valid_routing', True):
+                    self.visited[i+1, j+1] = True
+                return_dict['distance_scale'] = 1.4142135623730951
+                child_dict = self.__map_flow_from_cell((i+1,j+1), **kwargs)
+                return_dict['next'].append(child_dict)
 
         if self[i+1, j] == 64:
-            return_dict['distance_scale'] = 1.0
-            child_dict = self.__map_flow_from_cell((i+1,j), **kwargs)
-            return_dict['next'].append(child_dict)
+            if kwargs.get('assume_valid_routing', True) or not self.visited[i+1, j]:
+                if not kwargs.get('assume_valid_routing', True):
+                    self.visited[i+1, j] = True
+                return_dict['distance_scale'] = 1.0
+                child_dict = self.__map_flow_from_cell((i+1,j), **kwargs)
+                return_dict['next'].append(child_dict)
         
         if self[i+1, j-1] == 128:
-            return_dict['distance_scale'] = 1.4142135623730951
-            child_dict = self.__map_flow_from_cell((i+1,j-1), **kwargs)
-            return_dict['next'].append(child_dict)
+            if kwargs.get('assume_valid_routing', True) or not self.visited[i+1, j-1]:
+                if not kwargs.get('assume_valid_routing', True):
+                    self.visited[i+1, j-1] = True
+                return_dict['distance_scale'] = 1.4142135623730951
+                child_dict = self.__map_flow_from_cell((i+1,j-1), **kwargs)
+                return_dict['next'].append(child_dict)
                 
         if self[i, j-1] == 1:
-            return_dict['distance_scale'] = 1.0
-            child_dict = self.__map_flow_from_cell((i,j-1), **kwargs)
-            return_dict['next'].append(child_dict)
+            if kwargs.get('assume_valid_routing', True) or not self.visited[i, j-1]:
+                if not kwargs.get('assume_valid_routing', True):
+                    self.visited[i, j-1] = True
+                return_dict['distance_scale'] = 1.0
+                child_dict = self.__map_flow_from_cell((i,j-1), **kwargs)
+                return_dict['next'].append(child_dict)
 
         if self[i-1, j-1] == 2:
-            return_dict['distance_scale'] = 1.4142135623730951
-            child_dict = self.__map_flow_from_cell((i-1,j-1), **kwargs)
-            return_dict['next'].append(child_dict)
+            if kwargs.get('assume_valid_routing', True) or not self.visited[i-1, j-1]:
+                if not kwargs.get('assume_valid_routing', True):
+                    self.visited[i-1, j-1] = True
+                return_dict['distance_scale'] = 1.4142135623730951
+                child_dict = self.__map_flow_from_cell((i-1,j-1), **kwargs)
+                return_dict['next'].append(child_dict)
             
         if self[i-1, j] == 4:
-            return_dict['distance_scale'] = 1.0
-            child_dict = self.__map_flow_from_cell((i-1,j), **kwargs)
-            return_dict['next'].append(child_dict)
+            if kwargs.get('assume_valid_routing', True) or not self.visited[i-1, j]:
+                if not kwargs.get('assume_valid_routing', True):
+                    self.visited[i-1, j] = True
+                return_dict['distance_scale'] = 1.0
+                child_dict = self.__map_flow_from_cell((i-1,j), **kwargs)
+                return_dict['next'].append(child_dict)
             
         if self[i-1, j+1] == 8:
-            return_dict['distance_scale'] = 1.4142135623730951
-            child_dict = self.__map_flow_from_cell((i-1,j+1), **kwargs)
-            return_dict['next'].append(child_dict)
+            if kwargs.get('assume_valid_routing', True) or not self.visited[i-1, j+1]:
+                if not kwargs.get('assume_valid_routing', True):
+                    self.visited[i-1, j+1] = True
+                return_dict['distance_scale'] = 1.4142135623730951
+                child_dict = self.__map_flow_from_cell((i-1,j+1), **kwargs)
+                return_dict['next'].append(child_dict)
         
         if len(return_dict.get('next', 0)) == 0:
             return_dict.pop('next')
@@ -1554,8 +1582,11 @@ class FlowDirectionD8(FlowDirection):
         
         v = (outlet, )
         (ij_outlet, ) = self._xy_to_rowscols(v)
-        return self.__map_flow_from_cell(ij_outlet, **kwargs)
-    
+        if kwargs.get('assume_valid_routing', True) is False:
+            self.visited = np.zeros_like(self._griddata).astype(bool)
+        return self.__map_flow_from_cell((ij_outlet,), **kwargs)
+
+
     def bounds_of_basin_for_outlet(self, outlet):
         
         (lat, lon) = outlet
