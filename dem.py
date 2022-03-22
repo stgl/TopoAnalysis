@@ -511,7 +511,8 @@ class BaseSpatialGrid(GDALMixin):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
-                                   (('nx', 'ny', 'dx'), '_create_random_grid'),)
+                                   (('nx', 'ny', 'dx'), '_create_random_grid'),
+                                   (('dx', 'grid'), '_create_from_grid'))
     dtype = float64
 
     # BaseSpatialGrid is a class for all rasters
@@ -584,7 +585,7 @@ class BaseSpatialGrid(GDALMixin):
         self._georef_info.projection = kwargs.get('projection')
         self.__populate_georef_info_using_geoTransform(kwargs['nx'], kwargs['ny'])
         if kwargs.get('grid') is None:
-            self._griddata = np.zeros(shape = (self._geref_info.ny,self._georef_info.nx), dtype = self.dtype)
+            self._griddata = np.zeros(shape = (self._georef_info.ny,self._georef_info.nx), dtype = self.dtype)
         else:
             self._griddata = kwargs.get('grid')
 
@@ -595,6 +596,15 @@ class BaseSpatialGrid(GDALMixin):
         self._georef_info.xllcenter = 0
         self._georef_info.yllcenter = 0
         self._randomize_grid_values(*args, **kwargs)
+
+    def _create_from_grid(self, *args, **kwargs):
+        self._georef_info.dx = kwargs['dx']
+        (ny, nx) = kwargs['grid'].shape
+        self._georef_info.nx = nx
+        self._georef_info.ny = ny
+        self._georef_info.xllcenter = 0
+        self._georef_info.yllcenter = 0
+        self._griddata = kwargs['grid']
     
     def _randomize_grid_values(self, *args, **kwargs):
         if kwargs.get('mask') is not None:
@@ -961,7 +971,8 @@ class BaseSpatialGrid(GDALMixin):
             plt.colorbar(im)
         if interactive:
             plt.ion()
-            plt.show(block=False)
+            plt.show()
+            plt.pause(0.001)
         else:
             plt.ioff()
 
@@ -1143,7 +1154,8 @@ class ValueGrid(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
-                                   (('gdal_filename',), '_read_gdal'))
+                                   (('gdal_filename',), '_read_gdal'),
+                                   (('dx', 'grid'), '_create_from_grid'))
     
     def set_value_at_indexes(self, indexes, value):
         ij = zip(*indexes)
@@ -2302,7 +2314,8 @@ class Area(BaseSpatialGrid):
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
                                    (('ai_ascii_filename','EPSGprojectionCode'),'_read_ai'),
                                    (('gdal_filename',), '_read_gdal'), 
-                                   (('flow_direction',), '_create_from_flow_direction'))    
+                                   (('flow_direction',), '_create_from_flow_direction'),
+                                   (('dx', 'grid'), '_create_from_grid'))
 
     def _create_from_flow_direction(self, *args, **kwargs):
         
