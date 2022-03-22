@@ -969,7 +969,7 @@ class BaseSpatialGrid(GDALMixin):
         plt.axis(extent)
         if interactive:
             plt.ion()
-            plt.show()
+            plt.show(block = False)
         else:
             plt.ioff()
         im = plt.imshow(self._griddata, extent = extent, **kwargs)
@@ -977,6 +977,8 @@ class BaseSpatialGrid(GDALMixin):
             plt.colorbar(im)
         plt.draw()
         plt.pause(0.001)
+        if interactive:
+            plt.show()
     
     def find_nearest_cell_with_value(self, index, value, pixel_radius):
 
