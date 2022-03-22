@@ -966,16 +966,17 @@ class BaseSpatialGrid(GDALMixin):
         colorbar = kwargs.pop('colorbar', True)
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
         plt.figure()
-        im = plt.imshow(self._griddata, extent = extent, **kwargs)
-        if colorbar:
-            plt.colorbar(im)
+        plt.axis(extent)
         if interactive:
             plt.ion()
             plt.show()
-            plt.pause(0.001)
         else:
             plt.ioff()
-
+        im = plt.imshow(self._griddata, extent = extent, **kwargs)
+        if colorbar:
+            plt.colorbar(im)
+        plt.draw()
+        plt.pause(0.001)
     
     def find_nearest_cell_with_value(self, index, value, pixel_radius):
 
