@@ -965,7 +965,7 @@ class BaseSpatialGrid(GDALMixin):
         interactive = kwargs.pop('interactive', True)
         colorbar = kwargs.pop('colorbar', True)
         extent = [self._georef_info.xllcenter, self._georef_info.xllcenter+(self._georef_info.nx-0.5)*self._georef_info.dx, self._georef_info.yllcenter, self._georef_info.yllcenter+(self._georef_info.ny-0.5)*self._georef_info.dx]
-        plt.figure()
+        fig = plt.figure()
         plt.axis(extent)
         if interactive:
             plt.ion()
@@ -979,6 +979,8 @@ class BaseSpatialGrid(GDALMixin):
         plt.pause(0.001)
         if interactive:
             plt.show()
+        return fig
+
     
     def find_nearest_cell_with_value(self, index, value, pixel_radius):
 
@@ -3545,11 +3547,11 @@ class FlowLength(BaseSpatialGrid):
         
         import copy
         return_grid.__flow_directions = copy.deepcopy(self.__flow_directions)
-        lower_left = (extent[0], extent[2])
-        upper_right = (extent[1], extent[3])
+        lower_left = (extent[0]-self._georef_info.dx, extent[2]-self._georef_info.dx)
+        upper_right = (extent[1]+self._georef_info.dx, extent[3]+self._georef_info.dx)
         idx = self._xy_to_rowscols((lower_left, upper_right))
-        return_grid.__flow_directions = return_grid.__flow_directions[idx[1][0]:idx[0][0],idx[0][1]:idx[1][1]]
-        
+        return_grid.__flow_directions = return_grid._griddata[idx[1][0]+1:idx[0][0]+1,idx[0][1]:idx[1][1]]
+                
         return return_grid
 
     def map_values_to_recursive_list(self, outlet, **kwargs):
