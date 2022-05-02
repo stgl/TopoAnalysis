@@ -844,8 +844,8 @@ class BaseSpatialGrid(GDALMixin):
         import copy
         return_grid = copy.deepcopy(self)
         return_grid._georef_info = copy.deepcopy(self._georef_info)
-        lower_left = (extent[0]-self._georef_info.dx, extent[2]-self._georef_info.dx)
-        upper_right = (extent[1]+self._georef_info.dx, extent[3]+self._georef_info.dx)
+        lower_left = (extent[0]+self._georef_info.dx, extent[2]+self._georef_info.dx)
+        upper_right = (extent[1]-self._georef_info.dx, extent[3]-self._georef_info.dx)
         idx = self._xy_to_rowscols((lower_left, upper_right))
         return_grid._griddata = return_grid._griddata[idx[1][0]+1:idx[0][0]+1,idx[0][1]:idx[1][1]]
         return_grid._georef_info.nx = return_grid._griddata.shape[1]
@@ -3547,11 +3547,11 @@ class FlowLength(BaseSpatialGrid):
         
         import copy
         return_grid.__flow_directions = copy.deepcopy(self.__flow_directions)
-        lower_left = (extent[0]-self._georef_info.dx, extent[2]-self._georef_info.dx)
-        upper_right = (extent[1]+self._georef_info.dx, extent[3]+self._georef_info.dx)
+        lower_left = (extent[0]+self._georef_info.dx, extent[2]+self._georef_info.dx)
+        upper_right = (extent[1]-self._georef_info.dx, extent[3]-self._georef_info.dx)
         idx = self._xy_to_rowscols((lower_left, upper_right))
         return_grid.__flow_directions = return_grid._griddata[idx[1][0]+1:idx[0][0]+1,idx[0][1]:idx[1][1]]
-                
+
         return return_grid
 
     def map_values_to_recursive_list(self, outlet, **kwargs):
