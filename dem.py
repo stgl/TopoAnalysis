@@ -1555,8 +1555,9 @@ class FlowDirectionD8(FlowDirection):
                    (row,col) in l) and (length < search_length):
             l.append((row, col))
             length_list.append(length)
-            row,col,inBounds = self.get_flow_to_cell(row, col)
-            length += self._georef_info.dx * (1.0 if (row == col) else 1.414)
+            row_n,col_n,inBounds = self.get_flow_to_cell(row, col)
+            length += self._georef_info.dx * (1.0 if ((row_n == row) or (col_n == col)) else 1.414)
+            (row, col) = (row_n, col_n)
             if not inBounds:
                 break
         return tuple(l), tuple(length_list)
