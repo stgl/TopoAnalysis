@@ -2495,6 +2495,7 @@ class AlongFlowSmoothing(object):
     def _find_points_along_path(self, de, **kwargs):
         area = kwargs['area']
         flow_direction = kwargs['flow_direction']
+        elevation = kwargs['elevation']
 
         import time
         t1 = time.time()
@@ -2530,10 +2531,11 @@ class AlongFlowSmoothing(object):
                     return None
                 ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
                 delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
+
                 while (delta_e < vertical_interval) & (ups_i >= 0):
                     (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
                     (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
-                    if (ups_i < 0) or (ds_i < 0):
+                    if (ups_i < 0) or (ds_i < 0) or ((ups_i == ds_i) and (ups_j == ds_j)):
                         return None
                     ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
                     delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
@@ -2556,7 +2558,7 @@ class AlongFlowSmoothing(object):
                 while (horizontal_distance < horizontal_interval) & (ups_i >= 0):
                     (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
                     (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
-                    if (ups_i < 0) or (ds_i < 0):
+                    if (ups_i < 0) or (ds_i < 0) or ((ups_i == ds_i) and (ups_j == ds_j)):
                         return None
                     horizontal_distance += (1.0 if ((ds_i == ret[0][0]) or (ds_j == ret[0][1])) else 1.414) * de[
                         ds_i, ds_j] + (1.0 if ((ups_i == ret[-1][0]) or (ups_j == ret[-1][1])) else 1.414) * de[
@@ -2870,13 +2872,15 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
 
             return np.nan
 
-    def _create_from_elevation_flow_direction(self, *args, **kwargs):
+    def _create_from_elevation_area_flow_direction(self, *args, **kwargs):
 
         elevation = kwargs['elevation']
+        area = kwargs['area']
         if kwargs.get('horizontal_interval') is not None:
             kwargs['horizontal_interval'] = kwargs['horizontal_interval']*self.scale_factor
         if kwargs.get('vertical_interval') is not None:
             kwargs['vertical_interval'] = kwargs['vertical_interval']*self.scale_factor
+        min_area = kwargs.get('min_area', 1E6)
 
         de = elevation._mean_pixel_dimension()
 
@@ -2886,7 +2890,7 @@ class ChannelSlopeWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
 
         find_points_along_path = self._find_points_along_path(de, **kwargs)
 
-        i = np.where(~np.isnan(elevation._griddata))
+        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata) & (area._griddata > min_area))
         ij = list(zip(i[0], i[1]))
         totalnumber = len(ij)
         counter = 0.0
