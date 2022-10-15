@@ -684,7 +684,7 @@ class BaseSpatialGrid(GDALMixin):
         y = np.arange(yllc, yllc+(ny-1)*dx, dx)
         return np.meshgrid(x,y)
 
-    def resample(self, de):
+    def resample(self, de, interpolation = 'quintic'):
         return_grid = self.__class__()
         return_grid._copy_info_from_grid(self, set_zeros=True)
         import copy
@@ -711,7 +711,7 @@ class BaseSpatialGrid(GDALMixin):
             interp_grid = np.fliplr(interp_grid)
         if geoTransform[5] < 0:
             interp_grid = np.flipud(interp_grid)
-        f = interp2d(xo, yo, interp_grid, kind='quintic')
+        f = interp2d(xo, yo, interp_grid, kind=interpolation)
         return_grid._griddata = f(xf, yf)
         return return_grid
     
