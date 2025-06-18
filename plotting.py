@@ -1,5 +1,6 @@
 from . import dem as d
 import matplotlib.pylab as plt
+import numpy as np
 
 def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downstream = True, start_at = 0.0, mean_pixel_dimension = None, figure = None):
     
@@ -34,11 +35,16 @@ def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downst
             
     plt.figure(figure.number)
     plt.plot(length, elevation_profile, plot_code)
+    return rows, cols, length, elevation_profile
     
 def plot_recursive_upstream_profiles(elevation, flow_direction, area, outlet, plot_code, downstream = False, start_at = 0.0, figure = None, minimum_area = 1.0E6):
     
     def plot_ld_link(current_length, ld_list, plot_code, downstream_sign, minimum_area):
-        (current_row, current_column) = ld_list['index']
+        if len(ld_list['index']) == 1:
+            (current_row, current_column) = ld_list['index'][0]
+        else:
+            (current_row, current_column) = ld_list['index']
+
         
         if ld_list.get('next') is None:
             return
@@ -65,10 +71,10 @@ def plot_recursive_upstream_profiles(elevation, flow_direction, area, outlet, pl
     else:
         downstream_sign = -1.0
         
-    if figure is None:
-        figure = plt.figure()
+    #if figure is None:
+    #    figure = plt.figure()
     
-    plt.figure(figure.number)
+    #plt.figure(figure.number)
     plot_ld_link(current_length, ld_list, plot_code, downstream_sign, minimum_area)
     
 

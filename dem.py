@@ -1738,6 +1738,9 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
             this_xy = txy
         return xy, l, e
 
+class GeographicElevation(GeographicGridMixin, Elevation):
+    pass
+
 class Gradient(BaseSpatialGrid):
     
     required_inputs_and_actions = ((('nx', 'ny', 'projection', 'geo_transform',),'_create'),
@@ -2237,7 +2240,7 @@ class PriorityQueueMixIn(object):
             if kwargs.get('binary_result') is True or kwargs.get('clip_to_fill') is True:
                 visited[row, col] = 1.0
             
-            elevation = self[row,col]
+            elevation = max(priority, self[row,col])
             
             neighborRows, neighborCols, dxMults = self._getNeighborIndices(row, col)
             
@@ -2496,6 +2499,7 @@ class AlongFlowSmoothing(object):
         area = kwargs['area']
         flow_direction = kwargs['flow_direction']
         elevation = kwargs['elevation']
+        area_threshold = kwargs.get('area_threshold', 0)
 
         import time
         t1 = time.time()
@@ -2532,7 +2536,7 @@ class AlongFlowSmoothing(object):
                 ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
                 delta_e = elevation._griddata[ups_i, ups_j] - elevation._griddata[ds_i, ds_j]
 
-                while (delta_e < vertical_interval) & (ups_i >= 0):
+                while (delta_e < vertical_interval) & (ups_i >= 0) & (area._griddata[ups_i, ups_j] > area_threshold):
                     (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
                     (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
                     if (ups_i < 0) or (ds_i < 0) or ((ups_i == ds_i) and (ups_j == ds_j)):
@@ -2555,7 +2559,7 @@ class AlongFlowSmoothing(object):
                 ret = [(ds_i, ds_j)] + ret + [(ups_i, ups_j)]
                 horizontal_distance += ((1.0 if ((ds_i == this_i) or (ds_j == this_j)) else 1.414) + (
                     1.0 if ((ups_i == this_i) or (ups_j == this_j)) else 1.414)) * de[this_i, this_j]
-                while (horizontal_distance < horizontal_interval) & (ups_i >= 0):
+                while (horizontal_distance < horizontal_interval) & (ups_i >= 0) & (area._griddata[ups_i, ups_j] > area_threshold):
                     (ups_i, ups_j) = (upstream_i[ups_i, ups_j], upstream_j[ups_i, ups_j])
                     (ds_i, ds_j) = (downstream_i[ds_i, ds_j], downstream_j[ds_i, ds_j])
                     if (ups_i < 0) or (ds_i < 0) or ((ups_i == ds_i) and (ups_j == ds_j)):
@@ -2580,6 +2584,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
         elevation = kwargs['elevation']
         area = kwargs['area']
         theta = kwargs['theta']
+        area_threshold = kwargs.get('area_threshold', 0)
         de = area._mean_pixel_dimension()
         
         self._copy_info_from_grid(elevation)
@@ -2618,7 +2623,7 @@ class KsFromChiWithSmoothing(BaseSpatialGrid, AlongFlowSmoothing):
                 
                 return np.nan, np.nan, np.nan, np.nan, [[],[]], np.nan, 0 
         
-        i = np.where((area._griddata != 0) & ~np.isnan(area._griddata) & ~np.isnan(elevation._griddata))
+        i = np.where(~np.isnan(area._griddata) & ~np.isnan(elevation._griddata) & (area._griddata > area_threshold))
         ij = list(zip(i[0],i[1]))
         totalnumber = len(ij)
         counter = 0.0    

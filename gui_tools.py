@@ -1,7 +1,7 @@
 import matplotlib
 matplotlib.use('TKAgg')
 
-import dem as d
+import TopoAnalysis.dem as d
 import matplotlib.pylab as plt
 import numpy as np
 import pickle as p
