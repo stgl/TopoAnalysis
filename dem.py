@@ -1671,7 +1671,7 @@ class Elevation(CalculationMixin, BaseSpatialGrid):
     def findDEMedge(self):
         #Pad the data so that we can take a windowed max
         original = np.zeros((self._georef_info.ny, self._georef_info.nx))
-        i = np.where(np.isnan(self._griddata) | (self._griddata == 0))
+        i = np.where(np.isnan(self._griddata))
         original[i] = 1
         
         from scipy.ndimage.morphology import binary_dilation as dilation
@@ -2209,11 +2209,12 @@ class PriorityQueueMixIn(object):
             #using_mask = True
             edgeRows = [a[0] for a in v]
             edgeCols = [a[1] for a in v]
-        if kwargs.get('randomize') is True:
-            self._randomize_grid_values(mask = kwargs['mask'])
-        if kwargs.get('outlets') is None:
+        else:
             #Add all the edge cells to the priority queue, mark those cells as draining (not closed)
             edgeRows, edgeCols = self.findDEMedge()
+        
+        if kwargs.get('randomize') is True:
+            self._randomize_grid_values(mask = kwargs['mask'])
         
         should_randomize_priority_queue = False
         
@@ -2263,14 +2264,13 @@ class PriorityQueueMixIn(object):
                             self._griddata[neighborRows[i], neighborCols[i]] = elevation + self.aggradation_slope*dxs[i]
     
                     closed[neighborRows[i], neighborCols[i]] = True
-                    if should_randomize_priority_queue:
-                        #if not using_mask or (using_mask and ~edge_of_mask_is_in_kernel):
-                        
-                        if should_fill:
-                            priority_queue.put(np.random.rand(1)[0], [neighborRows[i], neighborCols[i]])
-                    else:
-                        if should_fill:
-                            priority_queue.put(self._griddata[neighborRows[i], neighborCols[i]], [neighborRows[i], neighborCols[i]])
+                    if should_fill:
+                        if should_randomize_priority_queue:
+                            # Use elevation as primary priority, random value for tie-breaking
+                            priority = self._griddata[neighborRows[i], neighborCols[i]] + np.random.rand(1)[0] * 1e-10
+                        else:
+                            priority = self._griddata[neighborRows[i], neighborCols[i]]
+                        priority_queue.put(priority, [neighborRows[i], neighborCols[i]])
             
         if kwargs.get('binary_result'):
             self._griddata = visited
