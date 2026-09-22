@@ -1,13 +1,21 @@
-from . import dem as d
+"""Longitudinal- and chi-profile plotting helpers."""
+
 import matplotlib.pylab as plt
 import numpy as np
+
+try:  # pragma: no cover - exercised by whichever import style is in use
+    from . import dem as d
+    from . import demRecursionTools
+except ImportError:  # pragma: no cover
+    import dem as d
+    import demRecursionTools
 
 def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downstream = True, start_at = 0.0, mean_pixel_dimension = None, figure = None):
     
     rc = flow_direction.search_down_flow_direction(outlet)
     
-    rows = np.array(list(zip(*rc))[0], dtype = np.int)
-    cols = np.array(list(zip(*rc))[1], dtype = np.int)
+    rows = np.array(list(zip(*rc))[0], dtype=int)
+    cols = np.array(list(zip(*rc))[1], dtype=int)
     
     if downstream:
         direction = 1.0
@@ -40,10 +48,7 @@ def plot_downstream_profile(elevation, flow_direction, outlet, plot_code, downst
 def plot_recursive_upstream_profiles(elevation, flow_direction, area, outlet, plot_code, downstream = False, start_at = 0.0, figure = None, minimum_area = 1.0E6):
     
     def plot_ld_link(current_length, ld_list, plot_code, downstream_sign, minimum_area):
-        if len(ld_list['index']) == 1:
-            (current_row, current_column) = ld_list['index'][0]
-        else:
-            (current_row, current_column) = ld_list['index']
+        (current_row, current_column) = ld_list['index']
 
         
         if ld_list.get('next') is None:
@@ -149,9 +154,7 @@ def interactive_chi_profiles_and_map_view(prefix, code, plot_code, dem, fd, area
     outlets = pickle.load(open('outlets.p', 'rb'))
     outlet = outlets[prefix][code]
     
-    from demRecursionTools import map_chi_profiles
-    
-    chi_map = map_chi_profiles(dem, fd, area, outlet, minimum_area = minimum_area, theta = theta, Ao = Ao)
+    chi_map = demRecursionTools.map_chi_profiles(dem, fd, area, outlet, minimum_area = minimum_area, theta = theta, Ao = Ao)
     indexes = chi_map.keys()
     import operator
     (chi, _) = list(zip(*operator.itemgetter(*indexes)(chi_map)))

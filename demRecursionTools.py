@@ -1,4 +1,15 @@
+"""Profile extraction and chi/steepness fitting over recursive basin maps.
+
+These functions consume the nested dictionaries produced by
+:meth:`TopoAnalysis.dem.FlowDirectionD8.map_values_to_recursive_list`.
+"""
+
 import numpy as np
+
+try:  # pragma: no cover - exercised by whichever import style is in use
+    from . import dem as d
+except ImportError:  # pragma: no cover
+    import dem as d
 
 def extract_chi_elevation_values(ld_list, de, theta, chi_o, elevation, chi, base_elevation, A_mdx = None, xo = 500.0):
 
@@ -113,7 +124,8 @@ def hi_list(ld_list):
     
     elevation, dA = extract_dA_elevation_values(ld_list)
    
-    if np.nan in elevation:
+    # `np.nan in array` is always False (NaN != NaN); test explicitly.
+    if np.isnan(elevation).any():
         return 0.0
 
     mean_elevation = np.mean(elevation)
@@ -124,7 +136,6 @@ def hi_list(ld_list):
 
 def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevation, area, theta = 0.5, minimum_area = 1.0E7):
     
-    import dem as d
     mean_pixel_dimension = d.BaseSpatialGrid()
     mean_pixel_dimension._copy_info_from_grid(area, True)
     mean_pixel_dimension._griddata = area._mean_pixel_dimension()
@@ -163,7 +174,8 @@ def area_elevation_for_mainstem_and_tributaries(outlet, flow_direction, elevatio
         for trb_ld in tributary_ld:
             this_area = [trb_ld['area']]
             this_elevation = [trb_ld['elevation']]
-            this_de = [trb_ld['de']+trb_ld['distance_scale']]
+            # '*' not '+': de is a length and distance_scale is a multiplier.
+            this_de = [trb_ld['de'] * trb_ld['distance_scale']]
             (this_area, this_elevation, this_de, next_tributary_ld) = get_elevations_and_areas(trb_ld, this_area, this_elevation, this_de, next_tributary_ld, minimum_area)
             area.append(this_area)
             elevation.append(this_elevation)
@@ -203,7 +215,7 @@ def best_ks_theta_wrss_for_outlet(outlet, flow_direction, elevation, area, minim
     
     def best_ks_with_wrss(chi, elevation):
         A = np.vstack([chi]).T
-        sol = np.linalg.lstsq(A, elevation)
+        sol = np.linalg.lstsq(A, elevation, rcond=None)
         m = sol[0]
         WRSS = sol[1]        
         return (m, WRSS)
@@ -291,7 +303,7 @@ def best_ks_theta(outlet, flow_direction, elevation, area, minimum_area):
 
     def best_ks_with_wrss(chi, elevation):
         A = np.vstack([chi]).T
-        sol = np.linalg.lstsq(A, elevation)
+        sol = np.linalg.lstsq(A, elevation, rcond=None)
         m = sol[0]
         WRSS = sol[1]        
         return (m, WRSS)
@@ -356,7 +368,6 @@ def map_chi_profiles(elevation, flow_direction, area, outlet, minimum_area = 1.0
                 return_map[index] = (next_chi, next_elevation)
                 map_ld_link(next_chi, next_list, downstream_sign, minimum_area)
     
-    import dem as d                            
     mean_pixel_dimension = d.BaseSpatialGrid()
     mean_pixel_dimension._copy_info_from_grid(area, True)
     mean_pixel_dimension._griddata = area._mean_pixel_dimension()

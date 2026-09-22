@@ -1,0 +1,119 @@
+[build-system]
+requires = ["setuptools>=64", "wheel", "pybind11>=2.6"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "TopoAnalysis"
+version = "1.0.0"
+description = "Digital elevation model analysis for tectonic geomorphology"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    { name = "Sam Johnstone" },
+    { name = "George Hilley" },
+]
+keywords = [
+    "geomorphology",
+    "digital elevation model",
+    "flow routing",
+    "priority flood",
+    "chi analysis",
+    "channel steepness",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+dependencies = [
+    "numpy>=1.20",
+    "scipy>=1.7",
+    "matplotlib>=3.3",
+]
+
+[project.optional-dependencies]
+# GDAL is deliberately not a hard dependency, and this extra will not work on
+# its own.  There is no GDAL wheel on PyPI at any version for any platform:
+# every release is an sdist that compiles the bindings against a GDAL C
+# library which must already exist on the machine.  Declaring it here would
+# therefore turn a missing C library into a failed install of TopoAnalysis
+# itself, rather than the missing-file-I/O it actually is.
+#
+# Use one of these instead, both of which install the C library too:
+#     python install.py            (from a clone -- does everything)
+#     topoanalysis-gdal install    (once TopoAnalysis is installed)
+#
+# The extra remains for the case where the C library is already present and
+# only the bindings are wanted.
+gdal = ["GDAL>=3.0"]
+stats = ["statsmodels>=0.12"]
+parallel = ["dask[delayed]>=2021.0"]
+quadrats = ["rasterio>=1.2"]
+test = ["pytest>=7.0", "pytest-cov"]
+# The docs are Markdown and are read as-is on the repository page;
+# these are only needed to build them as a Sphinx site.
+docs = ["sphinx>=5.0", "sphinx-rtd-theme", "myst-parser"]
+# Deliberately without GDAL.  Including it would make `pip install .[all]`
+# fail on any machine without a GDAL C library already installed -- which is
+# most of them -- and take the rest of the package down with it.  GDAL is
+# installed by `python install.py` or `topoanalysis-gdal install`, both of
+# which supply the C library as well.
+all = [
+    "statsmodels>=0.12",
+    "dask[delayed]>=2021.0",
+    "rasterio>=1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/stanford-geomorph/TopoAnalysis"
+
+[project.scripts]
+topoanalysis-process = "TopoAnalysis.cli:main"
+topoanalysis-gdal = "TopoAnalysis.gdal_setup:main"
+
+# ---------------------------------------------------------------------------
+# The repository root *is* the package directory, so the package is mapped
+# explicitly rather than discovered.  This keeps ``import TopoAnalysis.dem``
+# working for anyone who already has the parent directory on their path, while
+# still producing a normal installable distribution.
+# ---------------------------------------------------------------------------
+[tool.setuptools]
+include-package-data = true
+packages = ["TopoAnalysis"]
+
+[tool.setuptools.package-dir]
+TopoAnalysis = "."
+
+[tool.setuptools.package-data]
+# The test suite ships with the package so an installed copy can be
+# checked: `pytest --pyargs` needs a package, so point pytest at the
+# directory instead -- `python -m pytest $(python -c "import
+# TopoAnalysis, os; print(os.path.dirname(TopoAnalysis.__file__))")/tests`.
+TopoAnalysis = ["_cpp/*.hpp", "_cpp/*.cpp", "tests/*.py", "conftest.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Import test modules by path rather than by dotted name.  The checkout
+# directory is itself a package, and under the default "prepend" mode pytest
+# derives a module name from the directory's *name* -- which is not a valid
+# identifier when the checkout is called TopoAnalysis-main (a GitHub zip) or
+# anything else with a hyphen in it.
+addopts = "--import-mode=importlib"
+# install.py puts .venv inside this directory, because the directory is the
+# package.  Nothing good comes of pytest walking into it.
+norecursedirs = [".venv", "venv", "build", "dist", "*.egg-info", ".git"]
+filterwarnings = [
+    "error::DeprecationWarning:TopoAnalysis.*",
+]
+markers = [
+    "gdal: requires the GDAL Python bindings",
+    "slow: takes more than a second",
+    "parity: checks numerical agreement with TopoToolbox",
+]
+
+[tool.coverage.run]
+source = ["TopoAnalysis"]
+omit = ["*/tests/*", "*/gui_tools.py"]

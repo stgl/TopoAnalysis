@@ -1,0 +1,16 @@
+-r requirements.txt
+
+# Building the C++ kernels.
+pybind11>=2.6
+setuptools>=64
+wheel
+
+# Optional runtime extras that the test suite exercises.
+statsmodels>=0.12
+
+# Testing and docs.
+pytest>=7.0
+pytest-cov
+sphinx>=5.0
+sphinx-rtd-theme
+myst-parser
