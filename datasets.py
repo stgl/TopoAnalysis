@@ -6,7 +6,10 @@ import numpy as np
 
 from scipy.signal import sawtooth
 
-from dem import Elevation
+try:  # pragma: no cover - exercised by whichever import style is in use
+    from .dem import Elevation
+except ImportError:  # pragma: no cover
+    from dem import Elevation
 
 
 def triangle_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
@@ -45,12 +48,11 @@ def triangle_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
     if slope_y:
         y = np.linspace(0, ny, num=ny).reshape(ny, 1)
         X = np.tile(y, (1, nx))
-        tilt = slope_y * X
-        triangle *= tilt
+        # Added, not multiplied: a slope is a ramp superimposed on the
+        # relief, whereas multiplying scaled the relief and zeroed row 0.
+        triangle = triangle + slope_y * X
 
-    out_obj = Elevation(nx = nx, ny = ny, dx = 1.0)
-    out_obj._griddata = triangle
-    return out_obj
+    return Elevation(dx=1.0, grid=triangle)
 
 
 def sinusoid_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
@@ -89,9 +91,6 @@ def sinusoid_grid(ny, nx, width, amp=1, sig=0, slope_y=None):
     if slope_y:
         y = np.linspace(0, ny, num=ny).reshape(ny, 1)
         X = np.tile(y, (1, nx))
-        tilt = slope_y * X
-        sinusoid *= tilt
+        sinusoid = sinusoid + slope_y * X
 
-    out_obj = Elevation(nx = nx, ny = ny, dx = 1.0)
-    out_obj._griddata = sinusoid
-    return out_obj
+    return Elevation(dx=1.0, grid=sinusoid)

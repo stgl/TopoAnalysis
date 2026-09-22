@@ -1,4 +1,36 @@
+# Build artefacts
+build/
+dist/
+*.egg-info/
+*.so
+*.pyd
+*.o
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments. install.py creates .venv here, because this directory is
+# itself the package.
+.venv/
+venv/
+
+# Where a from-source GDAL build installs when it has nowhere better
+share/topoanalysis/
+
+# Docs
+docs/_build/
+
+# Editors
+.idea/
+.vscode/
 .metadata
-*.pyc
-.idea
-.idea/*
+.project
+.pydevproject
+.settings/
+
+# macOS
+.DS_Store

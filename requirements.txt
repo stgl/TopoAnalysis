@@ -1,0 +1,8 @@
+# Runtime dependencies.
+#
+# GDAL is deliberately absent: it cannot be installed reliably from PyPI on
+# every platform, and TopoAnalysis only needs it for file I/O.  Install it
+# from conda-forge (see environment.yml) or your system package manager.
+numpy>=1.20
+scipy>=1.7
+matplotlib>=3.3

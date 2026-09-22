@@ -1,4 +1,7 @@
-import dem as d
+try:  # pragma: no cover - exercised by whichever import style is in use
+    from . import dem as d
+except ImportError:  # pragma: no cover
+    import dem as d
 
 def process_dem(dem_name, EPSGcode, folder_name = '.'):
 
@@ -39,8 +42,16 @@ def calc_ks_and_associated_grids(dem_name, Ao, theta, v, folder_name = '.', use_
     else:
         mask = None
         
-    from denudationRateAnalysis import calculate_ks_for_sample
-    return calculate_ks_for_sample(v, d8, ksi, relief, area, Ao = Ao, mask = mask)
+    # denudationRateAnalysis is a separate, unpublished module; import it
+    # lazily so that the rest of process_dem works without it.
+    try:
+        from denudationRateAnalysis import calculate_ks_for_sample
+    except ImportError as exc:  # pragma: no cover - external dependency
+        raise ImportError(
+            "calc_ks_and_associated_grids needs the separate "
+            "denudationRateAnalysis module, which is not part of TopoAnalysis."
+        ) from exc
+    return calculate_ks_for_sample(v, d8, ksi, relief, area, Ao=Ao, mask=mask)
 
 
     

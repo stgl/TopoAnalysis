@@ -1,9 +1,9 @@
-import numpy as np
-import rasterio
-
-import matplotlib.pyplot as plt
+"""Quadrat sampling of a raster."""
 
 from itertools import product
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 class Quadrats(object):
@@ -22,6 +22,18 @@ class Quadrats(object):
             self.quadrats = []
 
     def load_data(self, filename, band=1):
+        """Read a raster band with rasterio.
+
+        rasterio is imported here rather than at module scope so that the
+        rest of this module works without it.
+        """
+        try:
+            import rasterio
+        except ImportError as exc:  # pragma: no cover - environment dependent
+            raise ImportError(
+                "Quadrats.load_data needs rasterio; install it with "
+                "`pip install rasterio`, or pass data=... instead."
+            ) from exc
         with rasterio.open(filename, 'r') as src:
             self.data = src.read(band)
 

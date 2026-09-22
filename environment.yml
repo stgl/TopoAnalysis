@@ -1,9 +1,24 @@
-name: TopoAnalysis
+# Conda environment for TopoAnalysis.
+#
+#   conda env create -f environment.yml
+#   conda activate topoanalysis
+#   pip install -e .
+#
+# conda-forge is listed first because it is the only channel that reliably
+# provides a working GDAL together with a matching libstdc++.
+name: topoanalysis
 channels:
-  - defaults
   - conda-forge
+  - defaults
 dependencies:
-  - numpy
-  - matplotlib
-  - gdal
-  - scipy
+  - python>=3.8
+  - numpy>=1.20
+  - scipy>=1.7
+  - matplotlib-base>=3.3
+  - gdal>=3.0          # file I/O only; the rest of the library runs without it
+  - pybind11>=2.6      # builds the Priority-Flood kernels
+  - compilers          # a C++17 toolchain on every platform
+  - statsmodels>=0.12  # channel-steepness regressions
+  - dask>=2021.0       # optional parallel multiscale curvature
+  - pytest>=7.0
+  - pip

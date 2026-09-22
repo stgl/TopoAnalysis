@@ -1,16 +1,20 @@
-import matplotlib
-matplotlib.use('TKAgg')
+"""Interactive outlet picking.
 
-import TopoAnalysis.dem as d
+Needs an interactive matplotlib backend; if figures do not appear, select
+one before importing, e.g. ``matplotlib.use('TkAgg')``.
+"""
+
+import pickle as p
+
 import matplotlib.pylab as plt
 import numpy as np
-import pickle as p
-import matplotlib.cm as cm
-import sys
 
-if sys.version_info[0] >= 3:
-    raw_input = input
-    
+try:  # pragma: no cover - exercised by whichever import style is in use
+    from . import dem as d
+except ImportError:  # pragma: no cover
+    import dem as d
+
+
 def plot_dem(dem, hs):
     plt.close('all')
 
@@ -33,8 +37,9 @@ def select_outlets(dem, fd, prefix, hs = None, outlet_filename = 'outlets.p', co
         print('\nClick on point upstream of outlet.')
         xy = plt.ginput(1)[0]
         xy_path = fd.search_down_flow_direction_from_xy_location(xy)
-        plt.plot(xy)
-        plt.plot(xy_path)
+        if not xy_path:
+            print('No flow path from that point; try again.')
+            continue
         xy_path_plot = list(zip(*xy_path))
         path = plt.plot(xy_path_plot[0],xy_path_plot[1], color+'-')
         print('\nClick on the outlet location.')
@@ -52,7 +57,7 @@ def select_outlets(dem, fd, prefix, hs = None, outlet_filename = 'outlets.p', co
         plt.plot(outlet_loc[0], outlet_loc[1], color+'o')
         path.pop(0).remove()
     
-        outlet_prefix = raw_input('Type a name for this outlet (leaving this blank will prevent outlet from being saved and will complete the selection process: ')
+        outlet_prefix = input('Type a name for this outlet (leaving this blank will prevent outlet from being saved and will complete the selection process: ')
     
         if outlet_prefix != '':
             import os.path

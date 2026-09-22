@@ -1,0 +1,29 @@
+# Sources needed to rebuild the C++ extension from an sdist.
+include _cpp/*.hpp
+include _cpp/*.cpp
+
+include pyproject.toml
+include setup.py
+include README.md
+include CHANGELOG.md
+include environment.yml
+include requirements.txt
+include requirements-dev.txt
+include Makefile
+include install.py
+include Dockerfile
+
+recursive-include docs *.md
+recursive-include docs *.py
+recursive-include tests *.py
+
+# install.py creates .venv here, because this directory is the package.
+prune .venv
+prune venv
+prune build
+prune dist
+
+exclude .DS_Store
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store
