@@ -4,6 +4,10 @@ on:
   push:
     branches: [master, main]
   pull_request:
+    # `labeled` is here so that adding the `test-source-build` label to an
+    # open pull request is enough to start the long job below, without
+    # needing a dummy commit to wake the workflow up.
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
   # The from-source GDAL build takes about half an hour, so it runs on a
   # schedule rather than on every push -- but it has to run *somewhere*,
@@ -185,10 +189,55 @@ jobs:
         working-directory: TopoAnalysis
         run: python -m pytest -q
 
+  # Windows has no gdal-config and no source build, so the only practical
+  # route is a wheel that bundles the C library.  That makes this the one
+  # strategy with no fallback behind it, and worth testing on its own.
+  gdal-on-windows:
+    name: GDAL on Windows (prebuilt wheel)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: TopoAnalysis
+      - uses: actions/setup-python@v5
+        with:
+          # The wheels are published for recent CPythons only.
+          python-version: '3.12'
+      - name: Install TopoAnalysis
+        working-directory: TopoAnalysis
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+      - name: Install GDAL
+        working-directory: TopoAnalysis
+        run: python -m TopoAnalysis.gdal_setup install
+      - name: The doctor must agree that it worked
+        working-directory: TopoAnalysis
+        run: python -m TopoAnalysis.gdal_setup doctor
+      - name: ReadAsArray must work, not merely import
+        shell: python
+        run: |
+          import numpy as np
+          from osgeo import gdal, gdal_array  # noqa: F401
+          ds = gdal.GetDriverByName('MEM').Create('', 4, 3, 1, gdal.GDT_Float32)
+          ds.GetRasterBand(1).WriteArray(np.arange(12, dtype='float32').reshape(3, 4))
+          assert ds.ReadAsArray().shape == (3, 4)
+          print('gdal', gdal.__version__, 'numpy bridge ok')
+      - name: Test, including the GDAL-marked cases
+        working-directory: TopoAnalysis
+        run: python -m pytest -q
+
   # The no-root route.  Slow, so it is scheduled or triggered by hand.
   gdal-from-source:
     name: GDAL built from source
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Half an hour of compute, so not on every push.  Runs on the weekly
+    # schedule, on demand, or on a pull request labelled `test-source-build`
+    # -- which is how to exercise it on a change that touches the build
+    # itself, rather than finding out the following Monday.
+    if: >-
+      github.event_name == 'schedule'
+      || github.event_name == 'workflow_dispatch'
+      || contains(github.event.pull_request.labels.*.name, 'test-source-build')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
